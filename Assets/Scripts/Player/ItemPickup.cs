@@ -3,113 +3,176 @@ using UnityEngine;
 public class ItemPickup : MonoBehaviour
 {
     public InventoryItemData itemData;
-    public int amount = 1;
+    public int  amount     = 1;
+    public bool wasDropped = false;
 
+    // Currently closest pickup to the player (read by HUDManager to show Pickup button)
     public static ItemPickup NearestPickup;
 
-    public bool wasDropped = false;
+    // ─── Trigger ─────────────────────────────────────────────────────────────
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (!other.CompareTag("Player")) return;
+
         if (itemData == null)
         {
-            Debug.LogError($"[ItemPickup] ItemData is missing on {gameObject.name}");
+            Debug.LogError($"[ItemPickup] ⚠️ ItemData is null on '{gameObject.name}'. " +
+                           "Assign an InventoryItemData to the prefab or the spawned instance.");
             return;
         }
 
-        if (other.CompareTag("Player"))
+        // Dropped items always require a manual press
+        if (wasDropped)
         {
-            // If it was dropped, we FORCE manual pickup for EVERYTHING (Weapon, Ammo, Grenade)
-            if (wasDropped)
-            {
-                Debug.Log($"[ItemPickup] Item {itemData.itemName} was dropped. Manual pickup required.");
-                NearestPickup = this;
-                return;
-            }
+            NearestPickup = this;
+            Debug.Log($"[ItemPickup] '{itemData.itemName}' was dropped — manual pickup required.");
+            return;
+        }
 
-            if (itemData.itemType == ItemType.Weapon)
-            {
-                Debug.Log($"[ItemPickup] Attempting to auto-pickup weapon: {itemData.itemName}");
-                // For weapons, we check if we can auto-pickup or need manual
-                if (BagManager.Instance != null && BagManager.Instance.TryAddWeapon(itemData.prefab, itemData))
-                {
+        switch (itemData.itemType)
+        {
+            case ItemType.Weapon:
+                TryAutoPickupWeapon();
+                break;
+
+            case ItemType.Ammo:
+                if (BagManager.Instance != null &&
+                    BagManager.Instance.AddAmmo(itemData.ammoType, amount, itemData.weight * amount))
                     Destroy(gameObject);
-                }
-                else
-                {
-                    // Need manual pickup (slots full)
-                    NearestPickup = this;
-                    Debug.Log($"[ItemPickup] Slots full for {itemData.itemName}. Enabled manual pickup.");
-                }
-            }
-            else
-            {
-                // Auto pickup for ammo/grenades
-                if (BagManager.Instance != null)
-                {
-                    bool pickedUp = false;
-                    if (itemData.itemType == ItemType.Ammo)
-                        pickedUp = BagManager.Instance.AddAmmo(itemData.ammoType, amount, itemData.weight * amount);
-                    else if (itemData.itemType == ItemType.Grenade)
-                        pickedUp = BagManager.Instance.AddGrenade(amount, itemData.weight * amount);
-                    else if (itemData.itemType == ItemType.Medikit)
-                        pickedUp = BagManager.Instance.AddMedikit(amount, itemData.weight * amount);
-                    else if (itemData.itemType == ItemType.ProteinShake)
-                        pickedUp = BagManager.Instance.AddProteinShake(amount, itemData.weight * amount);
-                    else if (itemData.itemType == ItemType.Scope)
-                        pickedUp = BagManager.Instance.AddScope(amount, itemData.weight * amount);
+                break;
 
-                    if (pickedUp) Destroy(gameObject);
-                }
-            }
+            case ItemType.Grenade:
+                if (BagManager.Instance != null &&
+                    BagManager.Instance.AddGrenade(amount, itemData.weight * amount))
+                    Destroy(gameObject);
+                break;
+
+            case ItemType.Medikit:
+                if (BagManager.Instance != null &&
+                    BagManager.Instance.AddMedikit(amount, itemData.weight * amount))
+                    Destroy(gameObject);
+                break;
+
+            case ItemType.ProteinShake:
+                if (BagManager.Instance != null &&
+                    BagManager.Instance.AddProteinShake(amount, itemData.weight * amount))
+                    Destroy(gameObject);
+                break;
+
+            case ItemType.Scope:
+                if (BagManager.Instance != null &&
+                    BagManager.Instance.AddScope(amount, itemData.weight * amount))
+                    Destroy(gameObject);
+                break;
+        }
+    }
+
+    private void TryAutoPickupWeapon()
+    {
+        Debug.Log($"[ItemPickup] Attempting to auto-pickup weapon: {itemData.itemName}");
+
+        if (itemData.prefab == null)
+        {
+            Debug.LogError($"[ItemPickup] ⚠️ '{itemData.itemName}' has no Prefab assigned in its InventoryItemData. " +
+                           "Cannot equip. Assign the weapon GameObject prefab.");
+            return;
+        }
+
+        if (BagManager.Instance == null)
+        {
+            Debug.LogError("[ItemPickup] BagManager.Instance is null — cannot pick up weapon.");
+            return;
+        }
+
+        bool added = BagManager.Instance.TryAddWeapon(itemData.prefab, itemData);
+        if (added)
+        {
+            Debug.Log($"[ItemPickup] ✅ Auto-equipped '{itemData.itemName}'.");
+            Destroy(gameObject);
+        }
+        else
+        {
+            // Slots full — show Pickup button so player can swap
+            NearestPickup = this;
+            Debug.Log($"[ItemPickup] Slots full for '{itemData.itemName}'. Stand here and press Pickup to swap.");
         }
     }
 
     private void OnTriggerExit2D(Collider2D other)
     {
-        if (other.CompareTag("Player"))
+        if (!other.CompareTag("Player")) return;
+        if (NearestPickup == this)
         {
-            if (NearestPickup == this) NearestPickup = null;
+            NearestPickup = null;
+            Debug.Log($"[ItemPickup] Left '{itemData?.itemName}' — NearestPickup cleared.");
         }
     }
 
+    // ─── Manual Pickup (called by HUD Pickup button) ──────────────────────────
+
     public void PickingUpManually()
     {
-        if (BagManager.Instance != null)
-        {
-            bool success = false;
-            
-            if (itemData.itemType == ItemType.Weapon)
-            {
-                BagManager.Instance.SwapCurrentWeapon(itemData.prefab);
-                success = true; // Swap always succeeds (drops current)
-            }
-            else if (itemData.itemType == ItemType.Ammo)
-            {
-                success = BagManager.Instance.AddAmmo(itemData.ammoType, amount, itemData.weight * amount);
-            }
-            else if (itemData.itemType == ItemType.Grenade)
-            {
-                success = BagManager.Instance.AddGrenade(amount, itemData.weight * amount);
-            }
-            else if (itemData.itemType == ItemType.Medikit)
-            {
-                success = BagManager.Instance.AddMedikit(amount, itemData.weight * amount);
-            }
-            else if (itemData.itemType == ItemType.ProteinShake)
-            {
-                success = BagManager.Instance.AddProteinShake(amount, itemData.weight * amount);
-            }
-            else if (itemData.itemType == ItemType.Scope)
-            {
-                success = BagManager.Instance.AddScope(amount, itemData.weight * amount);
-            }
+        Debug.Log($"[ItemPickup] PickingUpManually() called for '{itemData?.itemName}'.");
 
-            if (success)
-            {
-                Destroy(gameObject);
-                if (NearestPickup == this) NearestPickup = null;
-            }
+        if (BagManager.Instance == null)
+        {
+            Debug.LogError("[ItemPickup] BagManager.Instance is null — cannot pick up manually.");
+            return;
+        }
+
+        if (itemData == null)
+        {
+            Debug.LogError($"[ItemPickup] itemData is null on '{gameObject.name}'.");
+            return;
+        }
+
+        bool success = false;
+
+        switch (itemData.itemType)
+        {
+            case ItemType.Weapon:
+                if (itemData.prefab == null)
+                {
+                    Debug.LogError($"[ItemPickup] ⚠️ '{itemData.itemName}' prefab is null — cannot swap.");
+                    return;
+                }
+                // Swap drops the current active weapon and equips this one
+                BagManager.Instance.SwapCurrentWeapon(itemData.prefab);
+                success = true;
+                Debug.Log($"[ItemPickup] ✅ Swapped current weapon for '{itemData.itemName}'.");
+                break;
+
+            case ItemType.Ammo:
+                success = BagManager.Instance.AddAmmo(itemData.ammoType, amount, itemData.weight * amount);
+                break;
+
+            case ItemType.Grenade:
+                success = BagManager.Instance.AddGrenade(amount, itemData.weight * amount);
+                break;
+
+            case ItemType.Medikit:
+                success = BagManager.Instance.AddMedikit(amount, itemData.weight * amount);
+                break;
+
+            case ItemType.ProteinShake:
+                success = BagManager.Instance.AddProteinShake(amount, itemData.weight * amount);
+                break;
+
+            case ItemType.Scope:
+                success = BagManager.Instance.AddScope(amount, itemData.weight * amount);
+                break;
+        }
+
+        if (success)
+        {
+            if (NearestPickup == this) NearestPickup = null;
+            Destroy(gameObject);
+        }
+        else
+        {
+            Debug.LogWarning($"[ItemPickup] Manual pickup failed for '{itemData.itemName}' " +
+                             $"(bag full or other error).");
         }
     }
 }

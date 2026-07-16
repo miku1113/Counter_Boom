@@ -1,227 +1,257 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/// <summary>
+/// Manages the player's bag inventory: ammo, grenades, consumables, and scope counts.
+/// Weapon slot state is owned exclusively by WeaponController; this class delegates to it.
+/// </summary>
 public class BagManager : MonoBehaviour
 {
     public static BagManager Instance;
 
+    // ─── Fields ──────────────────────────────────────────────────────────────
+
     [Header("Capacity")]
-    public int maxWeight = 100;
-
+    public int maxWeight     = 100;
     public int currentWeight = 0;
-    
+
     [Header("Drop Settings")]
-    public Transform dropPoint; // Assign a child transform on Player for invalid drop location
-    public float dropRadius = 0.5f; // Random circle radius for fallback/spread
-
-    // ... (rest of fields)
-
-    private void SpawnPickup(InventoryItemData data, int amount)
-    {
-        Debug.Log($"[BagManager] Attempting to spawn pickup: {data?.itemName} (Amount: {amount})");
-
-        if (data == null)
-        {
-            Debug.LogError("[BagManager] Cannot spawn pickup. InventoryItemData passed is NULL!");
-            return;
-        }
-
-        if (data.prefab == null)
-        {
-            Debug.LogError($"[BagManager] Cannot spawn pickup for '{data.itemName}'. The 'Prefab' field in its InventoryItemData is NOT assigned!");
-            return;
-        }
-
-        Vector3 spawnPos;
-        if (dropPoint != null)
-        {
-             // Use Drop Point position with random offset to prevent stacking
-             Vector2 randomOffset = Random.insideUnitCircle * dropRadius;
-             spawnPos = dropPoint.position + new Vector3(randomOffset.x, randomOffset.y, 0f);
-        }
-        else
-        {
-             // Fallback to feet level logic
-             Debug.LogWarning("[BagManager] DropPoint not assigned! Using fallback calculation.");
-             float randomX = Random.Range(-dropRadius, dropRadius);
-             float dropY = -0.5f; 
-             spawnPos = transform.position + new Vector3(randomX, dropY, 0f);
-             spawnPos.z = 0f;
-        }
-
-        Debug.Log($"[BagManager] Spawning at: {spawnPos}");
-
-        GameObject pickupObj = Instantiate(data.prefab, spawnPos, Quaternion.identity);
-            
-        // Ensure physics setup for pickup
-        if (pickupObj.GetComponent<Collider2D>() == null)
-        {
-            Debug.Log("[BagManager] Adding missing CircleCollider2D to pickup.");
-            CircleCollider2D col = pickupObj.AddComponent<CircleCollider2D>();
-            col.isTrigger = true;
-            col.radius = 0.5f; 
-        }
-            
-        ItemPickup pickup = pickupObj.GetComponent<ItemPickup>();
-        if (pickup == null) pickup = pickupObj.AddComponent<ItemPickup>();
-        pickup.itemData = data;
-        pickup.amount = amount;
-        pickup.wasDropped = true; // Mark as dropped so it requires manual pickup
-        
-        Debug.Log($"[BagManager] Successfully spawned {pickupObj.name} at {pickupObj.transform.position}");
-    }
-
-    [Header("Weapon Slots")]
-    public HandheldWeapon[] weaponSlots = new HandheldWeapon[2];
-    public int currentWeaponIndex = -1; // -1 means no weapon equipped
+    public Transform dropPoint;          // Child transform on Player used as drop origin
+    public float     dropRadius = 0.5f;  // Spread radius for dropped items
 
     [Header("Inventory Data Registry")]
-    public List<InventoryItemData> allItemData; // Assign in Inspector: All Ammo and Grenade ScriptableObjects
+    public List<InventoryItemData> allItemData; // All ammo and grenade ScriptableObjects
 
-    [Header("Inventory Data")]
+    [Header("Inventory Counts")]
     public Dictionary<AmmoType, int> ammoInventory = new Dictionary<AmmoType, int>();
-
-    public int grenadeCount = 0;
-    public int scopeCount = 0; // New Scope Inventory
-    public int medikitCount = 0;
+    public int grenadeCount      = 0;
+    public int scopeCount        = 0;
+    public int medikitCount      = 0;
     public int proteinShakeCount = 0;
 
     [Header("References")]
-    [SerializeField] private WeaponController weaponController;
+    [SerializeField] private WeaponController weaponController; // Optional — falls back to WeaponController.Instance
 
-    // Events
+    // ─── Events ──────────────────────────────────────────────────────────────
+
     public System.Action<AmmoType, int> OnAmmoUpdated;
+    public System.Action<int>           OnGrenadeUpdated;
+    public System.Action<int>           OnScopeUpdated;
+    public System.Action<int>           OnMedikitUpdated;
+    public System.Action<int>           OnProteinShakeUpdated;
+    public System.Action                OnBagUpdated;
 
-    public System.Action<int> OnGrenadeUpdated;
-    public System.Action<int> OnScopeUpdated; // New Event
-    public System.Action<int> OnMedikitUpdated;
-    public System.Action<int> OnProteinShakeUpdated;
-    public System.Action OnBagUpdated;
-    public System.Action<int, HandheldWeapon> OnWeaponSlotUpdated;
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
 
     private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // Initialize ammo dictionary
         foreach (AmmoType type in System.Enum.GetValues(typeof(AmmoType)))
         {
             if (type != AmmoType.None) ammoInventory[type] = 0;
         }
     }
 
-    public bool CanAddItem(int weight)
+    // ─── Weapon Slot Delegation ──────────────────────────────────────────────
+    // WeaponController owns weaponSlots[]. BagManager delegates to it so other
+    // systems (HUDManager, BagUI) have a single consistent access point.
+
+    /// <summary>Returns the weapon currently in a specific slot (null if empty).</summary>
+    public HandheldWeapon GetWeaponInSlot(int slot)
+        => WeaponController.Instance != null ? WeaponController.Instance.GetWeaponInSlot(slot) : null;
+
+    /// <summary>Returns the index of the currently active weapon slot.</summary>
+    public int GetCurrentWeaponIndex()
+        => WeaponController.Instance != null ? WeaponController.Instance.GetCurrentSlot() : -1;
+
+    // ─── Capacity ────────────────────────────────────────────────────────────
+
+    public bool CanAddItem(int weight) => currentWeight + weight <= maxWeight;
+
+    // ─── Ammo ────────────────────────────────────────────────────────────────
+
+    public bool AddAmmo(AmmoType type, int amount, int weight)
     {
-        return currentWeight + weight <= maxWeight;
+        if (!CanAddItem(weight)) return false;
+        ammoInventory[type] += amount;
+        currentWeight       += weight;
+        OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
+        OnBagUpdated?.Invoke();
+        return true;
     }
-    
-    // --- Scopes ---
-    
+
+    public void ConsumeAmmo(AmmoType type, int amount)
+    {
+        if (!ammoInventory.ContainsKey(type)) return;
+        ammoInventory[type] = Mathf.Max(0, ammoInventory[type] - amount);
+        OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
+        OnBagUpdated?.Invoke();
+    }
+
+    public void DropAmmo(AmmoType type, InventoryItemData data, int amount)
+    {
+        if (!ammoInventory.ContainsKey(type) || ammoInventory[type] < amount) return;
+        ammoInventory[type] -= amount;
+        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight * amount);
+        SpawnPickup(data, amount);
+        OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
+        OnBagUpdated?.Invoke();
+    }
+
+    public int GetAmmo(AmmoType type) => ammoInventory.ContainsKey(type) ? ammoInventory[type] : 0;
+
+    // ─── Grenades ────────────────────────────────────────────────────────────
+
+    public bool AddGrenade(int amount, int weight)
+    {
+        if (!CanAddItem(weight)) return false;
+        grenadeCount  += amount;
+        currentWeight += weight;
+        OnGrenadeUpdated?.Invoke(grenadeCount);
+        OnBagUpdated?.Invoke();
+        return true;
+    }
+
+    public void ConsumeGrenade()
+    {
+        if (grenadeCount <= 0) return;
+        grenadeCount--;
+        currentWeight = Mathf.Max(0, currentWeight - 5);
+        OnGrenadeUpdated?.Invoke(grenadeCount);
+        OnBagUpdated?.Invoke();
+    }
+
+    public void DropGrenade(InventoryItemData data)
+    {
+        if (grenadeCount <= 0) return;
+        grenadeCount--;
+        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        SpawnPickup(data, 1);
+        OnGrenadeUpdated?.Invoke(grenadeCount);
+        OnBagUpdated?.Invoke();
+    }
+
+    public void DropMedikit(InventoryItemData data)
+    {
+        if (medikitCount <= 0) return;
+        medikitCount--;
+        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        SpawnPickup(data, 1);
+        OnMedikitUpdated?.Invoke(medikitCount);
+        OnBagUpdated?.Invoke();
+    }
+
+    public void DropProteinShake(InventoryItemData data)
+    {
+        if (proteinShakeCount <= 0) return;
+        proteinShakeCount--;
+        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        SpawnPickup(data, 1);
+        OnProteinShakeUpdated?.Invoke(proteinShakeCount);
+        OnBagUpdated?.Invoke();
+    }
+
+    public void DropScope(InventoryItemData data)
+    {
+        if (scopeCount <= 0) return;
+        scopeCount--;
+        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        SpawnPickup(data, 1);
+        OnScopeUpdated?.Invoke(scopeCount);
+        OnBagUpdated?.Invoke();
+    }
+
+    // ─── Scopes ──────────────────────────────────────────────────────────────
+
+    private WeaponController WC => weaponController != null ? weaponController : WeaponController.Instance;
+
     public bool AddScope(int amount, int weight)
     {
-        // 1. Try to auto-equip to current weapon
-        if (weaponController != null && weaponSlots[weaponController.currentSlot] != null) // Access via slots directly since index is public in BagManager logic for slots usually, or we trust WeaponController currentSlot sync
+        // First try to auto-equip to the current weapon
+        var wc = WC;
+        if (wc != null)
         {
-            int slot = weaponController.currentSlot; // Assuming BagManager tracks via UI or sync. Wait, detailed logic:
-            
-            // Check current weapon
-            var currentWep = (currentWeaponIndex >= 0 && currentWeaponIndex < weaponSlots.Length) ? weaponSlots[currentWeaponIndex] : null;
-
+            var currentWep = GetWeaponInSlot(GetCurrentWeaponIndex());
             if (currentWep != null && currentWep.supportsScope && !currentWep.hasScope)
             {
                 currentWep.hasScope = true;
-                currentWep.AttachScope(); // Optional visual method
+                currentWep.AttachScope();
+                wc.CheckZoom();
                 Debug.Log($"[BagManager] Auto-equipped Scope to {currentWep.weaponName}");
-                
-                // Trigger Zoom Update immediately
-                weaponController.CheckZoom();
-                
-                // One used, check remaining
                 amount--;
                 if (amount <= 0) return true;
             }
         }
 
-        // 2. Add remaining to bag
+        // Remaining scopes go into the bag
         if (amount > 0 && CanAddItem(weight))
         {
-             scopeCount += amount;
-             currentWeight += weight;
-             OnScopeUpdated?.Invoke(scopeCount);
-             OnBagUpdated?.Invoke();
-             return true;
-        }
-        
-        return false;
-    }
-    
-    public bool TryGetScopeFromBag()
-    {
-        if (scopeCount > 0)
-        {
-            scopeCount--;
-            // Weight reduction (assuming 1 scope = 2 weight, ideally get from Data but simplistic here)
-            currentWeight = Mathf.Max(0, currentWeight - 2); 
+            scopeCount    += amount;
+            currentWeight += weight;
             OnScopeUpdated?.Invoke(scopeCount);
             OnBagUpdated?.Invoke();
             return true;
         }
         return false;
     }
-    
-    // --- End Scopes ---
 
-    public bool AddAmmo(AmmoType type, int amount, int weight)
+    public bool TryGetScopeFromBag()
     {
-        if (CanAddItem(weight))
-        {
-            ammoInventory[type] += amount;
-            currentWeight += weight;
-            OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
-            OnBagUpdated?.Invoke();
-            return true;
-        }
-        return false;
+        if (scopeCount <= 0) return false;
+        scopeCount--;
+        currentWeight = Mathf.Max(0, currentWeight - 2);
+        OnScopeUpdated?.Invoke(scopeCount);
+        OnBagUpdated?.Invoke();
+        return true;
     }
 
-    public bool AddGrenade(int amount, int weight)
+    // ─── Consumables ─────────────────────────────────────────────────────────
+
+    public bool AddMedikit(int amount, int weight)
     {
-        if (CanAddItem(weight))
-        {
-            grenadeCount += amount;
-            currentWeight += weight;
-            OnGrenadeUpdated?.Invoke(grenadeCount);
-            OnBagUpdated?.Invoke();
-            return true;
-        }
-        return false;
+        if (!CanAddItem(weight)) return false;
+        medikitCount  += amount;
+        currentWeight += weight;
+        OnMedikitUpdated?.Invoke(medikitCount);
+        OnBagUpdated?.Invoke();
+        return true;
     }
 
-    public void ConsumeAmmo(AmmoType type, int amount)
+    public bool AddProteinShake(int amount, int weight)
     {
-        if (ammoInventory.ContainsKey(type))
-        {
-            ammoInventory[type] = Mathf.Max(0, ammoInventory[type] - amount);
-            // In this implementation, we don't reduce weight when bullets are fired 
-            // to keep it simple, as if weight is per box/bag.
-            OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
-            OnBagUpdated?.Invoke();
-        }
+        if (!CanAddItem(weight)) return false;
+        proteinShakeCount += amount;
+        currentWeight     += weight;
+        OnProteinShakeUpdated?.Invoke(proteinShakeCount);
+        OnBagUpdated?.Invoke();
+        return true;
     }
 
-    public void ConsumeGrenade()
+    public void UseMedikit()
     {
-        if (grenadeCount > 0)
-        {
-            grenadeCount--;
-            // Weight reduction for grenade? Let's say yes since it's a big item.
-            // (Need to know original weight per grenade, let's assume 5 for now)
-            currentWeight = Mathf.Max(0, currentWeight - 5); 
-            OnGrenadeUpdated?.Invoke(grenadeCount);
-            OnBagUpdated?.Invoke();
-        }
+        if (medikitCount <= 0) return;
+        var health = PlayerHealth.Instance;
+        if (health == null || health.GetCurrentHealth() >= health.GetMaxHealth()) return;
+        medikitCount--;
+        health.Heal(25);
+        OnMedikitUpdated?.Invoke(medikitCount);
+        OnBagUpdated?.Invoke();
     }
+
+    public void UseProteinShake()
+    {
+        if (proteinShakeCount <= 0) return;
+        var player = FindObjectOfType<PlayerController>();
+        if (player == null) return;
+        proteinShakeCount--;
+        player.ApplySpeedBoost(1.5f, 5f);
+        OnProteinShakeUpdated?.Invoke(proteinShakeCount);
+        OnBagUpdated?.Invoke();
+    }
+
+    // ─── Weapons ─────────────────────────────────────────────────────────────
 
     public bool TryAddWeapon(GameObject weaponPrefab, InventoryItemData data)
     {
@@ -231,202 +261,135 @@ public class BagManager : MonoBehaviour
             return false;
         }
 
-        // 1. Check for empty slot
-        for (int i = 0; i < weaponSlots.Length; i++)
+        var wc = WC;
+        if (wc == null)
         {
-            if (weaponSlots[i] == null)
+            Debug.LogError("[BagManager] WeaponController not found — cannot add weapon.");
+            return false;
+        }
+
+        int weaponWeight = data?.weight ?? 0;
+        if (!CanAddItem(weaponWeight))
+        {
+            Debug.Log($"[BagManager] Bag too heavy for '{data?.itemName}' (weight {weaponWeight}).");
+            return false;
+        }
+
+        // Find the first empty slot
+        for (int i = 0; i < 2; i++)
+        {
+            if (GetWeaponInSlot(i) == null)
             {
-                EquipToSlot(i, weaponPrefab);
+                wc.EquipWeaponToSlot(i, weaponPrefab);
+                currentWeight += weaponWeight;
+                Debug.Log($"[BagManager] ✅ Equipped '{data?.itemName}' to slot {i} (weight +{weaponWeight} = {currentWeight}).");
+                OnBagUpdated?.Invoke();
                 return true;
             }
         }
-
-        // 2. If no empty slot, we need manual pickup (handled by UI button usually)
-        // This method will be called directly by the Pickup Button later.
+        Debug.Log($"[BagManager] Both slots full — '{data?.itemName}' needs manual swap.");
         return false;
     }
 
     public void SwapCurrentWeapon(GameObject newWeaponPrefab)
     {
-        int slotToUse = currentWeaponIndex != -1 ? currentWeaponIndex : 0;
-        
-        // Drop current
-        DropWeapon(slotToUse);
-        
-        // Equip new
-        EquipToSlot(slotToUse, newWeaponPrefab);
-    }
+        // Capture which slot is currently active BEFORE dropping clears/changes it.
+        // ClearWeaponSlot will switch currentSlot to the OTHER slot if the active one is cleared.
+        int targetSlot = GetCurrentWeaponIndex();
+        if (targetSlot < 0) targetSlot = 0;
 
-    private void EquipToSlot(int slotIndex, GameObject prefab)
-    {
-        // This would interact with WeaponController to actually instantiate the weapon
-        if (weaponController != null)
-        {
-            weaponController.EquipWeaponToSlot(slotIndex, prefab);
-            // WeaponController will call back or we set the slot reference here if it's external
-        }
-    }
+        Debug.Log($"[BagManager] SwapCurrentWeapon: dropping slot {targetSlot}, equipping new weapon.");
+        DropWeapon(targetSlot);
 
-    public void SetWeaponInSlot(int slotIndex, HandheldWeapon weapon)
-    {
-        weaponSlots[slotIndex] = weapon;
-        
-        // Check Auto-Equip Scope from Bag
-        if (weapon != null && weapon.supportsScope && !weapon.hasScope && scopeCount > 0)
-        {
-            if (TryGetScopeFromBag())
-            {
-                weapon.hasScope = true;
-                weapon.AttachScope(); // Optional visual
-                Debug.Log($"[BagManager] Auto-equipped Scope from bag to new weapon {weapon.weaponName}");
-                
-                // If this is the active weapon, update zoom
-                if (currentWeaponIndex == slotIndex && weaponController != null)
-                {
-                   weaponController.CheckZoom();
-                }
-            }
-        }
-        
-        OnWeaponSlotUpdated?.Invoke(slotIndex, weapon);
-    }
-
-    public InventoryItemData GetItemData(AmmoType type)
-    {
-        if (allItemData == null) return null;
-        return allItemData.Find(x => x.itemType == ItemType.Ammo && x.ammoType == type);
-    }
-
-    public InventoryItemData GetGrenadeData()
-    {
-        if (allItemData == null) return null;
-        return allItemData.Find(x => x.itemType == ItemType.Grenade);
-    }
-
-    public int GetAmmo(AmmoType type)
-    {
-        return ammoInventory.ContainsKey(type) ? ammoInventory[type] : 0;
-    }
-
-    public void DropAmmo(AmmoType type, InventoryItemData data, int amount)
-    {
-        if (ammoInventory.ContainsKey(type) && ammoInventory[type] >= amount)
-        {
-            ammoInventory[type] -= amount;
-            
-            // Reduce weight
-            if (data != null)
-            {
-                currentWeight = Mathf.Max(0, currentWeight - (data.weight * amount));
-            }
-
-            // Spawn in world
-            SpawnPickup(data, amount);
-            OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
-            OnBagUpdated?.Invoke();
-        }
-    }
-
-    public void DropGrenade(InventoryItemData data)
-    {
-        if (grenadeCount > 0)
-        {
-            grenadeCount--;
-
-            // Reduce weight
-            if (data != null)
-            {
-                currentWeight = Mathf.Max(0, currentWeight - data.weight);
-            }
-
-            SpawnPickup(data, 1);
-            OnGrenadeUpdated?.Invoke(grenadeCount);
-            OnBagUpdated?.Invoke();
-        }
+        // After ClearWeaponSlot, currentSlot may have changed to the other slot.
+        // We always equip the new gun to the slot we just cleared (targetSlot),
+        // then explicitly switch back to it.
+        WC?.EquipWeaponToSlot(targetSlot, newWeaponPrefab);
+        WC?.SwitchToSlot(targetSlot);
+        Debug.Log($"[BagManager] SwapCurrentWeapon: new weapon placed in slot {targetSlot} and activated.");
     }
 
     public void DropWeapon(int slotIndex)
     {
-        if (slotIndex >= 0 && slotIndex < weaponSlots.Length && weaponSlots[slotIndex] != null)
-        {
-            InventoryItemData data = weaponSlots[slotIndex].itemData;
-            if (data != null) SpawnPickup(data, 1);
-            
-            // Cleanup slot
-            UnsubscribeFromWeapon(weaponSlots[slotIndex]);
-            Destroy(weaponSlots[slotIndex].gameObject);
-            weaponSlots[slotIndex] = null;
-            
-            OnWeaponSlotUpdated?.Invoke(slotIndex, null);
-            OnBagUpdated?.Invoke();
-        }
+        HandheldWeapon weapon = GetWeaponInSlot(slotIndex);
+        if (weapon == null) return;
+
+        InventoryItemData data = weapon.itemData;
+        int weaponWeight = data?.weight ?? 0;
+        if (data != null) SpawnPickup(data, 1);
+
+        // Deduct weight before clearing the slot
+        currentWeight = Mathf.Max(0, currentWeight - weaponWeight);
+
+        // ClearWeaponSlot properly destroys the GameObject and frees the slot
+        WC?.ClearWeaponSlot(slotIndex);
+        OnBagUpdated?.Invoke();
     }
 
+    // ─── Data Lookups ─────────────────────────────────────────────────────────
 
+    public InventoryItemData GetItemData(AmmoType type)
+        => allItemData?.Find(x => x.itemType == ItemType.Ammo && x.ammoType == type);
 
-    private void UnsubscribeFromWeapon(HandheldWeapon weapon)
-    {
-        // WeaponController handles this usually, but we need to make sure we don't have dangling events
-        // (Better to have WeaponController handle the actual Destroy)
-    }
+    public InventoryItemData GetGrenadeData()
+        => allItemData?.Find(x => x.itemType == ItemType.Grenade);
 
-    public bool AddMedikit(int amount, int weight)
-    {
-        if (CanAddItem(weight))
-        {
-            medikitCount += amount;
-            currentWeight += weight;
-            OnMedikitUpdated?.Invoke(medikitCount);
-            OnBagUpdated?.Invoke();
-            return true;
-        }
-        return false;
-    }
+    public InventoryItemData GetMedikitData()
+        => allItemData?.Find(x => x.itemType == ItemType.Medikit);
 
-    public bool AddProteinShake(int amount, int weight)
-    {
-        if (CanAddItem(weight))
-        {
-            proteinShakeCount += amount;
-            currentWeight += weight;
-            OnProteinShakeUpdated?.Invoke(proteinShakeCount);
-            OnBagUpdated?.Invoke();
-            return true;
-        }
-        return false;
-    }
+    public InventoryItemData GetProteinShakeData()
+        => allItemData?.Find(x => x.itemType == ItemType.ProteinShake);
 
-    public void UseMedikit()
-    {
-        if (medikitCount > 0)
-        {
-            var health = PlayerHealth.Instance;
-            if (health != null && health.GetCurrentHealth() < health.GetMaxHealth())
-            {
-                medikitCount--;
-                // Simplification: ignore weight reduction on use for now or needs granular tracking
-                // assuming 0 weight or handled simply
-                health.Heal(25); 
-                OnMedikitUpdated?.Invoke(medikitCount);
-                OnBagUpdated?.Invoke();
-            }
-        }
-    }
-
-    public void UseProteinShake()
-    {
-        if (proteinShakeCount > 0)
-        {
-            var player = FindObjectOfType<PlayerController>();
-            if (player != null)
-            {
-                proteinShakeCount--;
-                player.ApplySpeedBoost(1.5f, 5f);
-                OnProteinShakeUpdated?.Invoke(proteinShakeCount);
-                OnBagUpdated?.Invoke();
-            }
-        }
-    }
+    public InventoryItemData GetScopeData()
+        => allItemData?.Find(x => x.itemType == ItemType.Scope);
 
     public int GetCurrentWeight() => currentWeight;
+
+    // ─── Private Helpers ─────────────────────────────────────────────────────
+
+    private void SpawnPickup(InventoryItemData data, int amount)
+    {
+        if (data == null)
+        {
+            Debug.LogError("[BagManager] Cannot spawn pickup: InventoryItemData is null.");
+            return;
+        }
+        if (data.prefab == null)
+        {
+            Debug.LogError($"[BagManager] Cannot spawn pickup for '{data.itemName}': Prefab is not assigned.");
+            return;
+        }
+
+        Vector3 spawnPos;
+        if (dropPoint != null)
+        {
+            Vector2 randomOffset = Random.insideUnitCircle * dropRadius;
+            spawnPos = dropPoint.position + new Vector3(randomOffset.x, randomOffset.y, 0f);
+        }
+        else
+        {
+            Debug.LogWarning("[BagManager] DropPoint not assigned! Using fallback position.");
+            float randomX = Random.Range(-dropRadius, dropRadius);
+            spawnPos   = transform.position + new Vector3(randomX, -0.5f, 0f);
+            spawnPos.z = 0f;
+        }
+
+        GameObject pickupObj = Instantiate(data.prefab, spawnPos, Quaternion.identity);
+
+        // Ensure it has a trigger collider
+        if (pickupObj.GetComponent<Collider2D>() == null)
+        {
+            CircleCollider2D col = pickupObj.AddComponent<CircleCollider2D>();
+            col.isTrigger = true;
+            col.radius    = 0.5f;
+        }
+
+        ItemPickup pickup = pickupObj.GetComponent<ItemPickup>();
+        if (pickup == null) pickup = pickupObj.AddComponent<ItemPickup>();
+        pickup.itemData  = data;
+        pickup.amount    = amount;
+        pickup.wasDropped = true; // Requires manual pickup
+
+        Debug.Log($"[BagManager] Spawned {pickupObj.name} × {amount} at {spawnPos}");
+    }
 }

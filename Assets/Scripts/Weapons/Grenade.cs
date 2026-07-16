@@ -4,11 +4,13 @@ using System.Collections;
 public class Grenade : MonoBehaviour
 {
     [Header("Settings")]
-    public float fuseTime = 3f;
+    public float fuseTime        = 3f;
     public float explosionRadius = 5f;
-    public int damage = 50;
+    public int   damage          = 50;
+    public float throwForce      = 10f;
+
+    [Header("Effects")]
     public GameObject explosionEffect;
-    public float throwForce = 10f;
 
     [Header("Physics")]
     [SerializeField] private Rigidbody2D rb;
@@ -22,22 +24,20 @@ public class Grenade : MonoBehaviour
     {
         if (rb != null)
         {
-            // Use velocity for immediate response (better for top-down throws)
             rb.velocity = direction * throwForce;
             rb.AddTorque(10f, ForceMode2D.Impulse);
 
-            // Ignore collision with Player to prevent instant stop
+            // Ignore collision with the throwing player to prevent instant stop
             GameObject player = GameObject.FindGameObjectWithTag("Player");
             if (player != null)
             {
-                Collider2D playerCol = player.GetComponent<Collider2D>();
+                Collider2D playerCol  = player.GetComponent<Collider2D>();
                 Collider2D grenadeCol = GetComponent<Collider2D>();
                 if (playerCol != null && grenadeCol != null)
-                {
                     Physics2D.IgnoreCollision(playerCol, grenadeCol, true);
-                }
             }
         }
+
         StartCoroutine(FuseRoutine());
     }
 
@@ -49,30 +49,22 @@ public class Grenade : MonoBehaviour
 
     private void Explode()
     {
-        // 1. Visual Effect
+        // Visual effect
         if (explosionEffect != null)
-        {
             Instantiate(explosionEffect, transform.position, Quaternion.identity);
-        }
         else
-        {
-            // Fallback visualization if no prefab assigned
-            Debug.Log("Grenade: No explosion effect assigned! Creating debug sphere.");
-            GameObject debugSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            debugSphere.transform.position = transform.position;
-            debugSphere.transform.localScale = Vector3.one * explosionRadius * 2;
-            Destroy(debugSphere.GetComponent<Collider>()); // Visual only
-            Material mat = debugSphere.GetComponent<Renderer>().material;
-            mat.color = new Color(1, 0, 0, 0.5f); // Red transparent
-            Destroy(debugSphere, 0.5f);
-        }
+            Debug.LogWarning("[Grenade] No explosion effect prefab assigned.");
 
-        // 2. Damage Logic
-        Collider2D[] hitObjects = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
-        foreach (Collider2D obj in hitObjects)
+        // Area damage — apply to anything with a PlayerHealth component in radius
+        Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
+        foreach (Collider2D col in hitColliders)
         {
-            // Only damage things that have health - placeholder logic
-            Debug.Log($"Grenade hit: {obj.name}");
+            PlayerHealth health = col.GetComponent<PlayerHealth>();
+            if (health != null)
+            {
+                health.TakeDamage(damage);
+                Debug.Log($"[Grenade] Dealt {damage} damage to {col.name}.");
+            }
         }
 
         Destroy(gameObject);

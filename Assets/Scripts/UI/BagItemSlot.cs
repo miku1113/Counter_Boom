@@ -11,6 +11,8 @@ public class BagItemSlot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
     [SerializeField] private TextMeshProUGUI amountText;
     [SerializeField] private Button useButton;
     [SerializeField] private TextMeshProUGUI itemNameText;
+    
+    [System.NonSerialized] public int weaponSlotIndex = -1;
 
     private CanvasGroup canvasGroup;
     private RectTransform rectTransform;
@@ -107,10 +109,14 @@ public class BagItemSlot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
                     BagManager.Instance.DropAmmo(itemData.ammoType, itemData, amount);
                 else if (itemData.itemType == ItemType.Grenade)
                     BagManager.Instance.DropGrenade(itemData);
+                else if (itemData.itemType == ItemType.Medikit)
+                    BagManager.Instance.DropMedikit(itemData);
+                else if (itemData.itemType == ItemType.ProteinShake)
+                    BagManager.Instance.DropProteinShake(itemData);
+                else if (itemData.itemType == ItemType.Scope)
+                    BagManager.Instance.DropScope(itemData);
                 else if (itemData.itemType == ItemType.Weapon)
-                    // Handling weapon dropping from slots would be slightly different
-                    // but for general inventory items:
-                    BagManager.Instance.DropWeapon(0); 
+                    BagManager.Instance.DropWeapon(weaponSlotIndex != -1 ? weaponSlotIndex : 0); 
             }
             
             Destroy(gameObject);

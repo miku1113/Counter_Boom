@@ -5,233 +5,183 @@ using System.Collections.Generic;
 
 public class OfflineNetworkManager : MonoBehaviour
 {
-    private NetworkManager networkManager;
-    private UnityTransport transport;
+    private NetworkManager    networkManager;
+    private UnityTransport    transport;
     private LocalNetworkDiscovery discovery;
-    
-    public bool IsHost { get; private set; }
-    public List<string> ConnectedPlayers { get; private set; } = new List<string>();
-    
-    public event System.Action OnServerStarted;
-    public event System.Action OnClientConnected;
-    public event System.Action OnConnectionFailed;
+
+    public bool          IsHost           { get; private set; }
+    public List<string>  ConnectedPlayers { get; private set; } = new List<string>();
+
+    public event System.Action               OnServerStarted;
+    public event System.Action               OnClientConnected;
+    public event System.Action               OnConnectionFailed;
     public event System.Action<List<string>> OnPlayerListChanged;
-    
+
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
+
     private void Awake()
     {
-        Debug.Log("[OfflineNetwork] Awake - Initializing components...");
-        
-        networkManager = GetComponent<NetworkManager>();
-        transport = GetComponent<UnityTransport>();
-        discovery = GetComponent<LocalNetworkDiscovery>();
-        
-        if (networkManager == null)
-        {
-            Debug.Log("[OfflineNetwork] Creating NetworkManager component");
-            networkManager = gameObject.AddComponent<NetworkManager>();
-        }
-        
-        if (transport == null)
-        {
-            Debug.Log("[OfflineNetwork] Creating UnityTransport component");
-            transport = gameObject.AddComponent<UnityTransport>();
-        }
-        
-        if (discovery == null)
-        {
-            Debug.Log("[OfflineNetwork] Creating LocalNetworkDiscovery component");
-            discovery = gameObject.AddComponent<LocalNetworkDiscovery>();
-        }
-        
-        // Initialize NetworkManager config BEFORE assigning transport
+        Debug.Log("[OfflineNetwork] Initialising components...");
+
+        networkManager = GetComponent<NetworkManager>()        ?? gameObject.AddComponent<NetworkManager>();
+        transport      = GetComponent<UnityTransport>()        ?? gameObject.AddComponent<UnityTransport>();
+        discovery      = GetComponent<LocalNetworkDiscovery>() ?? gameObject.AddComponent<LocalNetworkDiscovery>();
+
         if (networkManager.NetworkConfig == null)
-        {
-            Debug.Log("[OfflineNetwork] Creating NetworkConfig");
             networkManager.NetworkConfig = new Unity.Netcode.NetworkConfig();
-        }
-        
-        // Now assign the transport
+
         networkManager.NetworkConfig.NetworkTransport = transport;
-        
-        Debug.Log("[OfflineNetwork] ✅ All components initialized successfully");
+
+        Debug.Log("[OfflineNetwork] ✅ Components ready.");
     }
-    
+
+    private void OnDestroy()
+    {
+        if (networkManager == null) return;
+        networkManager.OnClientConnectedCallback  -= OnClientConnectedToServer;
+        networkManager.OnClientDisconnectCallback -= OnClientDisconnectedFromServer;
+        networkManager.OnClientConnectedCallback  -= OnClientConnectedAsClient;
+        networkManager.OnClientDisconnectCallback -= OnClientDisconnectedAsClient;
+    }
+
+    // ─── Host ─────────────────────────────────────────────────────────────────
+
     public void StartHost()
     {
         IsHost = true;
-        
-        Debug.Log("[OfflineNetwork] Starting host...");
-        Debug.Log($"[OfflineNetwork] NetworkManager: {(networkManager != null ? "Found" : "NULL")}");
-        Debug.Log($"[OfflineNetwork] Transport: {(transport != null ? "Found" : "NULL")}");
-        Debug.Log($"[OfflineNetwork] Discovery: {(discovery != null ? "Found" : "NULL")}");
-        
-        // Set transport to listen on all interfaces
         transport.SetConnectionData("0.0.0.0", 7777);
-        Debug.Log("[OfflineNetwork] Transport configured: 0.0.0.0:7777");
-        
-        // Start server
+        Debug.Log("[OfflineNetwork] Starting host on 0.0.0.0:7777...");
+
         bool started = networkManager.StartHost();
-        
         if (started)
         {
-            Debug.Log("[OfflineNetwork] ✅ Host started successfully!");
+            Debug.Log("[OfflineNetwork] ✅ Host started.");
             discovery.StartServer();
             OnServerStarted?.Invoke();
-            
-            // Subscribe to connection events
-            networkManager.OnClientConnectedCallback += OnClientConnectedToServer;
+            networkManager.OnClientConnectedCallback  += OnClientConnectedToServer;
             networkManager.OnClientDisconnectCallback += OnClientDisconnectedFromServer;
-            
-            Debug.Log("[OfflineNetwork] Listening for client connections...");
         }
         else
         {
-            Debug.LogError("[OfflineNetwork] ❌ Failed to start host!");
+            Debug.LogError("[OfflineNetwork] ❌ Failed to start host.");
             OnConnectionFailed?.Invoke();
         }
     }
-    
+
+    // ─── Client ───────────────────────────────────────────────────────────────
+
     public void StartClient(string serverIP)
     {
         IsHost = false;
-        
-        Debug.Log($"[OfflineNetwork] Starting client, connecting to {serverIP}:7777");
-        
-        // Set server IP
         transport.SetConnectionData(serverIP, 7777);
-        
-        // Start client
+        Debug.Log($"[OfflineNetwork] Connecting to {serverIP}:7777...");
+
         bool started = networkManager.StartClient();
-        
         if (started)
         {
-            Debug.Log($"[OfflineNetwork] ✅ Client started, connecting to {serverIP}...");
-            
-            // Subscribe to connection events
-            networkManager.OnClientConnectedCallback += OnClientConnectedToServerAsClient;
+            Debug.Log($"[OfflineNetwork] ✅ Client started.");
+            networkManager.OnClientConnectedCallback  += OnClientConnectedAsClient;
             networkManager.OnClientDisconnectCallback += OnClientDisconnectedAsClient;
         }
         else
         {
-            Debug.LogError("[OfflineNetwork] ❌ Failed to start client!");
+            Debug.LogError("[OfflineNetwork] ❌ Failed to start client.");
             OnConnectionFailed?.Invoke();
         }
     }
-    
+
     public void SearchForServers()
     {
-        Debug.Log("[OfflineNetwork] Searching for servers on local network...");
+        Debug.Log("[OfflineNetwork] Scanning local network for servers...");
         discovery.OnServerFound += OnServerDiscovered;
         discovery.StartClient();
     }
-    
-    private void OnServerDiscovered(string serverIP)
+
+    // ─── Discovery Callback ───────────────────────────────────────────────────
+
+    private void OnServerDiscovered(string ip)
     {
-        Debug.Log($"[OfflineNetwork] ✅ Server discovered at {serverIP}, attempting to connect...");
+        Debug.Log($"[OfflineNetwork] Server found at {ip}, connecting...");
         discovery.OnServerFound -= OnServerDiscovered;
-        StartClient(serverIP);
+        StartClient(ip);
     }
-    
+
+    // ─── Network Callbacks ────────────────────────────────────────────────────
+
     private void OnClientConnectedToServer(ulong clientId)
     {
-        if (IsHost)
-        {
-            Debug.Log($"[OfflineNetwork] ✅ Client {clientId} connected to host");
-            UpdatePlayerList();
-        }
+        if (!IsHost) return;
+        Debug.Log($"[OfflineNetwork] Client {clientId} connected.");
+        BroadcastPlayerList();
     }
-    
+
     private void OnClientDisconnectedFromServer(ulong clientId)
     {
-        if (IsHost)
-        {
-            Debug.Log($"[OfflineNetwork] Client {clientId} disconnected from host");
-            UpdatePlayerList();
-        }
+        if (!IsHost) return;
+        Debug.Log($"[OfflineNetwork] Client {clientId} disconnected.");
+        BroadcastPlayerList();
     }
-    
-    private void OnClientConnectedToServerAsClient(ulong clientId)
+
+    private void OnClientConnectedAsClient(ulong clientId)
     {
-        Debug.Log($"[OfflineNetwork] ✅ Successfully connected to server! (Client ID: {clientId})");
+        Debug.Log($"[OfflineNetwork] ✅ Connected to server (local ID: {clientId}).");
         OnClientConnected?.Invoke();
-        UpdatePlayerList();
+        // Build a local view while we wait for the host to broadcast the full list
+        UpdateLocalClientView();
     }
-    
+
     private void OnClientDisconnectedAsClient(ulong clientId)
     {
-        Debug.LogWarning($"[OfflineNetwork] ❌ Disconnected from server (Client ID: {clientId})");
+        Debug.LogWarning($"[OfflineNetwork] ❌ Disconnected from server (ID: {clientId}).");
         OnConnectionFailed?.Invoke();
     }
-    
-    private void UpdatePlayerList()
+
+    // ─── Player List ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Called on the host: builds the real connected-client list from NGO
+    /// and fires OnPlayerListChanged so all UI can update.
+    /// </summary>
+    private void BroadcastPlayerList()
     {
+        if (!networkManager.IsServer) return;
+
         ConnectedPlayers.Clear();
-        
-        // Get saved player name
-        string myPlayerName = PlayerPrefs.GetString("PlayerName", "Player");
-        
-        if (networkManager.IsServer)
+        string myName = PlayerPrefs.GetString("PlayerName", "Player");
+
+        foreach (var pair in networkManager.ConnectedClients)
         {
-            Debug.Log($"[OfflineNetwork] Updating player list. Connected clients: {networkManager.ConnectedClients.Count}");
-            
-            foreach (var client in networkManager.ConnectedClients)
-            {
-                // Use saved name for host (client ID 0), generic for others
-                string playerName = client.Key == networkManager.LocalClientId 
-                    ? $"{myPlayerName} (Host)" 
-                    : $"Player {client.Key}";
-                    
-                ConnectedPlayers.Add(playerName);
-                Debug.Log($"[OfflineNetwork] Added player: {playerName}");
-            }
+            ulong  id   = pair.Key;
+            string name = (id == networkManager.LocalClientId)
+                ? $"{myName} (Host)"
+                : $"Player {id}";
+            ConnectedPlayers.Add(name);
         }
-        else if (networkManager.IsClient)
-        {
-            // Client view: show all connected players
-            Debug.Log($"[OfflineNetwork] Client updating player list");
-            
-            // Add self
-            ConnectedPlayers.Add(myPlayerName);
-            
-            // In a real implementation, this would sync from server
-            // For now, show that we're connected
-            ConnectedPlayers.Add("Host");
-            
-            Debug.Log($"[OfflineNetwork] Client sees {ConnectedPlayers.Count} players");
-        }
-        
-        Debug.Log($"[OfflineNetwork] Total players in list: {ConnectedPlayers.Count}");
+
+        Debug.Log($"[OfflineNetwork] Player list updated: {ConnectedPlayers.Count} player(s).");
         OnPlayerListChanged?.Invoke(ConnectedPlayers);
     }
-    
+
+    /// <summary>
+    /// Called on the client side: shows the local player and a placeholder
+    /// until the host sends a full sync (full sync requires NGO RPCs — future work).
+    /// </summary>
+    private void UpdateLocalClientView()
+    {
+        ConnectedPlayers.Clear();
+        string myName = PlayerPrefs.GetString("PlayerName", "Player");
+        ConnectedPlayers.Add(myName);
+        ConnectedPlayers.Add("Host (connecting...)");
+        OnPlayerListChanged?.Invoke(ConnectedPlayers);
+    }
+
+    // ─── Public API ───────────────────────────────────────────────────────────
+
     public void Disconnect()
     {
-        if (networkManager.IsHost)
-        {
-            networkManager.Shutdown();
-        }
-        else if (networkManager.IsClient)
-        {
-            networkManager.Shutdown();
-        }
+        networkManager?.Shutdown();
     }
-    
-    /// <summary>
-    /// Get the underlying Unity Netcode NetworkManager
-    /// </summary>
-    public Unity.Netcode.NetworkManager GetNetworkManager()
-    {
-        return networkManager;
-    }
-    
-    private void OnDestroy()
-    {
-        if (networkManager != null)
-        {
-            networkManager.OnClientConnectedCallback -= OnClientConnectedToServer;
-            networkManager.OnClientDisconnectCallback -= OnClientDisconnectedFromServer;
-            networkManager.OnClientConnectedCallback -= OnClientConnectedToServerAsClient;
-            networkManager.OnClientDisconnectCallback -= OnClientDisconnectedAsClient;
-        }
-    }
+
+    /// <summary>Returns the underlying Unity Netcode NetworkManager.</summary>
+    public NetworkManager GetNetworkManager() => networkManager;
 }

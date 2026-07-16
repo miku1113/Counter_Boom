@@ -252,19 +252,26 @@ public class MainMenuManager : MonoBehaviourPunCallbacks
     
     private bool CheckHotspotEnabled()
     {
-        // This is platform-specific
-        // For Android, you'd need a native plugin
-        // For now, we'll assume it's enabled
-        // You can implement native checks later
-        
-        #if UNITY_ANDROID
-        // TODO: Implement Android hotspot check
-        return true;
-        #elif UNITY_IOS
-        // iOS doesn't allow hotspot detection programmatically
+        // On Android/iOS we cannot detect hotspot state programmatically without a
+        // native plugin, so we use LAN reachability as a practical proxy:
+        // if the device is on a LAN (including its own hotspot), we allow it.
+        //
+        // iOS note: iOS apps cannot detect personal hotspot state at all.
+        // If you ship on Android and need a real check, replace this with a
+        // native Android plugin that queries WifiManager.isWifiApEnabled().
+
+        bool isLanReachable = Application.internetReachability == NetworkReachability.ReachableViaLocalAreaNetwork;
+
+        if (!isLanReachable)
+        {
+            Debug.Log("[MainMenuManager] Hotspot check: LAN not reachable.");
+        }
+
+        // Always return true on non-mobile platforms (editor, desktop builds)
+        #if UNITY_EDITOR || UNITY_STANDALONE
         return true;
         #else
-        return true;
+        return isLanReachable;
         #endif
     }
     

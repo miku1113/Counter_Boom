@@ -8,211 +8,211 @@ using System.Collections.Generic;
 public class LocalNetworkDiscovery : MonoBehaviour
 {
     private const int BROADCAST_PORT = 47777;
-    private const int GAME_PORT = 7777;
+    private const int GAME_PORT      = 7777;
+
+    // Persistent clients — created once, reused every broadcast cycle
     private UdpClient broadcastClient;
     private UdpClient receiveClient;
-    private bool isServer = false;
+
+    private bool   isServer = false;
     private string serverIP = "";
-    
-    // Queue for thread-safe server discovery
+
+    // Thread-safe queue for server discovery events
     private readonly Queue<string> discoveredServers = new Queue<string>();
-    private readonly object queueLock = new object();
-    
+    private readonly object        queueLock         = new object();
+
     public event Action<string> OnServerFound;
-    
+
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
+
     private void Update()
     {
-        // Process discovered servers on main thread
+        // Process queued discoveries on the main thread
         lock (queueLock)
         {
             while (discoveredServers.Count > 0)
             {
-                string discoveredIP = discoveredServers.Dequeue();
-                Debug.Log($"[Discovery] Processing server discovery on main thread: {discoveredIP}");
-                OnServerFound?.Invoke(discoveredIP);
+                string ip = discoveredServers.Dequeue();
+                Debug.Log($"[Discovery] Processing server on main thread: {ip}");
+                OnServerFound?.Invoke(ip);
             }
         }
     }
-    
+
+    private void OnDestroy()
+    {
+        CancelInvoke();
+        CloseClient(ref broadcastClient, "broadcast");
+        CloseClient(ref receiveClient,   "receive");
+    }
+
+    // ─── Server (host) ───────────────────────────────────────────────────────
+
     public void StartServer()
     {
         isServer = true;
         serverIP = GetLocalIPAddress();
-        
-        Debug.Log($"[Discovery] Starting server broadcast on {serverIP}:{GAME_PORT}");
-        Debug.Log($"[Discovery] Broadcasting to port {BROADCAST_PORT} every 1 second");
-        
-        // Start broadcasting
-        InvokeRepeating(nameof(BroadcastServer), 0f, 1f);
-    }
-    
-    public void StartClient()
-    {
-        isServer = false;
-        
-        Debug.Log($"[Discovery] Starting client, listening on port {BROADCAST_PORT}");
-        
+
+        Debug.Log($"[Discovery] Server broadcast starting — {serverIP}:{GAME_PORT}");
+
+        // Create the broadcast client once and keep it alive
         try
         {
-            // Start listening for broadcasts
-            // Use IPAddress.Any to avoid conflicts when host is on same machine
-            receiveClient = new UdpClient();
-            receiveClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            receiveClient.Client.Bind(new IPEndPoint(IPAddress.Any, BROADCAST_PORT));
-            receiveClient.BeginReceive(OnBroadcastReceived, null);
-            Debug.Log("[Discovery] ✅ Client listening for servers...");
+            broadcastClient                = new UdpClient();
+            broadcastClient.EnableBroadcast = true;
         }
         catch (Exception e)
         {
-            Debug.LogError($"[Discovery] ❌ Failed to start client: {e.Message}");
+            Debug.LogError($"[Discovery] Failed to create broadcast client: {e.Message}");
+            return;
         }
+
+        InvokeRepeating(nameof(BroadcastServer), 0f, 1f);
     }
-    
+
     private void BroadcastServer()
     {
+        if (broadcastClient == null) return;
+
         try
         {
-            broadcastClient = new UdpClient();
-            broadcastClient.EnableBroadcast = true;
-            
             string message = $"GAME_SERVER:{serverIP}:{GAME_PORT}";
-            byte[] data = Encoding.UTF8.GetBytes(message);
-            
+            byte[] data    = Encoding.UTF8.GetBytes(message);
+
             IPEndPoint endPoint = new IPEndPoint(IPAddress.Broadcast, BROADCAST_PORT);
             broadcastClient.Send(data, data.Length, endPoint);
-            broadcastClient.Close();
-            
-            Debug.Log($"[Discovery] Broadcasting: {message} to {IPAddress.Broadcast}:{BROADCAST_PORT}");
+
+            Debug.Log($"[Discovery] Broadcasting: {message}");
         }
         catch (Exception e)
         {
             Debug.LogError($"[Discovery] Broadcast error: {e.Message}");
         }
     }
-    
+
+    // ─── Client (joiner) ─────────────────────────────────────────────────────
+
+    public void StartClient()
+    {
+        isServer = false;
+        Debug.Log($"[Discovery] Client listening on port {BROADCAST_PORT}...");
+
+        try
+        {
+            receiveClient = new UdpClient();
+            receiveClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            receiveClient.Client.Bind(new IPEndPoint(IPAddress.Any, BROADCAST_PORT));
+            receiveClient.BeginReceive(OnBroadcastReceived, null);
+            Debug.Log("[Discovery] ✅ Listening for servers.");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Discovery] Failed to start client listener: {e.Message}");
+        }
+    }
+
     private void OnBroadcastReceived(IAsyncResult result)
     {
         try
         {
-            if (receiveClient == null || result == null)
-            {
-                return; // Client was disposed
-            }
-            
+            if (receiveClient == null) return;
+
             IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, BROADCAST_PORT);
-            byte[] data = receiveClient.EndReceive(result, ref endPoint);
-            string message = Encoding.UTF8.GetString(data);
-            
-            Debug.Log($"[Discovery] Received broadcast: {message} from {endPoint.Address}");
-            
+            byte[]     data     = receiveClient.EndReceive(result, ref endPoint);
+            string     message  = Encoding.UTF8.GetString(data);
+
+            Debug.Log($"[Discovery] Received: {message} from {endPoint.Address}");
+
             if (message.StartsWith("GAME_SERVER:"))
             {
                 string[] parts = message.Split(':');
                 if (parts.Length >= 3)
                 {
-                    string foundServerIP = parts[1];
-                    Debug.Log($"[Discovery] ✅ Server found at {foundServerIP}");
-                    
-                    // Queue for processing on main thread
+                    string foundIP = parts[1];
+                    Debug.Log($"[Discovery] ✅ Server found at {foundIP}");
                     lock (queueLock)
-                    {
-                        discoveredServers.Enqueue(foundServerIP);
-                    }
+                        discoveredServers.Enqueue(foundIP);
                 }
                 else
                 {
                     Debug.LogWarning($"[Discovery] Invalid message format: {message}");
                 }
             }
-            
+
             // Continue listening
             if (receiveClient != null)
-            {
                 receiveClient.BeginReceive(OnBroadcastReceived, null);
-            }
         }
         catch (ObjectDisposedException)
         {
-            // UdpClient was disposed, this is expected on cleanup
-            Debug.Log("[Discovery] Client closed");
+            Debug.Log("[Discovery] Client socket closed.");
         }
         catch (Exception e)
         {
             Debug.LogError($"[Discovery] Receive error: {e.Message}\n{e.StackTrace}");
         }
     }
-    
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
     private string GetLocalIPAddress()
     {
+        // Method 1: Hostname lookup
         try
         {
-            // Method 1: Try using NetworkInterface (most reliable)
             var host = Dns.GetHostEntry(Dns.GetHostName());
             foreach (var ip in host.AddressList)
             {
                 if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
                 {
-                    Debug.Log($"[Discovery] Found IP via hostname: {ip}");
+                    Debug.Log($"[Discovery] Local IP (hostname): {ip}");
                     return ip.ToString();
                 }
             }
         }
         catch (Exception e)
         {
-            Debug.LogWarning($"[Discovery] Hostname resolution failed: {e.Message}. Trying alternative method...");
+            Debug.LogWarning($"[Discovery] Hostname resolution failed: {e.Message}");
         }
-        
+
+        // Method 2: Dummy UDP connect to determine outbound interface
         try
         {
-            // Method 2: Connect to external IP to find local IP (works without internet)
             using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
             {
                 socket.Connect("8.8.8.8", 65530);
-                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
-                if (endPoint != null)
+                IPEndPoint ep = socket.LocalEndPoint as IPEndPoint;
+                if (ep != null)
                 {
-                    Debug.Log($"[Discovery] Found IP via socket: {endPoint.Address}");
-                    return endPoint.Address.ToString();
+                    Debug.Log($"[Discovery] Local IP (socket): {ep.Address}");
+                    return ep.Address.ToString();
                 }
             }
         }
         catch (Exception e)
         {
-            Debug.LogWarning($"[Discovery] Socket method failed: {e.Message}");
+            Debug.LogWarning($"[Discovery] Socket IP detection failed: {e.Message}");
         }
-        
-        Debug.LogError("[Discovery] Could not determine local IP address, using loopback");
+
+        Debug.LogError("[Discovery] Could not determine local IP — falling back to loopback.");
         return "127.0.0.1";
     }
-    
-    private void OnDestroy()
+
+    private void CloseClient(ref UdpClient client, string label)
     {
-        CancelInvoke();
-        
+        if (client == null) return;
         try
         {
-            if (broadcastClient != null)
-            {
-                broadcastClient.Close();
-                broadcastClient = null;
-            }
+            client.Close();
+            Debug.Log($"[Discovery] Closed {label} client.");
         }
         catch (Exception e)
         {
-            Debug.LogWarning($"[Discovery] Error closing broadcast client: {e.Message}");
+            Debug.LogWarning($"[Discovery] Error closing {label} client: {e.Message}");
         }
-        
-        try
+        finally
         {
-            if (receiveClient != null)
-            {
-                receiveClient.Close();
-                receiveClient = null;
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"[Discovery] Error closing receive client: {e.Message}");
+            client = null;
         }
     }
 }

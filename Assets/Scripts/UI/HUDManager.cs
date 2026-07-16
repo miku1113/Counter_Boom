@@ -5,104 +5,142 @@ using TMPro;
 public class HUDManager : MonoBehaviour
 {
     [Header("Weapon Slots")]
-    public Button weaponSlot1;
-    public Button weaponSlot2;
-    public TextMeshProUGUI weapon1AmmoText;
-    public TextMeshProUGUI weapon2AmmoText;
+    public Button             weaponSlot1;
+    public Button             weaponSlot2;
+    public TextMeshProUGUI    weapon1AmmoText;
+    public TextMeshProUGUI    weapon2AmmoText;
     [SerializeField] private Image weapon1Icon;
     [SerializeField] private Image weapon2Icon;
 
     [Header("Grenade")]
-    public Button boomButton;
+    public Button          boomButton;
     public TextMeshProUGUI boomCountText;
 
     [Header("Pickup")]
     public Button pickupButton;
 
     [Header("Health")]
-    public Slider healthSlider;
-    public TextMeshProUGUI healthText; // "100/100"
+    public Slider          healthSlider;
+    public TextMeshProUGUI healthText;
 
     [Header("Consumables")]
-    public Button medikitButton;
+    public Button          medikitButton;
     public TextMeshProUGUI medikitCountText;
-    public Button shakeButton;
+    public Button          shakeButton;
     public TextMeshProUGUI shakeCountText;
 
     [Header("Bag")]
     public Button bagButton;
 
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
+
     private void Start()
     {
-        if (weaponSlot1 != null) weaponSlot1.onClick.AddListener(() => SwitchWeapon(0));
-        if (weaponSlot2 != null) weaponSlot2.onClick.AddListener(() => SwitchWeapon(1));
-        if (boomButton != null) boomButton.onClick.AddListener(ThrowGrenade);
-        if (pickupButton != null) pickupButton.onClick.AddListener(OnPickupPressed);
-        if (bagButton != null) bagButton.onClick.AddListener(ToggleBag);
-        
-        if (medikitButton != null) medikitButton.onClick.AddListener(() => BagManager.Instance?.UseMedikit());
-        if (shakeButton != null) shakeButton.onClick.AddListener(() => BagManager.Instance?.UseProteinShake());
+        // Button listeners
+        weaponSlot1?.onClick.AddListener(() => SwitchWeapon(0));
+        weaponSlot2?.onClick.AddListener(() => SwitchWeapon(1));
+        boomButton?.onClick.AddListener(ThrowGrenade);
+        pickupButton?.onClick.AddListener(OnPickupPressed);
+        bagButton?.onClick.AddListener(ToggleBag);
+        medikitButton?.onClick.AddListener(() => BagManager.Instance?.UseMedikit());
+        shakeButton?.onClick.AddListener(() => BagManager.Instance?.UseProteinShake());
 
-        // Initial Health Update setup
-        if (PlayerHealth.Instance != null)
+        // Subscribe to BagManager events (replaces per-frame polling)
+        if (BagManager.Instance != null)
         {
-            PlayerHealth.Instance.OnHealthChanged += UpdateHealthUI;
-            UpdateHealthUI(PlayerHealth.Instance.GetCurrentHealth(), PlayerHealth.Instance.GetMaxHealth());
+            BagManager.Instance.OnGrenadeUpdated      += UpdateGrenadeUI;
+            BagManager.Instance.OnMedikitUpdated       += UpdateMedikitUI;
+            BagManager.Instance.OnProteinShakeUpdated  += UpdateShakeUI;
+
+            // Force an initial update from current state
+            UpdateGrenadeUI(BagManager.Instance.grenadeCount);
+            UpdateMedikitUI(BagManager.Instance.medikitCount);
+            UpdateShakeUI(BagManager.Instance.proteinShakeCount);
         }
-        else
+
+        // Subscribe to WeaponController events for ammo display and slot icon updates
+        if (WeaponController.Instance != null)
         {
-            // Try to find if not singleton'd yet (though Awake should have run)
-            var ph = FindObjectOfType<PlayerHealth>();
-            if (ph != null)
-            {
-                 ph.OnHealthChanged += UpdateHealthUI;
-                 UpdateHealthUI(ph.GetCurrentHealth(), ph.GetMaxHealth());
-            }
+            WeaponController.Instance.OnAmmoChanged      += UpdateAmmoUI;
+            WeaponController.Instance.OnWeaponSlotUpdated += OnWeaponSlotUpdated;
+            // Seed with current ammo
+            UpdateAmmoUI(WeaponController.Instance.GetCurrentAmmo(), WeaponController.Instance.GetMaxAmmo());
         }
+
+        // Subscribe to Health events
+        var health = PlayerHealth.Instance;
+        if (health == null) health = FindObjectOfType<PlayerHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged += UpdateHealthUI;
+            UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
+        }
+
+        // Seed weapon slot icons
+        RefreshWeaponSlotUI(0);
+        RefreshWeaponSlotUI(1);
     }
 
     private void OnDestroy()
     {
-        if (PlayerHealth.Instance != null)
+        if (BagManager.Instance != null)
         {
-            PlayerHealth.Instance.OnHealthChanged -= UpdateHealthUI;
+            BagManager.Instance.OnGrenadeUpdated     -= UpdateGrenadeUI;
+            BagManager.Instance.OnMedikitUpdated      -= UpdateMedikitUI;
+            BagManager.Instance.OnProteinShakeUpdated -= UpdateShakeUI;
         }
+
+        if (WeaponController.Instance != null)
+        {
+            WeaponController.Instance.OnAmmoChanged       -= UpdateAmmoUI;
+            WeaponController.Instance.OnWeaponSlotUpdated -= OnWeaponSlotUpdated;
+        }
+
+        if (PlayerHealth.Instance != null)
+            PlayerHealth.Instance.OnHealthChanged -= UpdateHealthUI;
     }
+
+    // ─── Update (minimal — only pickup button proximity needs per-frame check) ─
 
     private void Update()
     {
-        // Update Boom button state
-        if (BagManager.Instance != null)
-        {
-             if (boomButton != null)
-             {
-                 boomButton.interactable = BagManager.Instance.grenadeCount > 0;
-                 if (boomCountText != null) boomCountText.text = BagManager.Instance.grenadeCount.ToString();
-             }
-
-             if (medikitButton != null)
-             {
-                 // Check if hurt? Maybe always interactable if count > 0?
-                 // But BagManager check handles logic. Just check count for UI feedback.
-                 medikitButton.interactable = BagManager.Instance.medikitCount > 0; 
-                 if (medikitCountText != null) medikitCountText.text = BagManager.Instance.medikitCount.ToString();
-             }
-
-             if (shakeButton != null)
-             {
-                 shakeButton.interactable = BagManager.Instance.proteinShakeCount > 0;
-                 if (shakeCountText != null) shakeCountText.text = BagManager.Instance.proteinShakeCount.ToString();
-             }
-        }
-
-        // Update Pickup button visibility
         if (pickupButton != null)
-        {
             pickupButton.gameObject.SetActive(ItemPickup.NearestPickup != null);
-        }
+    }
 
-        // Update Weapon Info
-        UpdateWeaponUI();
+    // ─── Event Handlers ──────────────────────────────────────────────────────
+
+    private void UpdateGrenadeUI(int count)
+    {
+        if (boomButton    != null) boomButton.interactable = count > 0;
+        if (boomCountText != null) boomCountText.text      = count.ToString();
+    }
+
+    private void UpdateMedikitUI(int count)
+    {
+        if (medikitButton   != null) medikitButton.interactable = count > 0;
+        if (medikitCountText!= null) medikitCountText.text      = count.ToString();
+    }
+
+    private void UpdateShakeUI(int count)
+    {
+        if (shakeButton   != null) shakeButton.interactable = count > 0;
+        if (shakeCountText!= null) shakeCountText.text      = count.ToString();
+    }
+
+    private void UpdateAmmoUI(int current, int max)
+    {
+        // Update the active slot's ammo text
+        int activeSlot = BagManager.Instance != null ? BagManager.Instance.GetCurrentWeaponIndex() : 0;
+        var ammoText   = activeSlot == 0 ? weapon1AmmoText : weapon2AmmoText;
+
+        if (ammoText != null)
+        {
+            var weapon = BagManager.Instance?.GetWeaponInSlot(activeSlot);
+            int bagAmmo = weapon != null && BagManager.Instance != null
+                ? BagManager.Instance.GetAmmo(weapon.ammoType) : 0;
+            ammoText.text = $"{current}/{bagAmmo}";
+        }
     }
 
     private void UpdateHealthUI(int current, int max)
@@ -110,65 +148,61 @@ public class HUDManager : MonoBehaviour
         if (healthSlider != null)
         {
             healthSlider.maxValue = max;
-            healthSlider.value = current;
+            healthSlider.value    = current;
         }
-
         if (healthText != null)
-        {
             healthText.text = $"{current}/{max}";
-        }
     }
 
-    private void UpdateWeaponUI()
+    /// <summary>
+    /// Called once on Start and whenever the weapon slot contents change,
+    /// to refresh icon and static ammo display for a slot.
+    /// </summary>
+    private void RefreshWeaponSlotUI(int slotIndex)
     {
-        if (BagManager.Instance == null) return;
+        var weapon    = BagManager.Instance?.GetWeaponInSlot(slotIndex);
+        var ammoText  = slotIndex == 0 ? weapon1AmmoText : weapon2AmmoText;
+        var icon      = slotIndex == 0 ? weapon1Icon     : weapon2Icon;
 
-        UpdateSlotUI(0, weapon1AmmoText, weapon1Icon);
-        UpdateSlotUI(1, weapon2AmmoText, weapon2Icon);
-    }
-
-    private void UpdateSlotUI(int slotIndex, TextMeshProUGUI ammoText, Image icon)
-    {
-        var weapon = BagManager.Instance.weaponSlots[slotIndex];
-        
         if (ammoText != null)
-        {
-            ammoText.text = weapon != null ? $"{weapon.GetCurrentAmmo()}/{BagManager.Instance.GetAmmo(weapon.ammoType)}" : "-";
-        }
+            ammoText.text = weapon != null
+                ? $"{weapon.GetCurrentAmmo()}/{BagManager.Instance?.GetAmmo(weapon.ammoType) ?? 0}"
+                : "-";
 
         if (icon != null)
         {
             if (weapon != null && weapon.itemData != null)
             {
-                icon.sprite = weapon.itemData.icon;
+                icon.sprite        = weapon.itemData.icon;
                 icon.preserveAspect = true;
-                icon.color = Color.white; // Show
+                icon.color         = Color.white;
             }
             else
             {
                 icon.sprite = null;
-                icon.color = new Color(0, 0, 0, 0); // Hide transparently
+                icon.color  = new Color(0, 0, 0, 0);
             }
         }
     }
 
+    // ─── Button Callbacks ────────────────────────────────────────────────────
+
     private void SwitchWeapon(int slot)
     {
-        if (WeaponController.Instance != null) WeaponController.Instance.SwitchToSlot(slot);
+        WeaponController.Instance?.SwitchToSlot(slot);
+        RefreshWeaponSlotUI(0);
+        RefreshWeaponSlotUI(1);
     }
 
-    private void ThrowGrenade()
+    /// <summary>Called by WeaponController.OnWeaponSlotUpdated — refreshes one slot's icon immediately.</summary>
+    private void OnWeaponSlotUpdated(int slotIndex)
     {
-        if (WeaponController.Instance != null) WeaponController.Instance.ThrowGrenade();
+        RefreshWeaponSlotUI(slotIndex);
+        // Also refresh the OTHER slot because currentSlot may have changed (e.g., after drop)
+        RefreshWeaponSlotUI(1 - slotIndex);
     }
 
-    private void OnPickupPressed()
-    {
-        if (ItemPickup.NearestPickup != null) ItemPickup.NearestPickup.PickingUpManually();
-    }
-
-    private void ToggleBag()
-    {
-        if (BagUI.Instance != null) BagUI.Instance.ToggleBag();
-    }
+    private void ThrowGrenade()       => WeaponController.Instance?.ThrowGrenade();
+    private void OnPickupPressed()    => ItemPickup.NearestPickup?.PickingUpManually();
+    private void ToggleBag()          => BagUI.Instance?.ToggleBag();
 }
