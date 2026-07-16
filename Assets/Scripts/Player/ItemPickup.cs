@@ -5,6 +5,9 @@ public class ItemPickup : MonoBehaviour
     public InventoryItemData itemData;
     public int  amount     = 1;
     public bool wasDropped = false;
+    
+    // Static lists to track active pickups in player's range
+    public static System.Collections.Generic.List<ItemPickup> PickupsInRange = new System.Collections.Generic.List<ItemPickup>();
 
     // Currently closest pickup to the player (read by HUDManager to show Pickup button)
     public static ItemPickup NearestPickup;
@@ -102,10 +105,29 @@ public class ItemPickup : MonoBehaviour
     private void OnTriggerExit2D(Collider2D other)
     {
         if (!other.CompareTag("Player")) return;
+        
+        if (PickupsInRange.Contains(this))
+        {
+            PickupsInRange.Remove(this);
+        }
+        
         if (NearestPickup == this)
         {
             NearestPickup = null;
             Debug.Log($"[ItemPickup] Left '{itemData?.itemName}' — NearestPickup cleared.");
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (PickupsInRange.Contains(this))
+        {
+            PickupsInRange.Remove(this);
+        }
+        
+        if (NearestPickup == this)
+        {
+            NearestPickup = null;
         }
     }
 

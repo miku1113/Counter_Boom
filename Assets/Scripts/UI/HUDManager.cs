@@ -100,12 +100,107 @@ public class HUDManager : MonoBehaviour
             PlayerHealth.Instance.OnHealthChanged -= UpdateHealthUI;
     }
 
-    // ─── Update (minimal — only pickup button proximity needs per-frame check) ─
+    // ─── Update (Handles dynamic multi-item pickup list) ─────────────────────
+    
+    private System.Collections.Generic.List<Button> spawnedPickupButtons = new System.Collections.Generic.List<Button>();
+    private System.Collections.Generic.List<ItemPickup> lastPickups = new System.Collections.Generic.List<ItemPickup>();
 
     private void Update()
     {
-        if (pickupButton != null)
-            pickupButton.gameObject.SetActive(ItemPickup.NearestPickup != null);
+        UpdatePickupUI();
+    }
+
+    private void UpdatePickupUI()
+    {
+        if (pickupButton == null) return;
+
+        // Safely remove any destroyed items from list
+        ItemPickup.PickupsInRange.RemoveAll(item => item == null);
+        var currentPickups = ItemPickup.PickupsInRange;
+
+        // Check if list contents have changed
+        bool changed = currentPickups.Count != lastPickups.Count;
+        if (!changed)
+        {
+            for (int i = 0; i < currentPickups.Count; i++)
+            {
+                if (currentPickups[i] != lastPickups[i])
+                {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+
+        if (!changed) return;
+
+        // Sync last list state
+        lastPickups.Clear();
+        lastPickups.AddRange(currentPickups);
+
+        // Destroy previous clones
+        foreach (var btn in spawnedPickupButtons)
+        {
+            if (btn != null) Destroy(btn.gameObject);
+        }
+        spawnedPickupButtons.Clear();
+
+        if (currentPickups.Count == 0)
+        {
+            pickupButton.gameObject.SetActive(false);
+            return;
+        }
+
+        if (currentPickups.Count == 1)
+        {
+            pickupButton.gameObject.SetActive(true);
+            var pickup = currentPickups[0];
+            SetButtonText(pickupButton, $"Pick {pickup.itemData.itemName}");
+            pickupButton.onClick.RemoveAllListeners();
+            pickupButton.onClick.AddListener(() => pickup.PickingUpManually());
+        }
+        else
+        {
+            // Hide the template button, spawn custom buttons stacked vertically
+            pickupButton.gameObject.SetActive(false);
+
+            RectTransform templateRt = pickupButton.GetComponent<RectTransform>();
+            float buttonHeight = templateRt.rect.height;
+            float spacing = 10f;
+
+            for (int i = 0; i < currentPickups.Count; i++)
+            {
+                var pickup = currentPickups[i];
+                GameObject cloneObj = Instantiate(pickupButton.gameObject, pickupButton.transform.parent);
+                cloneObj.SetActive(true);
+
+                Button cloneBtn = cloneObj.GetComponent<Button>();
+                SetButtonText(cloneBtn, $"Pick {pickup.itemData.itemName}");
+
+                cloneBtn.onClick.RemoveAllListeners();
+                cloneBtn.onClick.AddListener(() => pickup.PickingUpManually());
+
+                RectTransform cloneRt = cloneObj.GetComponent<RectTransform>();
+                cloneRt.anchoredPosition = templateRt.anchoredPosition + new Vector2(0, i * (buttonHeight + spacing));
+
+                spawnedPickupButtons.Add(cloneBtn);
+            }
+        }
+    }
+
+    private void SetButtonText(Button button, string text)
+    {
+        var tmp = button.GetComponentInChildren<TMPro.TMP_Text>();
+        if (tmp != null)
+        {
+            tmp.text = text;
+            return;
+        }
+        var txt = button.GetComponentInChildren<UnityEngine.UI.Text>();
+        if (txt != null)
+        {
+            txt.text = text;
+        }
     }
 
     // ─── Event Handlers ──────────────────────────────────────────────────────
