@@ -2,6 +2,8 @@ using UnityEngine;
 
 public class AimingDots : MonoBehaviour
 {
+    public static AimingDots Instance { get; private set; }
+
     [Header("Dot Settings")]
     [SerializeField] private GameObject dotPrefab;
     [SerializeField] private int numberOfDots = 5;
@@ -11,6 +13,29 @@ public class AimingDots : MonoBehaviour
     [Header("References")]
     [SerializeField] private Transform player;
     [SerializeField] private PlayerAiming playerAiming;
+
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Links dynamically spawned local player transforms and aiming scripts.
+    /// </summary>
+    public void SetLocalPlayer(Transform playerTransform, PlayerAiming aiming)
+    {
+        player = playerTransform;
+        playerAiming = aiming;
+        Debug.Log("[AimingDots] Local player reference registered successfully.");
+    }
+
     
     private GameObject[] dots;
     
@@ -48,6 +73,12 @@ public class AimingDots : MonoBehaviour
     
     private void Update()
     {
+        // Auto-find local player if reference is lost or dynamically spawned late
+        if (player == null || playerAiming == null)
+        {
+            FindLocalPlayer();
+        }
+
         if (playerAiming == null || player == null) return;
         
         Vector2 aimDirection = playerAiming.GetAimDirection();
@@ -68,6 +99,20 @@ public class AimingDots : MonoBehaviour
             }
         }
     }
+
+    private void FindLocalPlayer()
+    {
+        PlayerController[] players = FindObjectsOfType<PlayerController>();
+        foreach (var p in players)
+        {
+            if (p != null && p.IsLocal)
+            {
+                SetLocalPlayer(p.transform, p.GetComponent<PlayerAiming>());
+                break;
+            }
+        }
+    }
+
     
     private void UpdateDotPositions(Vector2 direction)
     {

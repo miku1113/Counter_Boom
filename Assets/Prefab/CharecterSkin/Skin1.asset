@@ -23,3 +23,5 @@ MonoBehaviour:
   leftEyebrow: {fileID: 21300014, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   rightEyebrow: {fileID: 21300014, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   mouth: {fileID: 21300040, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
+  skinName: man
+  price: 150

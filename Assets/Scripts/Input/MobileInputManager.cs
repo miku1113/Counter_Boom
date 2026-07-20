@@ -3,6 +3,8 @@ using UnityEngine.UI;
 
 public class MobileInputManager : MonoBehaviour
 {
+    public static MobileInputManager Instance { get; private set; }
+
     [Header("Joysticks")]
     [SerializeField] private Joystick moveJoystick;
     [SerializeField] private Joystick aimJoystick;
@@ -18,6 +20,30 @@ public class MobileInputManager : MonoBehaviour
 
     [Header("Editor Testing")]
     [SerializeField] private bool useKeyboardInEditor = true;
+
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    /// <summary>
+    /// Programmatically links dynamically spawned local player components.
+    /// </summary>
+    public void SetLocalPlayer(PlayerController controller, PlayerAiming aiming, WeaponController weapon)
+    {
+        playerController = controller;
+        playerAiming = aiming;
+        weaponController = weapon;
+        Debug.Log("[MobileInputManager] Local player references registered successfully.");
+    }
+
 
     private void Start()
     {
@@ -36,8 +62,32 @@ public class MobileInputManager : MonoBehaviour
 
     private void Update()
     {
+        // Auto-find local player if reference is lost or dynamically spawned late
+        if (playerController == null)
+        {
+            FindLocalPlayer();
+        }
+
         ProcessInput();
     }
+
+    private void FindLocalPlayer()
+    {
+        PlayerController[] players = FindObjectsOfType<PlayerController>();
+        foreach (var p in players)
+        {
+            if (p != null && p.IsLocal)
+            {
+                SetLocalPlayer(
+                    p,
+                    p.GetComponent<PlayerAiming>(),
+                    p.GetComponent<WeaponController>()
+                );
+                break;
+            }
+        }
+    }
+
 
     private void ProcessInput()
     {
@@ -50,7 +100,7 @@ public class MobileInputManager : MonoBehaviour
             moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
 
             // Mouse aim
-            if (Camera.main != null)
+            if (Camera.main != null && playerAiming != null)
             {
                 Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
                 aimInput = ((Vector2)(mousePos - playerAiming.transform.position)).normalized;

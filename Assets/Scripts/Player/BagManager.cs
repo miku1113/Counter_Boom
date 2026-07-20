@@ -1,11 +1,12 @@
 using UnityEngine;
+using Unity.Netcode;
 using System.Collections.Generic;
 
 /// <summary>
 /// Manages the player's bag inventory: ammo, grenades, consumables, and scope counts.
 /// Weapon slot state is owned exclusively by WeaponController; this class delegates to it.
 /// </summary>
-public class BagManager : MonoBehaviour
+public class BagManager : NetworkBehaviour
 {
     public static BagManager Instance;
 
@@ -23,36 +24,100 @@ public class BagManager : MonoBehaviour
     public List<InventoryItemData> allItemData; // All ammo and grenade ScriptableObjects
 
     [Header("Inventory Counts")]
-    public Dictionary<AmmoType, int> ammoInventory = new Dictionary<AmmoType, int>();
-    public int grenadeCount      = 0;
+    public Dictionary<AmmoType, int>    ammoInventory    = new Dictionary<AmmoType, int>();
+    public Dictionary<GrenadeType, int> grenadeInventory = new Dictionary<GrenadeType, int>();
     public int scopeCount        = 0;
     public int medikitCount      = 0;
     public int proteinShakeCount = 0;
+    
+    [Header("Active Grenade Type")]
+    public GrenadeType activeGrenadeType = GrenadeType.Explosive;
 
     [Header("References")]
     [SerializeField] private WeaponController weaponController; // Optional — falls back to WeaponController.Instance
 
     // ─── Events ──────────────────────────────────────────────────────────────
 
-    public System.Action<AmmoType, int> OnAmmoUpdated;
-    public System.Action<int>           OnGrenadeUpdated;
-    public System.Action<int>           OnScopeUpdated;
-    public System.Action<int>           OnMedikitUpdated;
-    public System.Action<int>           OnProteinShakeUpdated;
-    public System.Action                OnBagUpdated;
+    public System.Action<AmmoType, int>    OnAmmoUpdated;
+    public System.Action<GrenadeType, int> OnGrenadeUpdated;
+    public System.Action<int>              OnScopeUpdated;
+    public System.Action<int>              OnMedikitUpdated;
+    public System.Action<int>              OnProteinShakeUpdated;
+    public System.Action                   OnBagUpdated;
 
     // ─── Lifecycle ───────────────────────────────────────────────────────────
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+#if UNITY_EDITOR
+        PopulateAllItemDataInEditor();
+#endif
 
         foreach (AmmoType type in System.Enum.GetValues(typeof(AmmoType)))
         {
             if (type != AmmoType.None) ammoInventory[type] = 0;
         }
+
+        foreach (GrenadeType type in System.Enum.GetValues(typeof(GrenadeType)))
+        {
+            if (type != GrenadeType.None) grenadeInventory[type] = 0;
+        }
     }
+
+    private void Start()
+    {
+        // Only set the static Instance if this is the local player!
+        bool isLocal = false;
+        var netObj = GetComponent<Unity.Netcode.NetworkObject>();
+        if (netObj != null)
+        {
+            if (netObj.IsLocalPlayer) isLocal = true;
+        }
+        else
+        {
+            var photonView = GetComponent<Photon.Pun.PhotonView>();
+            if (photonView != null)
+            {
+                if (photonView.IsMine) isLocal = true;
+            }
+            else
+            {
+                isLocal = true; // Offline fallback
+            }
+        }
+
+        if (isLocal)
+        {
+            Instance = this;
+        }
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        PopulateAllItemDataInEditor();
+    }
+
+    private void PopulateAllItemDataInEditor()
+    {
+        string[] guids = UnityEditor.AssetDatabase.FindAssets("t:InventoryItemData");
+        if (guids != null && guids.Length > 0)
+        {
+            if (allItemData == null) allItemData = new List<InventoryItemData>();
+            allItemData.Clear();
+            foreach (string guid in guids)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                InventoryItemData asset = UnityEditor.AssetDatabase.LoadAssetAtPath<InventoryItemData>(path);
+                if (asset != null)
+                {
+                    allItemData.Add(asset);
+                }
+            }
+        }
+    }
+#endif
+
 
     // ─── Weapon Slot Delegation ──────────────────────────────────────────────
     // WeaponController owns weaponSlots[]. BagManager delegates to it so other
@@ -68,7 +133,17 @@ public class BagManager : MonoBehaviour
 
     // ─── Capacity ────────────────────────────────────────────────────────────
 
-    public bool CanAddItem(int weight) => currentWeight + weight <= maxWeight;
+    public bool CanAddItem(int weight)
+    {
+        if (maxWeight <= 0)
+        {
+            Debug.LogError($"[BagManager] maxWeight is {maxWeight}! Capacity is not set or was initialized to zero in Inspector.");
+        }
+        bool allowed = currentWeight + weight <= maxWeight;
+        Debug.Log($"[BagManager] CanAddItem check: adding weight={weight}, currentWeight={currentWeight}, maxWeight={maxWeight}. Allowed={allowed}");
+        return allowed;
+    }
+
 
     // ─── Ammo ────────────────────────────────────────────────────────────────
 
@@ -104,33 +179,91 @@ public class BagManager : MonoBehaviour
 
     // ─── Grenades ────────────────────────────────────────────────────────────
 
-    public bool AddGrenade(int amount, int weight)
+    public bool AddGrenade(GrenadeType type, int amount, int weight)
     {
         if (!CanAddItem(weight)) return false;
-        grenadeCount  += amount;
-        currentWeight += weight;
-        OnGrenadeUpdated?.Invoke(grenadeCount);
+        if (!grenadeInventory.ContainsKey(type)) grenadeInventory[type] = 0;
+        grenadeInventory[type] += amount;
+        currentWeight          += weight;
+        
+        // Auto-equip the newly picked up grenade if we currently have 0 of our active grenade type
+        if (GetGrenadeCount(activeGrenadeType) <= 0)
+        {
+            activeGrenadeType = type;
+            Debug.Log($"[BagManager] Auto-equipping grenade of type: {type} (previous active was empty).");
+        }
+
+        OnGrenadeUpdated?.Invoke(type, grenadeInventory[type]);
         OnBagUpdated?.Invoke();
         return true;
     }
 
-    public void ConsumeGrenade()
+    public void ConsumeGrenade(GrenadeType type)
     {
-        if (grenadeCount <= 0) return;
-        grenadeCount--;
+        if (!grenadeInventory.ContainsKey(type) || grenadeInventory[type] <= 0) return;
+        grenadeInventory[type]--;
         currentWeight = Mathf.Max(0, currentWeight - 5);
-        OnGrenadeUpdated?.Invoke(grenadeCount);
+        OnGrenadeUpdated?.Invoke(type, grenadeInventory[type]);
         OnBagUpdated?.Invoke();
     }
 
-    public void DropGrenade(InventoryItemData data)
+    public void DropGrenade(GrenadeType type, InventoryItemData data)
     {
-        if (grenadeCount <= 0) return;
-        grenadeCount--;
+        if (!grenadeInventory.ContainsKey(type) || grenadeInventory[type] <= 0) return;
+        grenadeInventory[type]--;
         if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
         SpawnPickup(data, 1);
-        OnGrenadeUpdated?.Invoke(grenadeCount);
+        OnGrenadeUpdated?.Invoke(type, grenadeInventory[type]);
         OnBagUpdated?.Invoke();
+    }
+
+    public int GetGrenadeCount(GrenadeType type)
+    {
+        return grenadeInventory.ContainsKey(type) ? grenadeInventory[type] : 0;
+    }
+
+    public void EquipGrenade(GrenadeType type)
+    {
+        activeGrenadeType = type;
+        OnGrenadeUpdated?.Invoke(type, GetGrenadeCount(type));
+        OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] Active grenade set to: {type}");
+    }
+
+    public GameObject GetActiveGrenadePrefab()
+    {
+        Debug.Log($"[BagManager] GetActiveGrenadePrefab called. Active Grenade Type: {activeGrenadeType}");
+        if (allItemData == null || allItemData.Count == 0)
+        {
+            Debug.LogError("[BagManager] allItemData list is empty or null! Please populate it in the Inspector.");
+            return null;
+        }
+
+        var data = allItemData.Find(x => x.itemType == ItemType.Grenade && x.grenadeType == activeGrenadeType);
+        if (data != null)
+        {
+            GameObject result = data.projectilePrefab != null ? data.projectilePrefab : data.prefab;
+            Debug.Log($"[BagManager] Found ItemData '{data.itemName}'. Prefab: {(data.prefab != null ? data.prefab.name : "null")}, ProjectilePrefab: {(data.projectilePrefab != null ? data.projectilePrefab.name : "null")}. Returning: {(result != null ? result.name : "null")}");
+            return result;
+        }
+
+        Debug.LogWarning($"[BagManager] No matching InventoryItemData found for itemType=Grenade and grenadeType={activeGrenadeType} inside allItemData. Current registry contents:");
+        foreach (var item in allItemData)
+        {
+            Debug.Log($" - '{item.itemName}' (Type: {item.itemType}, GrenadeType: {item.grenadeType})");
+        }
+        return null;
+    }
+
+    public GameObject GetGrenadePrefabByType(GrenadeType type)
+    {
+        if (allItemData == null) return null;
+        var data = allItemData.Find(x => x.itemType == ItemType.Grenade && x.grenadeType == type);
+        if (data != null)
+        {
+            return data.projectilePrefab != null ? data.projectilePrefab : data.prefab;
+        }
+        return null;
     }
 
     public void DropMedikit(InventoryItemData data)
@@ -291,7 +424,7 @@ public class BagManager : MonoBehaviour
         return false;
     }
 
-    public void SwapCurrentWeapon(GameObject newWeaponPrefab)
+    public void SwapCurrentWeapon(GameObject newWeaponPrefab, InventoryItemData data)
     {
         // Capture which slot is currently active BEFORE dropping clears/changes it.
         // ClearWeaponSlot will switch currentSlot to the OTHER slot if the active one is cleared.
@@ -306,8 +439,15 @@ public class BagManager : MonoBehaviour
         // then explicitly switch back to it.
         WC?.EquipWeaponToSlot(targetSlot, newWeaponPrefab);
         WC?.SwitchToSlot(targetSlot);
-        Debug.Log($"[BagManager] SwapCurrentWeapon: new weapon placed in slot {targetSlot} and activated.");
+
+        // Add the weight of the new weapon
+        int weaponWeight = data != null ? data.weight : 0;
+        currentWeight += weaponWeight;
+
+        Debug.Log($"[BagManager] SwapCurrentWeapon: new weapon placed in slot {targetSlot} and activated. Weight +{weaponWeight} = {currentWeight}.");
+        OnBagUpdated?.Invoke();
     }
+
 
     public void DropWeapon(int slotIndex)
     {
@@ -374,9 +514,25 @@ public class BagManager : MonoBehaviour
             spawnPos.z = 0f;
         }
 
-        GameObject pickupObj = Instantiate(data.prefab, spawnPos, Quaternion.identity);
+        if (IsSpawned)
+        {
+            RequestSpawnPickupServerRpc(data.itemName, amount, spawnPos);
+        }
+        else
+        {
+            SpawnPickupLocalOnly(data, amount, spawnPos);
+        }
+    }
 
-        // Ensure it has a trigger collider
+    [ServerRpc(RequireOwnership = false)]
+    private void RequestSpawnPickupServerRpc(string itemName, int amount, Vector3 position)
+    {
+        if (allItemData == null) return;
+        var data = allItemData.Find(x => x.itemName == itemName);
+        if (data == null || data.prefab == null) return;
+
+        GameObject pickupObj = Instantiate(data.prefab, position, Quaternion.identity);
+
         if (pickupObj.GetComponent<Collider2D>() == null)
         {
             CircleCollider2D col = pickupObj.AddComponent<CircleCollider2D>();
@@ -386,10 +542,34 @@ public class BagManager : MonoBehaviour
 
         ItemPickup pickup = pickupObj.GetComponent<ItemPickup>();
         if (pickup == null) pickup = pickupObj.AddComponent<ItemPickup>();
-        pickup.itemData  = data;
-        pickup.amount    = amount;
-        pickup.wasDropped = true; // Requires manual pickup
+        pickup.itemData   = data;
+        pickup.SetNetworkState(amount, true, itemName);
 
-        Debug.Log($"[BagManager] Spawned {pickupObj.name} × {amount} at {spawnPos}");
+        var netObj = pickupObj.GetComponent<NetworkObject>();
+        if (netObj != null)
+        {
+            netObj.Spawn(true);
+            Debug.Log($"[BagManager] Server spawned networked pickup: {pickupObj.name} × {amount} at {position}");
+        }
+    }
+
+    private void SpawnPickupLocalOnly(InventoryItemData data, int amount, Vector3 position)
+    {
+        GameObject pickupObj = Instantiate(data.prefab, position, Quaternion.identity);
+
+        if (pickupObj.GetComponent<Collider2D>() == null)
+        {
+            CircleCollider2D col = pickupObj.AddComponent<CircleCollider2D>();
+            col.isTrigger = true;
+            col.radius    = 0.5f;
+        }
+
+        ItemPickup pickup = pickupObj.GetComponent<ItemPickup>();
+        if (pickup == null) pickup = pickupObj.AddComponent<ItemPickup>();
+        pickup.itemData   = data;
+        pickup.amount     = amount;
+        pickup.wasDropped = true;
+
+        Debug.Log($"[BagManager] Spawned local-only pickup: {pickupObj.name} × {amount} at {position}");
     }
 }

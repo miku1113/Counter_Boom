@@ -1,6 +1,7 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class CharacterAssembler : MonoBehaviour
+public class CharacterAssembler : NetworkBehaviour
 {
     [Header("Body Parts")]
     [SerializeField] private SpriteRenderer headRenderer;
@@ -21,14 +22,103 @@ public class CharacterAssembler : MonoBehaviour
     [SerializeField] private Transform weaponAttachPoint;
     
     [Header("Sprite Sorting")]
-    [SerializeField] private int baseSortingOrder = 0;
+    [SerializeField] public int baseSortingOrder = 0;
+
+    [Header("Skins Customization")]
+    [SerializeField] public CharacterSkinData[] availableSkins;
     
-    private bool isFacingRight = true;
+    private bool isFacingRight = false;
+
+    // Network variable to sync custom skin index
+    private readonly NetworkVariable<int> equippedSkinIndex = new NetworkVariable<int>(
+        0, 
+        NetworkVariableReadPermission.Everyone, 
+        NetworkVariableWritePermission.Owner
+    );
+
+    private void Awake()
+    {
+        equippedSkinIndex.OnValueChanged += OnSkinIndexChanged;
+    }
+
+    private void OnSkinIndexChanged(int oldVal, int newVal)
+    {
+        if (availableSkins != null && newVal >= 0 && newVal < availableSkins.Length)
+        {
+            SetCharacterSkin(availableSkins[newVal]);
+        }
+    }
     
     private void Start()
     {
         UpdateSortingLayers();
+        
+        if (IsSpawned)
+        {
+            if (IsOwner)
+            {
+                int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+                equippedSkinIndex.Value = equippedIndex;
+                OnSkinIndexChanged(0, equippedIndex);
+            }
+            else
+            {
+                OnSkinIndexChanged(0, equippedSkinIndex.Value);
+            }
+        }
+        else
+        {
+            LoadEquippedSkin();
+        }
     }
+
+    /// <summary>
+    /// Reads the equipped skin index from PlayerPrefs and applies it.
+    /// </summary>
+    public void LoadEquippedSkin()
+    {
+        if (availableSkins != null && availableSkins.Length > 0)
+        {
+            int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            if (equippedIndex >= 0 && equippedIndex < availableSkins.Length)
+            {
+                SetCharacterSkin(availableSkins[equippedIndex]);
+            }
+        }
+    }
+
+#if UNITY_EDITOR
+    [ContextMenu("Auto-Populate Skins")]
+    public void AutoPopulateSkins()
+    {
+        string[] guids = UnityEditor.AssetDatabase.FindAssets("t:CharacterSkinData");
+        System.Collections.Generic.List<CharacterSkinData> skinList = new System.Collections.Generic.List<CharacterSkinData>();
+        foreach (string guid in guids)
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            var asset = UnityEditor.AssetDatabase.LoadAssetAtPath<CharacterSkinData>(path);
+            if (asset != null) skinList.Add(asset);
+        }
+
+        skinList.Sort((a, b) => {
+            bool aDefault = a.skinName != null && a.skinName.ToLower().Contains("default");
+            bool bDefault = b.skinName != null && b.skinName.ToLower().Contains("default");
+            if (aDefault && !bDefault) return -1;
+            if (!aDefault && bDefault) return 1;
+            return string.Compare(a.skinName ?? "", b.skinName ?? "", System.StringComparison.Ordinal);
+        });
+
+        availableSkins = skinList.ToArray();
+        UnityEditor.EditorUtility.SetDirty(this);
+        Debug.Log($"[CharacterAssembler] Auto-populated {availableSkins.Length} skins in sorted order.");
+    }
+
+    private void OnValidate()
+    {
+        AutoPopulateSkins();
+    }
+#endif
+
     
     /// <summary>
     /// Sets all body part sprites from a CharacterSkinData
@@ -71,22 +161,43 @@ public class CharacterAssembler : MonoBehaviour
         isFacingRight = facingRight;
         
         // Character faces LEFT by default in sprite
-        // facingLeft = normal (no flip)
-        // facingRight = flip sprites
-        if (headRenderer != null) headRenderer.flipX = facingRight;
-        if (bodyRenderer != null) bodyRenderer.flipX = facingRight;
+        float scaleX = facingRight ? -1f : 1f;
+
+        if (headRenderer != null)
+        {
+            headRenderer.transform.localScale = new Vector3(scaleX, 1f, 1f);
+        }
+        if (bodyRenderer != null)
+        {
+            bodyRenderer.transform.localScale = new Vector3(scaleX, 1f, 1f);
+        }
+
+        // Left and Right Arms don't have attachments, so standard flipX is fine
         if (leftArmRenderer != null) leftArmRenderer.flipX = facingRight;
         if (rightArmRenderer != null) rightArmRenderer.flipX = facingRight;
-        if (leftLegRenderer != null) leftLegRenderer.flipX = facingRight;
-        if (rightLegRenderer != null) rightLegRenderer.flipX = facingRight;
-        
-        // Flip face parts
-        if (leftEyeRenderer != null) leftEyeRenderer.flipX = facingRight;
-        if (rightEyeRenderer != null) rightEyeRenderer.flipX = facingRight;
-        if (leftEyebrowRenderer != null) leftEyebrowRenderer.flipX = facingRight;
-        if (rightEyebrowRenderer != null) rightEyebrowRenderer.flipX = facingRight;
-        if (mouthRenderer != null) mouthRenderer.flipX = facingRight;
-        
+
+        // Parent container of legs contains LeftLeg and RightLeg. Scale-flip the container!
+        if (leftLegRenderer != null && leftLegRenderer.transform.parent != null && leftLegRenderer.transform.parent != transform)
+        {
+            leftLegRenderer.transform.parent.localScale = new Vector3(scaleX, 1f, 1f);
+        }
+        else
+        {
+            if (leftLegRenderer != null) leftLegRenderer.flipX = facingRight;
+            if (rightLegRenderer != null) rightLegRenderer.flipX = facingRight;
+        }
+
+        // Parent container of face parts contains eyes, mouth, eyebrows (FaceSprite GameObject). Scale-flip the container!
+        Transform faceParent = null;
+        if (leftEyeRenderer != null) faceParent = leftEyeRenderer.transform.parent;
+        else if (rightEyeRenderer != null) faceParent = rightEyeRenderer.transform.parent;
+        else if (mouthRenderer != null) faceParent = mouthRenderer.transform.parent;
+
+        if (faceParent != null && faceParent != transform)
+        {
+            faceParent.localScale = new Vector3(scaleX, 1f, 1f);
+        }
+
         // Don't flip weapon - it will rotate independently
     }
     
@@ -96,38 +207,29 @@ public class CharacterAssembler : MonoBehaviour
     /// </summary>
     public void UpdateSortingLayers()
     {
-        // User Requested Orders:
-        // Right Arm: -1
-        // Body: 0
-        // Legs: 0/1? (User said "Legs 1, Left/Right 0" - maybe Container 1? Renderers 0?)
-        // Let's assume Renderers should be ordered.
-        // Left Arm: 2
-        // Head: 3
-        // Face: 4
-    
         int baseOrder = baseSortingOrder;
 
         // Behind Body
         if (rightArmRenderer != null) SetSorting(rightArmRenderer, baseOrder - 1);
+        if (leftLegRenderer != null) SetSorting(leftLegRenderer, baseOrder - 1);
+        if (rightLegRenderer != null) SetSorting(rightLegRenderer, baseOrder - 1);
         
         // Body Plane
-        if (leftLegRenderer != null) SetSorting(leftLegRenderer, baseOrder + 0); // Behind body?
-        if (rightLegRenderer != null) SetSorting(rightLegRenderer, baseOrder + 0);
         if (bodyRenderer != null) SetSorting(bodyRenderer, baseOrder + 0);
         
-        // Front
-        if (leftArmRenderer != null) SetSorting(leftArmRenderer, baseOrder + 2);
-        
         // Head
-        if (headRenderer != null) SetSorting(headRenderer, baseOrder + 3);
+        if (headRenderer != null) SetSorting(headRenderer, baseOrder + 1);
         
         // Face
-        int faceOrder = baseOrder + 4;
+        int faceOrder = baseOrder + 2;
         if (leftEyeRenderer != null) SetSorting(leftEyeRenderer, faceOrder);
         if (rightEyeRenderer != null) SetSorting(rightEyeRenderer, faceOrder);
         if (mouthRenderer != null) SetSorting(mouthRenderer, faceOrder);
         if (leftEyebrowRenderer != null) SetSorting(leftEyebrowRenderer, faceOrder);
         if (rightEyebrowRenderer != null) SetSorting(rightEyebrowRenderer, faceOrder);
+
+        // Front Holding Arm
+        if (leftArmRenderer != null) SetSorting(leftArmRenderer, baseOrder + 4);
         
         Debug.Log("[CharacterAssembler] Sorting layers updated!");
     }
@@ -143,4 +245,23 @@ public class CharacterAssembler : MonoBehaviour
     
     public Transform GetLeftArmTransform() => leftArmRenderer != null ? leftArmRenderer.transform : null;
     public Transform GetRightArmTransform() => rightArmRenderer != null ? rightArmRenderer.transform : null;
+
+    /// <summary>
+    /// Adjusts the transparency of the entire character (including children renderers like equipped weapons).
+    /// Used to hide players when they enter stealth zones (like smoke).
+    /// </summary>
+    public void SetVisibility(float alpha)
+    {
+        SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>();
+        foreach (var r in renderers)
+        {
+            if (r == null) continue;
+            Color c = r.color;
+            c.a = alpha;
+            r.color = c;
+        }
+    }
+
+    public CharacterSkinData[] GetAvailableSkins() => availableSkins;
 }
+

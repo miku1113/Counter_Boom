@@ -45,12 +45,25 @@ public class BagItemSlot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
         if (amountText != null) amountText.text = count.ToString();
         if (itemNameText != null) itemNameText.text = data.itemName;
 
-        // Show/Hide Use Button for Consumables
+        // Show/Hide Use Button for Consumables and Grenades
         if (useButton != null)
         {
-            if (data.itemType == ItemType.Medikit || data.itemType == ItemType.ProteinShake)
+            if (data.itemType == ItemType.Medikit || 
+                data.itemType == ItemType.ProteinShake || 
+                data.itemType == ItemType.Grenade)
             {
                 useButton.gameObject.SetActive(true);
+
+                var txt = useButton.GetComponentInChildren<TMPro.TMP_Text>();
+                if (txt != null)
+                {
+                    txt.text = (data.itemType == ItemType.Grenade) ? "Equip" : "Use";
+                }
+                else
+                {
+                    var legacyTxt = useButton.GetComponentInChildren<UnityEngine.UI.Text>();
+                    if (legacyTxt != null) legacyTxt.text = (data.itemType == ItemType.Grenade) ? "Equip" : "Use";
+                }
             }
             else
             {
@@ -71,9 +84,10 @@ public class BagItemSlot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
             {
                 BagManager.Instance.UseProteinShake();
             }
-            
-            // Note: RefreshUI will be triggered by BagManager events, 
-            // so we don't need to manually update text here, assuming BagUI listens.
+            else if (itemData.itemType == ItemType.Grenade)
+            {
+                BagManager.Instance.EquipGrenade(itemData.grenadeType);
+            }
         }
     }
 
@@ -108,7 +122,7 @@ public class BagItemSlot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
                 if (itemData.itemType == ItemType.Ammo)
                     BagManager.Instance.DropAmmo(itemData.ammoType, itemData, amount);
                 else if (itemData.itemType == ItemType.Grenade)
-                    BagManager.Instance.DropGrenade(itemData);
+                    BagManager.Instance.DropGrenade(itemData.grenadeType, itemData);
                 else if (itemData.itemType == ItemType.Medikit)
                     BagManager.Instance.DropMedikit(itemData);
                 else if (itemData.itemType == ItemType.ProteinShake)

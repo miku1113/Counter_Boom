@@ -44,8 +44,13 @@ public class Bullet : MonoBehaviour
         PlayerHealth health = collision.GetComponent<PlayerHealth>();
         if (health != null)
         {
-            health.TakeDamage(damage);
-            Debug.Log($"[Bullet] Hit '{collision.name}' for {damage} damage.");
+            // Only the owner client of the hit player (or the server) applies damage.
+            // This prevents double-counting damage when multiple clients simulate the same local bullet.
+            if (health.IsOwner || health.IsServer)
+            {
+                health.TakeDamage(damage);
+                Debug.Log($"[Bullet] Hit '{collision.name}' for {damage} damage.");
+            }
             Destroy(gameObject);
             return;
         }

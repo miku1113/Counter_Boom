@@ -28,7 +28,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.025536, y: 0.0005007, z: 0}
-  m_LocalScale: {x: 0.22651999, y: 0.22651999, z: 1.1326}
+  m_LocalScale: {x: 0.21, y: 0.21, z: 1.1326}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5086322837096462764}
@@ -75,7 +75,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 6
+  m_SortingOrder: 5
   m_Sprite: {fileID: 1327235453, guid: aad7f024f033a41e2b6a8074323b7de2, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
@@ -111,6 +111,11 @@ MonoBehaviour:
   fireMode: 2
   weaponType: 0
   holdStyle: 1
+  gripOffset: {x: 0, y: 0, z: 0}
+  rotationOffset: 0
+  supportsScope: 0
+  hasScope: 0
+  scopeZoom: 2
   bulletPrefab: {fileID: 1391092927188288937, guid: 9d02a3aee0aaf4bd787294ec2af34a02, type: 3}
   fireEffectPrefab: {fileID: 4088997058349922941, guid: 21fda5653cf6e41b7a04792ed2c23a4b, type: 3}
   fireEffectLifetime: 0.5
@@ -149,7 +154,7 @@ Transform:
   m_GameObject: {fileID: 3158951977917889861}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.044, y: -0.047, z: 0}
+  m_LocalPosition: {x: 0.041, y: -0.501, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -180,7 +185,7 @@ Transform:
   m_GameObject: {fileID: 6977949737207625148}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.556, y: 0.31, z: 0}
+  m_LocalPosition: {x: -2.618, y: 0.52, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

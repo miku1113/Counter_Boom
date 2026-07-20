@@ -50,7 +50,22 @@ public class GameManager : MonoBehaviour
             Vector3 spawnPos    = playerTransform.position + new Vector3(randomPoint.x, randomPoint.y, 0f);
 
             GameObject randomPrefab = itemPrefabs[Random.Range(0, itemPrefabs.Count)];
-            Instantiate(randomPrefab, spawnPos, Quaternion.identity);
+            GameObject spawnObj = Instantiate(randomPrefab, spawnPos, Quaternion.identity);
+
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+            {
+                var netObj = spawnObj.GetComponent<Unity.Netcode.NetworkObject>();
+                if (netObj != null)
+                {
+                    ItemPickup pickup = spawnObj.GetComponent<ItemPickup>();
+                    if (pickup != null)
+                    {
+                        string nameStr = pickup.itemData != null ? pickup.itemData.itemName : "";
+                        pickup.SetNetworkState(pickup.amount, pickup.wasDropped, nameStr);
+                    }
+                    netObj.Spawn(true);
+                }
+            }
         }
 
         Debug.Log($"[GameManager] Spawned {spawnCount} items around player.");

@@ -17,4 +17,9 @@ public class CharacterSkinData : ScriptableObject
     public Sprite leftEyebrow;
     public Sprite rightEyebrow;
     public Sprite mouth;
+
+    [Header("Shop & Display")]
+    public string skinName = "Custom Skin";
+    public int price = 150;
 }
+

@@ -17,4 +17,4 @@ MonoBehaviour:
   ammoType: 0
   weight: 0
   prefab: {fileID: 3051418304029604263, guid: 49685783e0615401a8c6114bb3cbc298, type: 3}
-  icon: {fileID: -989177410, guid: aad7f024f033a41e2b6a8074323b7de2, type: 3}
+  icon: {fileID: 21300000, guid: 4c621aadf5e93470f80c9b98b71a33d1, type: 3}

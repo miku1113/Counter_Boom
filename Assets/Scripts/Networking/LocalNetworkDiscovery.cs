@@ -14,7 +14,6 @@ public class LocalNetworkDiscovery : MonoBehaviour
     private UdpClient broadcastClient;
     private UdpClient receiveClient;
 
-    private bool   isServer = false;
     private string serverIP = "";
 
     // Thread-safe queue for server discovery events
@@ -50,7 +49,6 @@ public class LocalNetworkDiscovery : MonoBehaviour
 
     public void StartServer()
     {
-        isServer = true;
         serverIP = GetLocalIPAddress();
 
         Debug.Log($"[Discovery] Server broadcast starting — {serverIP}:{GAME_PORT}");
@@ -94,7 +92,6 @@ public class LocalNetworkDiscovery : MonoBehaviour
 
     public void StartClient()
     {
-        isServer = false;
         Debug.Log($"[Discovery] Client listening on port {BROADCAST_PORT}...");
 
         try

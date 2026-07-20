@@ -1,6 +1,7 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class WeaponController : MonoBehaviour
+public class WeaponController : NetworkBehaviour
 {
     public static WeaponController Instance;
 
@@ -84,8 +85,6 @@ public class WeaponController : MonoBehaviour
 
         // Instantiate and parent to the hand anchor
         GameObject weaponObj = Instantiate(weaponPrefab, weaponAttachPoint);
-        weaponObj.transform.localPosition = Vector3.zero;
-        weaponObj.transform.localRotation = Quaternion.identity;
 
         HandheldWeapon newWeapon = weaponObj.GetComponent<HandheldWeapon>();
         if (newWeapon == null)
@@ -94,6 +93,9 @@ public class WeaponController : MonoBehaviour
             Destroy(weaponObj);
             return;
         }
+
+        weaponObj.transform.localPosition = -newWeapon.gripOffset;
+        weaponObj.transform.localRotation = Quaternion.identity;
 
         weaponSlots[slotIndex] = newWeapon;
         SubscribeToWeapon(newWeapon);
@@ -207,20 +209,112 @@ public class WeaponController : MonoBehaviour
     public void StopFiring()   => CurrentWeapon?.StopFiring();
     public void StartReload()  => CurrentWeapon?.Reload();
 
+    // ─── Networked Firing Replication ────────────────────────────────────────
+
+    public void NotifyFired(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage)
+    {
+        if (IsSpawned && IsOwner)
+        {
+            FireServerRpc(position, rotation, direction, speed, damage);
+            CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage);
+        }
+        else if (!IsSpawned)
+        {
+            CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage);
+        }
+    }
+
+    [ServerRpc]
+    private void FireServerRpc(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage)
+    {
+        FireClientRpc(position, rotation, direction, speed, damage);
+    }
+
+    [ClientRpc]
+    private void FireClientRpc(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage)
+    {
+        if (IsOwner) return; // Owner already spawned locally for instant feedback
+        CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage);
+    }
+
+    // ─── Networked Grenade Throwing ─────────────────────────────────────────
+
     public void ThrowGrenade()
     {
-        if (BagManager.Instance == null || BagManager.Instance.grenadeCount <= 0) return;
-        if (grenadePrefab == null) return;
+        if (BagManager.Instance == null) return;
+        
+        GrenadeType activeType = BagManager.Instance.activeGrenadeType;
+        int count = BagManager.Instance.GetGrenadeCount(activeType);
+        Debug.Log($"[WeaponController] ThrowGrenade requested. Active Type: {activeType}, Count: {count}");
 
-        Vector3 spawnPos = playerAiming != null ? playerAiming.GetFirePoint()    : weaponAttachPoint.position;
-        Vector2 aimDir   = playerAiming != null ? playerAiming.GetAimDirection() : Vector2.right;
+        if (count <= 0)
+        {
+            Debug.LogWarning($"[WeaponController] Cannot throw: Count of active grenade type '{activeType}' is {count}.");
+            return;
+        }
 
-        GameObject gObj = Instantiate(grenadePrefab, spawnPos, Quaternion.identity);
-        Grenade g = gObj.GetComponent<Grenade>();
-        if (g != null) g.Throw(aimDir);
+        GameObject activePrefab = BagManager.Instance.GetActiveGrenadePrefab();
+        if (activePrefab == null)
+        {
+            Debug.LogError($"[WeaponController] No prefab found for active grenade type '{activeType}'!");
+            return;
+        }
 
-        BagManager.Instance.ConsumeGrenade();
+        Vector3 spawnPos = playerAiming != null ? playerAiming.GetGrenadeThrowPoint() : weaponAttachPoint.position;
+        Vector2 aimDir   = playerAiming != null ? playerAiming.GetAimDirection()      : Vector2.right;
+
+        // Decrement local inventory count
+        BagManager.Instance.ConsumeGrenade(activeType);
+
+        if (IsSpawned)
+        {
+            ThrowGrenadeServerRpc(activeType, spawnPos, aimDir);
+            if (IsOwner)
+            {
+                SpawnGrenadeLocal(activeType, spawnPos, aimDir);
+            }
+        }
+        else
+        {
+            SpawnGrenadeLocal(activeType, spawnPos, aimDir);
+        }
     }
+
+    [ServerRpc]
+    private void ThrowGrenadeServerRpc(GrenadeType grenadeType, Vector3 position, Vector2 direction)
+    {
+        ThrowGrenadeClientRpc(grenadeType, position, direction);
+    }
+
+    [ClientRpc]
+    private void ThrowGrenadeClientRpc(GrenadeType grenadeType, Vector3 position, Vector2 direction)
+    {
+        if (IsOwner) return; // Owner already threw locally for instant feedback
+        SpawnGrenadeLocal(grenadeType, position, direction);
+    }
+
+    private void SpawnGrenadeLocal(GrenadeType grenadeType, Vector3 position, Vector2 direction)
+    {
+        if (playerAiming != null)
+        {
+            playerAiming.TriggerGrenadeThrowAnimation();
+        }
+
+        if (BagManager.Instance == null) return;
+
+        GameObject activePrefab = BagManager.Instance.GetGrenadePrefabByType(grenadeType);
+        if (activePrefab == null) return;
+
+        GameObject gObj = Instantiate(activePrefab, position, Quaternion.identity);
+        Grenade g = gObj.GetComponent<Grenade>();
+        if (g != null)
+        {
+            Collider2D myCollider = GetComponentInParent<Collider2D>();
+            if (myCollider == null) myCollider = GetComponent<Collider2D>();
+            g.Throw(direction, myCollider);
+        }
+    }
+
 
     // ─── Getters ─────────────────────────────────────────────────────────────
 

@@ -14,7 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: UZI
   itemType: 0
-  ammoType: 0
+  ammoType: 2
+  grenadeType: 0
   weight: 0
   prefab: {fileID: 3051418304029604263, guid: d7257aa53703c422ebfc4b836d2ef3d5, type: 3}
+  projectilePrefab: {fileID: 0}
   icon: {fileID: 1327235453, guid: aad7f024f033a41e2b6a8074323b7de2, type: 3}

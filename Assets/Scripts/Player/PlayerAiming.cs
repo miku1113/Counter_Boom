@@ -1,6 +1,7 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class PlayerAiming : MonoBehaviour
+public class PlayerAiming : NetworkBehaviour
 {
     [Header("Aiming")]
     [SerializeField] private float     aimDistance = 2f;
@@ -20,27 +21,67 @@ public class PlayerAiming : MonoBehaviour
     [SerializeField] private Vector3 rightArm_LeftFacing = new Vector3(-0.182f, -0.079f, 0f);
 
     [Header("Arm Positions - Facing RIGHT")]
-    [SerializeField] private Vector3 leftArm_RightFacing  = new Vector3(-0.182f, -0.079f, 0f);
-    [SerializeField] private Vector3 rightArm_RightFacing = new Vector3( 0.243f, -0.114f, 0f);
+    [SerializeField] private Vector3 leftArm_RightFacing  = new Vector3( 0.182f, -0.079f, 0f);
+    [SerializeField] private Vector3 rightArm_RightFacing = new Vector3(-0.243f, -0.114f, 0f);
 
     [Header("Eye Rotation")]
     [SerializeField] private Transform leftEyeTransform;
     [SerializeField] private Transform rightEyeTransform;
-    [Range(0.01f, 0.2f)]
-    [SerializeField] private float eyeMoveRadius = 0.05f;
+    [Range(0.005f, 0.1f)]
+    [SerializeField] private float eyeMoveRadius = 0.02f;
     [SerializeField] private float eyeLerpSpeed  = 12f;
 
+    [Header("Mini Militia Aiming Setup")]
+    [SerializeField] private float mainArmLength = 0.45f;
+    [SerializeField] private float leftArmAngleOffset = 0f;
+    [SerializeField] private float rightArmAngleOffset = 0f;
+    [SerializeField] private Vector3 handPositionOffset = Vector3.zero;
+
     // Runtime state
+    private int defaultLeftSortingOrder;
+    private int defaultRightSortingOrder;
+    private SpriteRenderer leftArmSr;
+    private SpriteRenderer rightArmSr;
     private HandheldWeapon currentWeapon;
+    private Vector3        weaponDefaultScale = Vector3.one;
     private Vector2        aimInput;
     private Vector2        lastAimDirection = Vector2.right;
     private Vector3        leftEyeDefaultPos;
     private Vector3        rightEyeDefaultPos;
 
-    private void Start()
+    // Networked aim synchronization
+    private readonly NetworkVariable<Vector2> netAimDirection = new NetworkVariable<Vector2>(
+        Vector2.right, 
+        NetworkVariableReadPermission.Everyone, 
+        NetworkVariableWritePermission.Owner
+    );
+
+    private void Awake()
     {
         if (leftEyeTransform  != null) leftEyeDefaultPos  = leftEyeTransform.localPosition;
         if (rightEyeTransform != null) rightEyeDefaultPos = rightEyeTransform.localPosition;
+    }
+
+    private void Start()
+    {
+        if (characterAssembler != null)
+        {
+            Transform l = characterAssembler.GetLeftArmTransform();
+            if (l == null) l = transform.Find("Arms/LeftArm");
+            if (l != null)
+            {
+                leftArmSr = l.GetComponent<SpriteRenderer>();
+                if (leftArmSr != null) defaultLeftSortingOrder = leftArmSr.sortingOrder;
+            }
+
+            Transform r = characterAssembler.GetRightArmTransform();
+            if (r == null) r = transform.Find("Arms/RightArm");
+            if (r != null)
+            {
+                rightArmSr = r.GetComponent<SpriteRenderer>();
+                if (rightArmSr != null) defaultRightSortingOrder = rightArmSr.sortingOrder;
+            }
+        }
     }
 
     // ─── Inspector Context Menus ─────────────────────────────────────────────
@@ -77,29 +118,94 @@ public class PlayerAiming : MonoBehaviour
 
     // ─── Public API ──────────────────────────────────────────────────────────
 
-    /// <summary>Called by WeaponController when a new weapon prefab is spawned.</summary>
     public void SetWeapon(HandheldWeapon newWeapon)
     {
         currentWeapon = newWeapon;
+
+        if (newWeapon != null)
+        {
+            weaponDefaultScale = newWeapon.transform.localScale;
+
+            // Cache leftArmSr if not done yet
+            if (leftArmSr == null)
+            {
+                Transform l = characterAssembler != null ? characterAssembler.GetLeftArmTransform() : null;
+                if (l == null) l = transform.Find("Arms/LeftArm");
+                if (l == null) l = transform.Find("Body/LeftArm");
+                if (l != null) leftArmSr = l.GetComponent<SpriteRenderer>();
+            }
+
+            // Automate weapon sorting layer/order setup (placed 1 order behind front LeftArm, i.e. order 3)
+            SpriteRenderer[] srs = newWeapon.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in srs)
+            {
+                sr.sortingLayerName = "Default";
+                sr.sortingOrder = leftArmSr != null ? leftArmSr.sortingOrder - 1 : 3;
+            }
+        }
     }
 
     public void SetAimInput(Vector2 input)
     {
         aimInput = input;
         if (input.magnitude > 0.1f)
+        {
             lastAimDirection = input.normalized;
+            if (IsSpawned && IsOwner)
+            {
+                netAimDirection.Value = lastAimDirection;
+            }
+        }
     }
 
     public Vector2 GetAimDirection()  => lastAimDirection;
 
     public Vector3 GetFirePoint()
     {
-        if (currentWeapon != null && currentWeapon.firePoint != null)
-            return currentWeapon.firePoint.position;
-        return weaponAttachPoint.position;
+        if (currentWeapon != null)
+        {
+            if (currentWeapon.firePoint != null)
+                return currentWeapon.firePoint.position;
+
+            // Search for FirePoint, FirePOint, Muzzle or any child containing "fire" or "muzzle"
+            Transform fp = currentWeapon.transform.Find("FirePoint");
+            if (fp == null) fp = currentWeapon.transform.Find("FirePOint");
+            if (fp == null) fp = currentWeapon.transform.Find("Muzzle");
+            if (fp == null)
+            {
+                foreach (Transform child in currentWeapon.transform)
+                {
+                    string lower = child.name.ToLower();
+                    if (lower.Contains("fire") || lower.Contains("muzzle"))
+                    {
+                        fp = child;
+                        break;
+                    }
+                }
+            }
+            if (fp != null)
+                return fp.position;
+        }
+        return weaponAttachPoint != null ? weaponAttachPoint.position : transform.position;
     }
 
     public Vector3 GetAimStartPosition() => GetFirePoint();
+
+    public Vector3 GetGrenadeThrowPoint()
+    {
+        bool facingRight = lastAimDirection.x >= 0;
+        Transform leftArm  = characterAssembler != null ? characterAssembler.GetLeftArmTransform()  : transform.Find("Arms/LeftArm");
+        Transform rightArm = characterAssembler != null ? characterAssembler.GetRightArmTransform() : transform.Find("Arms/RightArm");
+
+        Transform offHandArm = facingRight ? rightArm : leftArm;
+        if (offHandArm != null)
+        {
+            Transform handPoint = offHandArm.Find("HandPoint");
+            if (handPoint != null)
+                return handPoint.position;
+        }
+        return GetFirePoint();
+    }
 
     // ─── Update Loop ─────────────────────────────────────────────────────────
 
@@ -119,6 +225,11 @@ public class PlayerAiming : MonoBehaviour
 
     private void UpdateCharacterRotation()
     {
+        if (IsSpawned && !IsOwner)
+        {
+            lastAimDirection = netAimDirection.Value;
+        }
+
         bool facingRight = lastAimDirection.x >= 0;
 
         // Flip character body + arms
@@ -127,7 +238,10 @@ public class PlayerAiming : MonoBehaviour
             characterAssembler.SetFacingDirection(facingRight);
 
             Transform l = characterAssembler.GetLeftArmTransform();
+            if (l == null) l = transform.Find("Arms/LeftArm");
+
             Transform r = characterAssembler.GetRightArmTransform();
+            if (r == null) r = transform.Find("Arms/RightArm");
 
             if (l != null && r != null)
             {
@@ -136,36 +250,191 @@ public class PlayerAiming : MonoBehaviour
             }
         }
 
-        // Rotate & flip weapon attach point
-        if (weaponAttachPoint != null && currentWeapon != null)
+        // Rotation and flipping of weapon attach point is now handled in LateUpdate to sync with arm rotations.
+        RotateEyes();
+    }
+
+    private void LateUpdate()
+    {
+        RotateArmsAndWeapon();
+    }
+
+    /// <summary>
+    /// Aligns the main holding arm (left arm) with the weapon handle using its internal HandPoint child reference,
+    /// and positions the weapon exactly at the hand.
+    /// </summary>
+    private void RotateArmsAndWeapon()
+    {
+        Transform leftArm = null;
+        Transform rightArm = null;
+        if (characterAssembler != null)
         {
-            // 1. Position offset based on facing
-            weaponAttachPoint.localPosition = facingRight ? weapon_RightFacing : weapon_LeftFacing;
+            leftArm  = characterAssembler.GetLeftArmTransform();
+            rightArm = characterAssembler.GetRightArmTransform();
+        }
+        if (leftArm == null)  leftArm  = transform.Find("Arms/LeftArm");
+        if (rightArm == null) rightArm = transform.Find("Arms/RightArm");
 
-            // 2. Rotation — pure aim angle
-            float angle = Mathf.Atan2(lastAimDirection.y, lastAimDirection.x) * Mathf.Rad2Deg;
-            weaponAttachPoint.rotation = Quaternion.Euler(0, 0, angle);
+        if (leftArm == null && rightArm == null) return;
 
-            // 3. Sprite flip — scale the attach point to flip the child weapon prefab
-            float scaleX = currentWeapon.spriteFacesLeft ? -1f : 1f;
-            float scaleY = !facingRight ? -1f : 1f;
-            weaponAttachPoint.localScale = new Vector3(scaleX, scaleY, 1f);
+        bool facingRight = lastAimDirection.x >= 0;
+        float angle = Mathf.Atan2(lastAimDirection.y, lastAimDirection.x) * Mathf.Rad2Deg;
+
+        // When facing right: LeftArm is main holding arm, RightArm is off-hand.
+        // When facing left: RightArm (the back arm) is main holding arm, LeftArm is off-hand.
+        Transform mainArm    = facingRight ? leftArm  : rightArm;
+        Transform offHandArm = facingRight ? rightArm : leftArm;
+
+        if (mainArm == null) return;
+
+        // 1. Rotate the main holding arm to point at the aim angle
+        float mainArmRotation = angle;
+        if (!facingRight)
+        {
+            mainArmRotation = angle - 180f;
+        }
+        mainArmRotation += facingRight ? leftArmAngleOffset : -leftArmAngleOffset;
+        mainArm.rotation = Quaternion.Euler(0, 0, mainArmRotation);
+
+        // Reset off-hand arm rotation when not throwing a grenade
+        if (offHandArm != null && grenadeThrowTimer <= 0f)
+        {
+            offHandArm.localRotation = Quaternion.identity;
         }
 
-        RotateEyes();
+        // Keep hand sorting layers fixed (never change hand layers!)
+        if (leftArmSr != null)  leftArmSr.sortingOrder  = defaultLeftSortingOrder;  // Order 4
+        if (rightArmSr != null) rightArmSr.sortingOrder = defaultRightSortingOrder; // Order -1
+
+        // 2. Position and rotate the weapon at mainArm's HandPoint
+        if (weaponAttachPoint != null && currentWeapon != null)
+        {
+            Transform handPoint = mainArm.Find("HandPoint");
+            Vector3 handPos;
+            if (handPoint != null)
+            {
+                handPos = handPoint.position;
+            }
+            else
+            {
+                Vector3 armDir = facingRight ? mainArm.right : -mainArm.right;
+                handPos = mainArm.position + armDir * mainArmLength;
+            }
+
+            // Determine grip offset
+            Vector3 finalGripOffset = Vector3.zero;
+            Transform gripPoint = currentWeapon.transform.Find("Off-Hand Grip");
+            if (gripPoint == null) gripPoint = currentWeapon.transform.Find("Grip");
+            if (gripPoint == null) gripPoint = currentWeapon.transform.Find("Handle");
+            if (gripPoint == null) gripPoint = currentWeapon.transform.Find("HandlePoint");
+            if (gripPoint == null) gripPoint = currentWeapon.transform.Find("Handal");
+            if (gripPoint == null)
+            {
+                foreach (Transform child in currentWeapon.transform)
+                {
+                    string nameLower = child.name.ToLower();
+                    if (nameLower.Contains("grip") || nameLower.Contains("handle") || nameLower.Contains("handal"))
+                    {
+                        gripPoint = child;
+                        break;
+                    }
+                }
+            }
+
+            if (gripPoint != null)
+            {
+                finalGripOffset = gripPoint.localPosition;
+            }
+            else
+            {
+                finalGripOffset = currentWeapon.gripOffset != Vector3.zero ? currentWeapon.gripOffset : pivotOffset;
+            }
+
+            float scaleX = (currentWeapon.spriteFacesLeft ? -1f : 1f) * Mathf.Abs(weaponDefaultScale.x);
+            float scaleY = (!facingRight ? -1f : 1f) * Mathf.Abs(weaponDefaultScale.y);
+            float scaleZ = Mathf.Abs(weaponDefaultScale.z);
+
+            Vector3 scaledGripOffset = new Vector3(finalGripOffset.x * scaleX, finalGripOffset.y * scaleY, finalGripOffset.z * scaleZ);
+            Vector3 worldGripOffset = Quaternion.Euler(0, 0, angle) * scaledGripOffset;
+
+            weaponAttachPoint.position = handPos;
+            weaponAttachPoint.rotation = Quaternion.Euler(0, 0, angle);
+            weaponAttachPoint.localScale = Vector3.one;
+
+            Vector3 animPos = currentWeapon != null ? currentWeapon.AnimPosOffset : Vector3.zero;
+            float animRot = currentWeapon != null ? currentWeapon.AnimRotOffset : 0f;
+
+            Vector3 finalWorldGripOffset = handPos - (worldGripOffset + Quaternion.Euler(0, 0, angle) * animPos);
+
+            currentWeapon.transform.localScale = new Vector3(scaleX, scaleY, scaleZ);
+            currentWeapon.transform.rotation = Quaternion.Euler(0, 0, angle + currentWeapon.rotationOffset + animRot);
+            currentWeapon.transform.position = finalWorldGripOffset;
+
+            // Only change the layer for the gun! (Order 3 when facing right, Order -2 when facing left)
+            int baseOrder = characterAssembler != null ? characterAssembler.baseSortingOrder : 0;
+            int gunOrder  = facingRight ? (baseOrder + 3) : (baseOrder - 2);
+
+            SpriteRenderer[] srs = currentWeapon.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in srs)
+            {
+                sr.sortingOrder = gunOrder;
+            }
+        }
+
+        // 3. Handle Off-Hand Arm Overhand Grenade Throw Animation
+        if (offHandArm != null && grenadeThrowTimer > 0f)
+        {
+            grenadeThrowTimer -= Time.deltaTime;
+            float t = 1f - (grenadeThrowTimer / grenadeThrowDuration);
+
+            float throwPeakAngle  = facingRight ? 70f : -70f;
+            float throwPitchAngle = facingRight ? 30f : -30f;
+
+            float localThrowAngle;
+            if (t < 0.35f)
+            {
+                float windT = t / 0.35f;
+                windT = 1f - Mathf.Pow(1f - windT, 2f);
+                localThrowAngle = Mathf.Lerp(0f, throwPeakAngle, windT);
+            }
+            else if (t < 0.75f)
+            {
+                float swingT = (t - 0.35f) / 0.40f;
+                localThrowAngle = Mathf.Lerp(throwPeakAngle, throwPitchAngle, swingT);
+            }
+            else
+            {
+                float restT = (t - 0.75f) / 0.25f;
+                localThrowAngle = Mathf.Lerp(throwPitchAngle, 0f, restT);
+            }
+
+            offHandArm.localRotation = Quaternion.Euler(0, 0, localThrowAngle);
+        }
+    }
+
+    [Header("Grenade Animation")]
+    [SerializeField] private float grenadeThrowDuration = 0.45f;
+    private float grenadeThrowTimer = 0f;
+
+    public void TriggerGrenadeThrowAnimation()
+    {
+        grenadeThrowTimer = grenadeThrowDuration;
     }
 
     private void RotateEyes()
     {
+        bool facingRight = lastAimDirection.x >= 0;
+        float aimX = facingRight ? -lastAimDirection.x : lastAimDirection.x;
+
         if (leftEyeTransform != null)
         {
-            Vector3 target = leftEyeDefaultPos + new Vector3(lastAimDirection.x, lastAimDirection.y, 0f) * eyeMoveRadius;
+            Vector3 target = leftEyeDefaultPos + new Vector3(aimX, lastAimDirection.y, 0f) * eyeMoveRadius;
             leftEyeTransform.localPosition = Vector3.Lerp(leftEyeTransform.localPosition, target, Time.deltaTime * eyeLerpSpeed);
         }
 
         if (rightEyeTransform != null)
         {
-            Vector3 target = rightEyeDefaultPos + new Vector3(lastAimDirection.x, lastAimDirection.y, 0f) * eyeMoveRadius;
+            Vector3 target = rightEyeDefaultPos + new Vector3(aimX, lastAimDirection.y, 0f) * eyeMoveRadius;
             rightEyeTransform.localPosition = Vector3.Lerp(rightEyeTransform.localPosition, target, Time.deltaTime * eyeLerpSpeed);
         }
     }

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2863f07f1e3464894a3d5e66024f6435, type: 3}
+  m_Name: stunGrenade
+  m_EditorClassIdentifier: 
+  itemName: Stun Grenade
+  itemType: 2
+  ammoType: 0
+  grenadeType: 2
+  weight: 5
+  prefab: {fileID: 2575337537052682964, guid: f7bf77e282b354f0ca55e10d00f0f3e4, type: 3}
+  projectilePrefab: {fileID: 2575337537052682964, guid: f7bf77e282b354f0ca55e10d00f0f3e4, type: 3}
+  icon: {fileID: 21300000, guid: a425368e70665457f82a4013cab7a9b6, type: 3}

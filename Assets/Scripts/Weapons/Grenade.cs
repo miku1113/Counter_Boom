@@ -1,41 +1,70 @@
 using UnityEngine;
 using System.Collections;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class Grenade : MonoBehaviour
 {
     [Header("Settings")]
     public float fuseTime        = 3f;
     public float explosionRadius = 5f;
-    public int   damage          = 50;
     public float throwForce      = 10f;
 
     [Header("Effects")]
     public GameObject explosionEffect;
 
     [Header("Physics")]
-    [SerializeField] private Rigidbody2D rb;
+    [SerializeField] protected Rigidbody2D rb;
 
-    private void Awake()
+    protected virtual void Awake()
     {
         if (rb == null) rb = GetComponent<Rigidbody2D>();
     }
 
-    public void Throw(Vector2 direction)
+    public void Throw(Vector2 direction, Collider2D throwerCollider = null)
     {
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
+
         if (rb != null)
         {
             rb.velocity = direction * throwForce;
             rb.AddTorque(10f, ForceMode2D.Impulse);
 
-            // Ignore collision with the throwing player to prevent instant stop
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null)
+            Debug.Log($"[Grenade] Thrown with velocity: {rb.velocity} (Force: {throwForce}, Dir: {direction})");
+
+            // Ignore collision with the actual thrower (including all child colliders) to prevent instant stop
+            if (throwerCollider != null)
             {
-                Collider2D playerCol  = player.GetComponent<Collider2D>();
                 Collider2D grenadeCol = GetComponent<Collider2D>();
-                if (playerCol != null && grenadeCol != null)
-                    Physics2D.IgnoreCollision(playerCol, grenadeCol, true);
+                if (grenadeCol != null)
+                {
+                    Collider2D[] throwerColliders = throwerCollider.transform.root.GetComponentsInChildren<Collider2D>();
+                    foreach (Collider2D col in throwerColliders)
+                    {
+                        Physics2D.IgnoreCollision(col, grenadeCol, true);
+                    }
+                }
             }
+            else
+            {
+                // Fallback Tag Lookup
+                GameObject player = GameObject.FindGameObjectWithTag("Player");
+                if (player != null)
+                {
+                    Collider2D grenadeCol = GetComponent<Collider2D>();
+                    if (grenadeCol != null)
+                    {
+                        Collider2D[] playerColliders = player.transform.root.GetComponentsInChildren<Collider2D>();
+                        foreach (Collider2D col in playerColliders)
+                        {
+                            Physics2D.IgnoreCollision(col, grenadeCol, true);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            Debug.LogError($"[Grenade] Rigidbody2D is missing on '{gameObject.name}'!");
         }
 
         StartCoroutine(FuseRoutine());
@@ -47,30 +76,16 @@ public class Grenade : MonoBehaviour
         Explode();
     }
 
-    private void Explode()
+    protected virtual void Explode()
     {
-        // Visual effect
+        // Spawns standard visual effect if assigned
         if (explosionEffect != null)
             Instantiate(explosionEffect, transform.position, Quaternion.identity);
-        else
-            Debug.LogWarning("[Grenade] No explosion effect prefab assigned.");
-
-        // Area damage — apply to anything with a PlayerHealth component in radius
-        Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
-        foreach (Collider2D col in hitColliders)
-        {
-            PlayerHealth health = col.GetComponent<PlayerHealth>();
-            if (health != null)
-            {
-                health.TakeDamage(damage);
-                Debug.Log($"[Grenade] Dealt {damage} damage to {col.name}.");
-            }
-        }
 
         Destroy(gameObject);
     }
 
-    private void OnDrawGizmosSelected()
+    protected virtual void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, explosionRadius);

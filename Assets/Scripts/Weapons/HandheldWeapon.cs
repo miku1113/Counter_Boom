@@ -20,6 +20,14 @@ public class HandheldWeapon : MonoBehaviour
     public FireMode fireMode;
     public WeaponType weaponType;
     public WeaponHoldStyle holdStyle = WeaponHoldStyle.TwoHanded;
+
+    [Header("Mini Militia Alignment")]
+    public Vector3 gripOffset = Vector3.zero;
+    public float rotationOffset = 0f;
+
+    // Procedural animation offsets for recoil and equip
+    public Vector3 AnimPosOffset { get; private set; } = Vector3.zero;
+    public float AnimRotOffset { get; private set; } = 0f;
     
     [Header("Scope Settings")]
     public bool supportsScope = false;
@@ -76,7 +84,7 @@ public class HandheldWeapon : MonoBehaviour
             }
             else
             {
-                transform.localPosition = Vector3.zero;
+                transform.localPosition = -gripOffset;
                 transform.localRotation = Quaternion.identity;
             }
         }
@@ -157,23 +165,15 @@ public class HandheldWeapon : MonoBehaviour
         if (ammoInMag <= 0) return;
 
         ammoInMag--;
-        
-        // Spawn Bullet
-        if (bulletPrefab != null && firePoint != null)
-        {
-             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
-             Bullet b = bullet.GetComponent<Bullet>();
-             if (b != null)
-             {
-                 b.Initialize(firePoint.right, bulletSpeed, damage);
-             }
 
-             // Visual Fire Effect
-             if (fireEffectPrefab != null)
-             {
-                 GameObject effect = Instantiate(fireEffectPrefab, firePoint.position, firePoint.rotation, firePoint);
-                 Destroy(effect, fireEffectLifetime);
-             }
+        WeaponController parentController = GetComponentInParent<WeaponController>();
+        if (parentController != null)
+        {
+            parentController.NotifyFired(firePoint.position, firePoint.rotation, firePoint.right, bulletSpeed, damage);
+        }
+        else
+        {
+            SpawnBulletLocal(firePoint.position, firePoint.rotation, firePoint.right, bulletSpeed, damage);
         }
 
         // Shake Effect
@@ -185,9 +185,28 @@ public class HandheldWeapon : MonoBehaviour
         OnAmmoChanged?.Invoke(ammoInMag, maxAmmo);
     }
 
+    public void SpawnBulletLocal(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage)
+    {
+        if (bulletPrefab != null)
+        {
+             GameObject bullet = Instantiate(bulletPrefab, position, rotation);
+             Bullet b = bullet.GetComponent<Bullet>();
+             if (b != null)
+             {
+                 b.Initialize(direction, speed, damage);
+             }
+
+             // Visual Fire Effect
+             if (fireEffectPrefab != null && firePoint != null)
+             {
+                 GameObject effect = Instantiate(fireEffectPrefab, position, rotation, firePoint);
+                 Destroy(effect, fireEffectLifetime);
+             }
+        }
+    }
+
     private IEnumerator ShakeRoutine()
     {
-        Vector3 originalPos = Vector3.zero; // Local position is always based on 0,0,0 from WeaponController
         float elapsed = 0f;
 
         while (elapsed < shakeDuration)
@@ -195,23 +214,20 @@ public class HandheldWeapon : MonoBehaviour
             float x = Random.Range(-1f, 1f) * shakeAmount;
             float y = Random.Range(-1f, 1f) * shakeAmount;
 
-            transform.localPosition = originalPos + new Vector3(x, y, 0f);
+            AnimPosOffset = new Vector3(x, y, 0f);
 
             elapsed += Time.deltaTime;
             yield return null;
         }
 
-        transform.localPosition = originalPos;
+        AnimPosOffset = Vector3.zero;
     }
 
     private IEnumerator EquipRoutine()
     {
         float elapsed = 0f;
-        Vector3 startPos = new Vector3(0f, equipDropAmount, 0f);
-        Vector3 endPos = Vector3.zero;
-        
-        Quaternion startRot = Quaternion.Euler(0f, 0f, equipRotationAmount);
-        Quaternion endRot = Quaternion.identity;
+        float startDrop = equipDropAmount;
+        float startRot = equipRotationAmount;
 
         // Simple ease out
         while (elapsed < equipDuration)
@@ -219,16 +235,16 @@ public class HandheldWeapon : MonoBehaviour
              float t = elapsed / equipDuration;
              // Cubic ease out
              t = 1f - Mathf.Pow(1f - t, 3f);
-             
-             transform.localPosition = Vector3.Lerp(startPos, endPos, t);
-             transform.localRotation = Quaternion.Lerp(startRot, endRot, t);
-             
+
+             AnimPosOffset = Vector3.Lerp(new Vector3(0f, startDrop, 0f), Vector3.zero, t);
+             AnimRotOffset = Mathf.Lerp(startRot, 0f, t);
+
              elapsed += Time.deltaTime;
              yield return null;
         }
-        
-        transform.localPosition = endPos;
-        transform.localRotation = endRot;
+
+        AnimPosOffset = Vector3.zero;
+        AnimRotOffset = 0f;
     }
 
     private IEnumerator ReloadRoutine()

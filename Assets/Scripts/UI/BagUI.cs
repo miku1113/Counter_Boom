@@ -143,22 +143,28 @@ public class BagUI : MonoBehaviour
         }
 
         // ── 3. Grenades ────────────────────────────────────────────────────────
-        if (BagManager.Instance.grenadeCount > 0)
+        foreach (GrenadeType gType in System.Enum.GetValues(typeof(GrenadeType)))
         {
-            GameObject slotObj = Instantiate(itemSlotPrefab, itemContainer);
-            BagItemSlot slot   = slotObj.GetComponent<BagItemSlot>();
-            if (slot != null)
+            if (gType == GrenadeType.None) continue;
+            int count = BagManager.Instance.GetGrenadeCount(gType);
+            if (count > 0)
             {
-                InventoryItemData data = BagManager.Instance.GetGrenadeData();
-                if (data == null)
+                GameObject slotObj = Instantiate(itemSlotPrefab, itemContainer);
+                BagItemSlot slot   = slotObj.GetComponent<BagItemSlot>();
+                if (slot != null)
                 {
-                    data          = ScriptableObject.CreateInstance<InventoryItemData>();
-                    data.itemName = "Grenade";
-                    data.itemType = ItemType.Grenade;
-                    data.icon     = grenadeIcon;
+                    InventoryItemData data = BagManager.Instance.allItemData?.Find(x => x.itemType == ItemType.Grenade && x.grenadeType == gType);
+                    if (data == null)
+                    {
+                        data          = ScriptableObject.CreateInstance<InventoryItemData>();
+                        data.itemName = gType.ToString() + " Grenade";
+                        data.itemType = ItemType.Grenade;
+                        data.grenadeType = gType;
+                        data.icon     = grenadeIcon;
+                    }
+                    slot.Setup(data, count);
+                    totalSlots++;
                 }
-                slot.Setup(data, BagManager.Instance.grenadeCount);
-                totalSlots++;
             }
         }
 

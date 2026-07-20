@@ -37,11 +37,30 @@ public class PlayerController : MonoBehaviour
         
         Debug.Log($"[PlayerController] Initialized on {gameObject.name}");
         defaultMoveSpeed = moveSpeed;
-
-        // Camera Registration Logic
-        RegisterCameraIfLocal();
     }
     
+    public bool IsLocal { get; private set; } = false;
+
+    // ─── Local Player Stun/Smoke Events & Triggers ─────────────────────────────
+    public static event System.Action<float> OnLocalPlayerStunned;
+    public static event System.Action OnLocalPlayerEnterSmoke;
+    public static event System.Action OnLocalPlayerExitSmoke;
+
+    public static void TriggerLocalPlayerStun(float duration)
+    {
+        OnLocalPlayerStunned?.Invoke(duration);
+    }
+
+    public static void TriggerEnterSmoke()
+    {
+        OnLocalPlayerEnterSmoke?.Invoke();
+    }
+
+    public static void TriggerExitSmoke()
+    {
+        OnLocalPlayerExitSmoke?.Invoke();
+    }
+
     private void RegisterCameraIfLocal()
     {
         bool isLocal = false;
@@ -69,6 +88,7 @@ public class PlayerController : MonoBehaviour
 
         if (isLocal)
         {
+            IsLocal = true;
             if (CameraController.Instance != null)
             {
                 CameraController.Instance.SetTarget(transform);
@@ -81,6 +101,7 @@ public class PlayerController : MonoBehaviour
             }
         }
     }
+
     
     private void Start()
     {
@@ -88,6 +109,39 @@ public class PlayerController : MonoBehaviour
         if (animator == null)
         {
             animator = GetComponentInChildren<Animator>();
+        }
+
+        // Defer local checks to Start where Netcode has resolved client ownership
+        RegisterCameraIfLocal();
+
+        if (IsLocal)
+        {
+            // Register local player on inputs
+            if (MobileInputManager.Instance != null)
+            {
+                MobileInputManager.Instance.SetLocalPlayer(
+                    this,
+                    GetComponent<PlayerAiming>(),
+                    GetComponent<WeaponController>()
+                );
+            }
+
+            // Register local player on aiming dots
+            if (AimingDots.Instance != null)
+            {
+                AimingDots.Instance.SetLocalPlayer(
+                    transform,
+                    GetComponent<PlayerAiming>()
+                );
+            }
+
+            // Register local player drop point on BagManager
+            if (BagManager.Instance != null)
+            {
+                Transform dp = transform.Find("DropPoint");
+                BagManager.Instance.dropPoint = dp != null ? dp : transform;
+                Debug.Log("[PlayerController] Linked local player drop point to BagManager.");
+            }
         }
     }
     

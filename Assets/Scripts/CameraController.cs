@@ -64,6 +64,12 @@ public class CameraController : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Auto-find local player target if null (dynamically spawned)
+        if (target == null)
+        {
+            FindLocalPlayerTarget();
+        }
+
         // Smooth zoom
         if (cam != null && Mathf.Abs(cam.orthographicSize - targetOrthoSize) > 0.01f)
         {
@@ -71,6 +77,7 @@ public class CameraController : MonoBehaviour
         }
 
         if (target == null) return;
+
 
         Vector3 desiredPosition  = target.position + offset;
         Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
@@ -83,4 +90,26 @@ public class CameraController : MonoBehaviour
 
         transform.position = smoothedPosition;
     }
+
+    private void FindLocalPlayerTarget()
+    {
+        PlayerController[] players = FindObjectsOfType<PlayerController>();
+        foreach (var p in players)
+        {
+            if (p != null)
+            {
+                bool isLocalPlayer = p.IsLocal;
+                
+                var netObj = p.GetComponent<Unity.Netcode.NetworkObject>();
+                if (netObj != null && netObj.IsLocalPlayer) isLocalPlayer = true;
+                
+                if (isLocalPlayer)
+                {
+                    SetTarget(p.transform);
+                    break;
+                }
+            }
+        }
+    }
 }
+

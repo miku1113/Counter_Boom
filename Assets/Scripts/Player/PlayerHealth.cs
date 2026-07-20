@@ -1,61 +1,110 @@
 using UnityEngine;
+using Unity.Netcode;
 using System;
 
-public class PlayerHealth : MonoBehaviour
+public class PlayerHealth : NetworkBehaviour
 {
     public static PlayerHealth Instance;
 
     [Header("Health Settings")]
     [SerializeField] private int maxHealth = 100;
-    [SerializeField] private int currentHealth;
+
+    // Synced health over the network
+    private readonly NetworkVariable<int> netHealth = new NetworkVariable<int>(
+        100, 
+        NetworkVariableReadPermission.Everyone, 
+        NetworkVariableWritePermission.Server
+    );
 
     public event Action<int, int> OnHealthChanged; // current, max
     public event Action OnDeath;
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
-
-        currentHealth = maxHealth;
+        netHealth.OnValueChanged += OnHealthValueChanged;
     }
 
-    private void Start()
+    private void OnHealthValueChanged(int oldVal, int newVal)
     {
-        // Broadcast initial health
-        OnHealthChanged?.Invoke(currentHealth, maxHealth);
-    }
-
-    public void TakeDamage(int amount)
-    {
-        currentHealth -= amount;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        
-        OnHealthChanged?.Invoke(currentHealth, maxHealth);
-
-        if (currentHealth <= 0)
+        OnHealthChanged?.Invoke(newVal, maxHealth);
+        if (newVal <= 0)
         {
             Die();
         }
     }
 
+    private void Start()
+    {
+        bool isLocal = false;
+        if (IsSpawned)
+        {
+            if (IsOwner) isLocal = true;
+        }
+        else
+        {
+            isLocal = true; // Offline fallback
+        }
+
+        if (isLocal)
+        {
+            Instance = this;
+        }
+
+        if (IsServer)
+        {
+            netHealth.Value = maxHealth;
+        }
+
+        // Broadcast initial health
+        OnHealthChanged?.Invoke(netHealth.Value, maxHealth);
+    }
+
+    public void TakeDamage(int amount)
+    {
+        if (IsServer)
+        {
+            if (netHealth.Value <= 0) return;
+            netHealth.Value = Mathf.Clamp(netHealth.Value - amount, 0, maxHealth);
+        }
+        else
+        {
+            TakeDamageServerRpc(amount);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void TakeDamageServerRpc(int amount)
+    {
+        if (netHealth.Value <= 0) return;
+        netHealth.Value = Mathf.Clamp(netHealth.Value - amount, 0, maxHealth);
+    }
+
     public void Heal(int amount)
     {
-        if (currentHealth <= 0) return; // Can't heal dead player? Or maybe you can? usually no.
+        if (IsServer)
+        {
+            if (netHealth.Value <= 0) return;
+            netHealth.Value = Mathf.Clamp(netHealth.Value + amount, 0, maxHealth);
+        }
+        else
+        {
+            HealServerRpc(amount);
+        }
+    }
 
-        currentHealth += amount;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        
-        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    [ServerRpc(RequireOwnership = false)]
+    private void HealServerRpc(int amount)
+    {
+        if (netHealth.Value <= 0) return;
+        netHealth.Value = Mathf.Clamp(netHealth.Value + amount, 0, maxHealth);
     }
 
     private void Die()
     {
         Debug.Log("Player died!");
         OnDeath?.Invoke();
-        // Add death logic implementation here or notify GameManager
     }
 
-    public int GetCurrentHealth() => currentHealth;
+    public int GetCurrentHealth() => IsSpawned ? netHealth.Value : maxHealth;
     public int GetMaxHealth() => maxHealth;
 }
