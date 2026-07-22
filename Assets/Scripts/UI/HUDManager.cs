@@ -41,10 +41,32 @@ public class HUDManager : MonoBehaviour
     [Header("Multiplayer")]
     [SerializeField] private TextMeshProUGUI joinCodeHUDText;
 
+    [Header("Host Migration")]
+    [SerializeField] private GameObject migrationOverlayPanel;
+    [SerializeField] private TextMeshProUGUI migrationStatusText;
+
+    [Header("Spectator Mode")]
+    [SerializeField] private GameObject spectatorPanel;
+    [SerializeField] private TextMeshProUGUI spectatingPlayerNameText;
+    [SerializeField] private Button prevSpectateButton;
+    [SerializeField] private Button nextSpectateButton;
+
     // ─── Lifecycle ───────────────────────────────────────────────────────────
 
     private void Start()
     {
+        if (UnityEngine.EventSystems.EventSystem.current == null)
+        {
+            new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem), typeof(UnityEngine.EventSystems.StandaloneInputModule));
+        }
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas != null && canvas.GetComponent<GraphicRaycaster>() == null)
+        {
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+        }
+
         // Button listeners
         weaponSlot1?.onClick.AddListener(() => SwitchWeapon(0));
         weaponSlot2?.onClick.AddListener(() => SwitchWeapon(1));
@@ -53,6 +75,10 @@ public class HUDManager : MonoBehaviour
         bagButton?.onClick.AddListener(ToggleBag);
         medikitButton?.onClick.AddListener(() => BagManager.Instance?.UseMedikit());
         shakeButton?.onClick.AddListener(() => BagManager.Instance?.UseProteinShake());
+
+        if (prevSpectateButton != null) prevSpectateButton.onClick.AddListener(OnPrevSpectateClicked);
+        if (nextSpectateButton != null) nextSpectateButton.onClick.AddListener(OnNextSpectateClicked);
+        if (spectatorPanel != null) spectatorPanel.SetActive(false);
 
         // Subscribe to BagManager events (replaces per-frame polling)
         if (BagManager.Instance != null)
@@ -94,6 +120,11 @@ public class HUDManager : MonoBehaviour
         PlayerController.OnLocalPlayerEnterSmoke += HandleEnterSmoke;
         PlayerController.OnLocalPlayerExitSmoke += HandleExitSmoke;
 
+        // Subscribe to Host Migration events
+        RelayNetworkManager.OnMigrationStateChanged += HandleMigrationStateChanged;
+        RelayNetworkManager.OnMigrationStatusChanged += HandleMigrationStatusChanged;
+        if (migrationOverlayPanel != null) migrationOverlayPanel.SetActive(false);
+
         // Display the active room code if available
         if (joinCodeHUDText != null)
         {
@@ -111,6 +142,9 @@ public class HUDManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        RelayNetworkManager.OnMigrationStateChanged -= HandleMigrationStateChanged;
+        RelayNetworkManager.OnMigrationStatusChanged -= HandleMigrationStatusChanged;
+
         if (BagManager.Instance != null)
         {
             BagManager.Instance.OnGrenadeUpdated     -= UpdateGrenadeUI;
@@ -131,6 +165,22 @@ public class HUDManager : MonoBehaviour
         PlayerController.OnLocalPlayerStunned -= HandleLocalPlayerStunned;
         PlayerController.OnLocalPlayerEnterSmoke -= HandleEnterSmoke;
         PlayerController.OnLocalPlayerExitSmoke -= HandleExitSmoke;
+    }
+
+    private void HandleMigrationStateChanged(bool isMigrating)
+    {
+        if (migrationOverlayPanel != null)
+        {
+            migrationOverlayPanel.SetActive(isMigrating);
+        }
+    }
+
+    private void HandleMigrationStatusChanged(string statusMessage)
+    {
+        if (migrationStatusText != null)
+        {
+            migrationStatusText.text = statusMessage;
+        }
     }
 
 
@@ -521,6 +571,44 @@ public class HUDManager : MonoBehaviour
         {
             joinCodeHUDText.text = $"Room Code: {code} (Match Started!)";
             joinCodeHUDText.gameObject.SetActive(true);
+        }
+    }
+
+    public void EnableSpectatorUI(bool enable)
+    {
+        if (spectatorPanel != null)
+        {
+            spectatorPanel.SetActive(enable);
+        }
+        if (enable)
+        {
+            UpdateSpectatorName();
+        }
+    }
+
+    private void OnPrevSpectateClicked()
+    {
+        if (CameraController.Instance != null)
+        {
+            CameraController.Instance.SpectatePreviousTarget();
+            UpdateSpectatorName();
+        }
+    }
+
+    private void OnNextSpectateClicked()
+    {
+        if (CameraController.Instance != null)
+        {
+            CameraController.Instance.SpectateNextTarget();
+            UpdateSpectatorName();
+        }
+    }
+
+    private void UpdateSpectatorName()
+    {
+        if (spectatingPlayerNameText != null && CameraController.Instance != null)
+        {
+            spectatingPlayerNameText.text = $"SPECTATING: {CameraController.Instance.GetCurrentSpectatedName()}";
         }
     }
 }

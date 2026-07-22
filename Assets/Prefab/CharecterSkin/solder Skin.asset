@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   head: {fileID: 21300142, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
   body: {fileID: 21300152, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
-  leftArm: {fileID: 21300048, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
-  rightArm: {fileID: 21300050, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
+  leftArm: {fileID: 21300048, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
+  rightArm: {fileID: 21300058, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
   leftLeg: {fileID: 21300080, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   rightLeg: {fileID: 21300080, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   leftEye: {fileID: 21300034, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}

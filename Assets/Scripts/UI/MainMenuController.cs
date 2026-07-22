@@ -44,6 +44,7 @@ public class MainMenuController : MonoBehaviour
     [Header("Lobby Play Panel (Lobby + Relay)")]
     [SerializeField] private Button hostButton; // Repurposed as "Quick Play" to preserve editor serialization
     [SerializeField] private Button joinButton; // Repurposed as "Manual Join" to preserve editor serialization
+    [SerializeField] private Button generateCodeButton; // "Generate Code" button
     [SerializeField] private TMP_InputField joinCodeInputField; // Repurposed to preserve editor serialization
     [SerializeField] private TextMeshProUGUI generatedCodeText; // Displays code if host
     [SerializeField] private TextMeshProUGUI playStatusText;
@@ -96,9 +97,30 @@ public class MainMenuController : MonoBehaviour
         if (shopNextButton != null) shopNextButton.onClick.AddListener(CycleShopNext);
         if (shopBuyButton != null) shopBuyButton.onClick.AddListener(BuySelectedSkin);
 
-        // Quick Play Matchmaking (using hostButton) & Manual Join (using joinButton)
+        // Quick Play Matchmaking (using hostButton) & Manual Join (using joinButton) & Generate Code
         if (hostButton != null) hostButton.onClick.AddListener(OnQuickPlayClicked);
         if (joinButton != null) joinButton.onClick.AddListener(OnManualJoinClicked);
+
+        // Auto-find Generate Code button if unassigned
+        if (generateCodeButton == null && playPanel != null)
+        {
+            foreach (var btn in playPanel.GetComponentsInChildren<Button>(true))
+            {
+                var tmp = btn.GetComponentInChildren<TMP_Text>();
+                if (tmp != null && tmp.text.ToLower().Contains("generate"))
+                {
+                    generateCodeButton = btn;
+                    break;
+                }
+                var txt = btn.GetComponentInChildren<UnityEngine.UI.Text>();
+                if (txt != null && txt.text.ToLower().Contains("generate"))
+                {
+                    generateCodeButton = btn;
+                    break;
+                }
+            }
+        }
+        if (generateCodeButton != null) generateCodeButton.onClick.AddListener(OnGenerateCodeClicked);
 
         // 5. Initial Display Selection
         cabinetSelectedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
@@ -385,6 +407,39 @@ public class MainMenuController : MonoBehaviour
         }
     }
 
+    private async void OnGenerateCodeClicked()
+    {
+        if (RelayNetworkManager.Instance == null)
+        {
+            UpdatePlayStatus("<color=red>Error: Relay Manager Missing</color>");
+            return;
+        }
+
+        SetPlayInputInteractable(false);
+        UpdatePlayStatus("Generating private room code...");
+
+        // Allocate a private Relay host room (not published to public lobby search)
+        string joinCode = await RelayNetworkManager.Instance.StartPrivateHostWithRelay();
+
+        if (!string.IsNullOrEmpty(joinCode))
+        {
+            UpdatePlayStatus("<color=green>Private Room Created! Auto-filled code.</color>");
+            if (generatedCodeText != null)
+            {
+                generatedCodeText.text = $"JOIN CODE: {joinCode}";
+            }
+            if (joinCodeInputField != null)
+            {
+                joinCodeInputField.text = joinCode;
+            }
+        }
+        else
+        {
+            UpdatePlayStatus("<color=red>Failed to generate code.</color>");
+            SetPlayInputInteractable(true);
+        }
+    }
+
     private void UpdatePlayStatus(string message)
     {
         if (playStatusText != null)
@@ -398,6 +453,7 @@ public class MainMenuController : MonoBehaviour
     {
         if (hostButton != null) hostButton.interactable = state;
         if (joinButton != null) joinButton.interactable = state;
+        if (generateCodeButton != null) generateCodeButton.interactable = state;
         if (joinCodeInputField != null) joinCodeInputField.interactable = state;
     }
     #endregion

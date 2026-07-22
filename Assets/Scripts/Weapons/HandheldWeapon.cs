@@ -173,7 +173,7 @@ public class HandheldWeapon : MonoBehaviour
         }
         else
         {
-            SpawnBulletLocal(firePoint.position, firePoint.rotation, firePoint.right, bulletSpeed, damage);
+            SpawnBulletLocal(firePoint.position, firePoint.rotation, firePoint.right, bulletSpeed, damage, transform.root.gameObject);
         }
 
         // Shake Effect
@@ -185,7 +185,7 @@ public class HandheldWeapon : MonoBehaviour
         OnAmmoChanged?.Invoke(ammoInMag, maxAmmo);
     }
 
-    public void SpawnBulletLocal(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage)
+    public void SpawnBulletLocal(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage, GameObject shooterObject = null)
     {
         if (bulletPrefab != null)
         {
@@ -193,7 +193,8 @@ public class HandheldWeapon : MonoBehaviour
              Bullet b = bullet.GetComponent<Bullet>();
              if (b != null)
              {
-                 b.Initialize(direction, speed, damage);
+                 GameObject shooter = shooterObject != null ? shooterObject : transform.root.gameObject;
+                 b.Initialize(direction, speed, damage, shooter);
              }
 
              // Visual Fire Effect

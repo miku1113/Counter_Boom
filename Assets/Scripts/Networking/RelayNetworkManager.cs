@@ -15,15 +15,35 @@ public class RelayNetworkManager : MonoBehaviour
     public static RelayNetworkManager Instance { get; private set; }
 
     [Header("Configuration")]
-    [SerializeField] private int maxConnections = 3; // 3 connections = 4 players max (1 Host + 3 Clients)
+    [SerializeField] private int maxConnections = 9; // 9 connections = 10 players max (1 Host + 9 Clients)
+    [SerializeField] private string lobbySceneName = "CustomLobby";
     [SerializeField] private string gameplaySceneName = "GameScene";
 
+    public int MaxPlayers => maxConnections + 1;
     public string CurrentJoinCode { get; private set; }
     public string CurrentLobbyId => currentLobby != null ? currentLobby.Id : null;
+
+    [System.Serializable]
+    public struct PlayerMigrationSnapshot
+    {
+        public Vector3 position;
+        public Quaternion rotation;
+        public int health;
+        public int currentWeaponIndex;
+    }
+
+    public static PlayerMigrationSnapshot LastPlayerSnapshot;
+    public static bool HasSnapshot = false;
+
+    public bool IsMigrating { get; private set; } = false;
+
+    public static event System.Action<bool> OnMigrationStateChanged;
+    public static event System.Action<string> OnMigrationStatusChanged;
 
     private bool isServicesInitialized = false;
     private Lobby currentLobby = null;
     private Coroutine heartbeatCoroutine = null;
+    private Coroutine migrationCoroutine = null;
 
     private void Awake()
     {
@@ -43,10 +63,11 @@ public class RelayNetworkManager : MonoBehaviour
         // Automatically initialize services and sign in anonymously on start
         await InitializeUnityServicesAsync();
 
-        // Subscribe to transport failures (e.g. Relay timeouts or socket drops)
+        // Subscribe to transport failures and disconnect callbacks
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.OnTransportFailure += OnTransportFailure;
+            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         }
     }
 
@@ -55,13 +76,35 @@ public class RelayNetworkManager : MonoBehaviour
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.OnTransportFailure -= OnTransportFailure;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
         }
     }
 
     private void OnTransportFailure()
     {
-        Debug.LogWarning("[RelayManager] Network transport failure detected! Disconnecting cleanly.");
-        Disconnect();
+        Debug.LogWarning("[RelayManager] Network transport failure detected!");
+        if (currentLobby != null && !IsMigrating && NetworkManager.Singleton != null && !NetworkManager.Singleton.IsServer)
+        {
+            StartHostMigration();
+        }
+        else if (!IsMigrating)
+        {
+            Disconnect();
+        }
+    }
+
+    private void OnClientDisconnected(ulong clientId)
+    {
+        Debug.LogWarning($"[RelayManager] Client disconnected: {clientId}");
+        // If server/host disconnected (clientId 0 or ServerClientId), and we are a client in an active lobby
+        if (NetworkManager.Singleton != null && !NetworkManager.Singleton.IsServer && !IsMigrating)
+        {
+            if (clientId == NetworkManager.ServerClientId || clientId == 0)
+            {
+                Debug.Log("[RelayManager] Host disconnected! Triggering Host Migration...");
+                StartHostMigration();
+            }
+        }
     }
 
     /// <summary>
@@ -238,6 +281,15 @@ public class RelayNetworkManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Creates a private Relay host room (not published to public Lobby search).
+    /// Random Quick Play players cannot join. Only players with the Join Code can join manually.
+    /// </summary>
+    public async Task<string> StartPrivateHostWithRelay()
+    {
+        return await StartHostWithRelay();
+    }
+
+    /// <summary>
     /// Allocates a new Relay server slot, gets a join code, sets transport data, and starts NGO Host.
     /// </summary>
     public async Task<string> StartHostWithRelay()
@@ -274,8 +326,9 @@ public class RelayNetworkManager : MonoBehaviour
                 Debug.Log("[RelayManager] NGO Host started successfully over Unity Relay.");
                 CurrentJoinCode = joinCode;
 
-                // Load the gameplay scene. Netcode automatically syncs and loads this scene for joining clients!
-                NetworkManager.Singleton.SceneManager.LoadScene(gameplaySceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+                // Load the interactive lobby scene first. Netcode automatically syncs and loads this scene for joining clients!
+                string targetScene = !string.IsNullOrEmpty(lobbySceneName) ? lobbySceneName : gameplaySceneName;
+                NetworkManager.Singleton.SceneManager.LoadScene(targetScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
                 return joinCode;
             }
             else
@@ -288,6 +341,44 @@ public class RelayNetworkManager : MonoBehaviour
         {
             Debug.LogError($"[RelayManager] General Exception starting Host: {e.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Host-only method that transitions all connected clients from the pre-game lobby scene to the gameplay scene.
+    /// Locks the UGS lobby so Quick Play creates a new room for subsequent players.
+    /// </summary>
+    public async void StartMatchFromLobby()
+    {
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost)
+        {
+            Debug.Log($"[RelayManager] Host starting match! Locking lobby '{currentLobby?.Id}' and loading scene '{gameplaySceneName}'...");
+
+            if (currentLobby != null)
+            {
+                try
+                {
+                    await LobbyService.Instance.UpdateLobbyAsync(currentLobby.Id, new UpdateLobbyOptions
+                    {
+                        IsLocked = true,
+                        Data = new Dictionary<string, DataObject>
+                        {
+                            { "MatchStarted", new DataObject(DataObject.VisibilityOptions.Public, "true") }
+                        }
+                    });
+                    Debug.Log("[RelayManager] Lobby locked & marked MatchStarted = true successfully.");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[RelayManager] Failed to lock lobby on match start: {e.Message}");
+                }
+            }
+
+            NetworkManager.Singleton.SceneManager.LoadScene(gameplaySceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+        }
+        else
+        {
+            Debug.LogWarning("[RelayManager] Only the Host can start the match!");
         }
     }
 
@@ -385,5 +476,240 @@ public class RelayNetworkManager : MonoBehaviour
             NetworkManager.Singleton.Shutdown();
             Debug.Log("[RelayManager] Shut down active Netcode connection.");
         }
+    }
+
+    /// <summary>
+    /// Saves the current local player stats (position, health, weapon) prior to host migration.
+    /// </summary>
+    public void SaveLocalPlayerSnapshot()
+    {
+        var localPlayerObj = NetworkManager.Singleton != null && NetworkManager.Singleton.LocalClient != null 
+            ? NetworkManager.Singleton.LocalClient.PlayerObject 
+            : null;
+
+        if (localPlayerObj == null)
+        {
+            GameObject pObj = GameObject.FindGameObjectWithTag("Player");
+            if (pObj != null) localPlayerObj = pObj.GetComponent<NetworkObject>();
+        }
+
+        if (localPlayerObj != null)
+        {
+            LastPlayerSnapshot = new PlayerMigrationSnapshot
+            {
+                position = localPlayerObj.transform.position,
+                rotation = localPlayerObj.transform.rotation,
+                health = PlayerHealth.Instance != null ? PlayerHealth.Instance.GetCurrentHealth() : 100,
+                currentWeaponIndex = WeaponController.Instance != null ? WeaponController.Instance.GetCurrentSlot() : 0
+            };
+            HasSnapshot = true;
+            Debug.Log($"[RelayManager] Saved local player snapshot at {LastPlayerSnapshot.position}, HP: {LastPlayerSnapshot.health}");
+        }
+    }
+
+    /// <summary>
+    /// Initiates Host Migration when the host drops.
+    /// </summary>
+    public void StartHostMigration()
+    {
+        if (IsMigrating) return;
+        IsMigrating = true;
+
+        SaveLocalPlayerSnapshot();
+
+        OnMigrationStateChanged?.Invoke(true);
+        OnMigrationStatusChanged?.Invoke("Host connection lost! Initiating Host Migration...");
+
+        if (migrationCoroutine != null) StopCoroutine(migrationCoroutine);
+        migrationCoroutine = StartCoroutine(HostMigrationRoutine());
+    }
+
+    private System.Collections.IEnumerator HostMigrationRoutine()
+    {
+        Debug.Log("[HostMigration] Starting Host Migration Routine...");
+
+        // 1. Shutdown existing broken client connection
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            NetworkManager.Singleton.Shutdown();
+        }
+        yield return new WaitForSecondsRealtime(1.0f);
+
+        if (currentLobby == null)
+        {
+            Debug.LogError("[HostMigration] No active lobby found to migrate!");
+            OnMigrationStatusChanged?.Invoke("Migration failed: No active lobby.");
+            yield return new WaitForSecondsRealtime(2.0f);
+            IsMigrating = false;
+            OnMigrationStateChanged?.Invoke(false);
+            Disconnect();
+            yield break;
+        }
+
+        // 2. Poll Lobby to get updated HostId (UGS Lobby re-assigns host automatically)
+        string myPlayerId = AuthenticationService.Instance != null ? AuthenticationService.Instance.PlayerId : "";
+        string updatedHostId = "";
+        string oldJoinCode = CurrentJoinCode;
+        Lobby updatedLobby = null;
+
+        int retries = 0;
+        bool isNewHost = false;
+
+        while (retries < 15)
+        {
+            retries++;
+            OnMigrationStatusChanged?.Invoke($"Checking Lobby Host Status ({retries}/15)...");
+
+            var getLobbyTask = LobbyService.Instance.GetLobbyAsync(currentLobby.Id);
+            while (!getLobbyTask.IsCompleted) yield return null;
+
+            if (getLobbyTask.Status == TaskStatus.RanToCompletion && getLobbyTask.Result != null)
+            {
+                updatedLobby = getLobbyTask.Result;
+                currentLobby = updatedLobby;
+                updatedHostId = updatedLobby.HostId;
+
+                Debug.Log($"[HostMigration] Lobby Host ID: {updatedHostId}, My Player ID: {myPlayerId}");
+
+                if (updatedHostId == myPlayerId)
+                {
+                    isNewHost = true;
+                    break;
+                }
+                else
+                {
+                    // Check if new host has already posted a new JoinCode
+                    if (updatedLobby.Data != null && updatedLobby.Data.ContainsKey("JoinCode"))
+                    {
+                        string latestJoinCode = updatedLobby.Data["JoinCode"].Value;
+                        if (!string.IsNullOrEmpty(latestJoinCode) && latestJoinCode != oldJoinCode)
+                        {
+                            Debug.Log($"[HostMigration] New Join Code detected from Host: {latestJoinCode}");
+                            break;
+                        }
+                    }
+                }
+            }
+
+            yield return new WaitForSecondsRealtime(1.0f);
+        }
+
+        if (isNewHost)
+        {
+            OnMigrationStatusChanged?.Invoke("You are promoted to NEW HOST! Allocating Relay...");
+            Debug.Log("[HostMigration] Promoted to new Lobby Host. Allocating new Relay server...");
+
+            var createRelayTask = RelayService.Instance.CreateAllocationAsync(maxConnections);
+            while (!createRelayTask.IsCompleted) yield return null;
+
+            if (createRelayTask.Status != TaskStatus.RanToCompletion || createRelayTask.Result == null)
+            {
+                Debug.LogError("[HostMigration] Failed to allocate Relay as new host.");
+                OnMigrationStatusChanged?.Invoke("Failed to allocate Relay.");
+                IsMigrating = false;
+                OnMigrationStateChanged?.Invoke(false);
+                Disconnect();
+                yield break;
+            }
+
+            Allocation allocation = createRelayTask.Result;
+            var getJoinCodeTask = RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+            while (!getJoinCodeTask.IsCompleted) yield return null;
+
+            string newJoinCode = getJoinCodeTask.Result;
+            Debug.Log($"[HostMigration] New Relay Join Code generated: {newJoinCode}");
+
+            // Update Lobby with new Join Code
+            var updateLobbyTask = LobbyService.Instance.UpdateLobbyAsync(currentLobby.Id, new UpdateLobbyOptions
+            {
+                Data = new Dictionary<string, DataObject>
+                {
+                    { "JoinCode", new DataObject(DataObject.VisibilityOptions.Public, newJoinCode) }
+                }
+            });
+            while (!updateLobbyTask.IsCompleted) yield return null;
+
+            // Start NGO Host
+            UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
+            transport.SetHostRelayData(
+                allocation.RelayServer.IpV4,
+                (ushort)allocation.RelayServer.Port,
+                allocation.AllocationIdBytes,
+                allocation.Key,
+                allocation.ConnectionData
+            );
+
+            if (NetworkManager.Singleton.StartHost())
+            {
+                CurrentJoinCode = newJoinCode;
+                Debug.Log("[HostMigration] Started NGO Host successfully!");
+            }
+        }
+        else
+        {
+            // We are a client connecting to the newly allocated host
+            OnMigrationStatusChanged?.Invoke("Connecting to the new Host...");
+            string newJoinCode = updatedLobby != null && updatedLobby.Data != null && updatedLobby.Data.ContainsKey("JoinCode")
+                ? updatedLobby.Data["JoinCode"].Value
+                : "";
+
+            if (string.IsNullOrEmpty(newJoinCode) || newJoinCode == oldJoinCode)
+            {
+                Debug.LogError("[HostMigration] Failed to retrieve valid new Join Code.");
+                OnMigrationStatusChanged?.Invoke("Migration timed out.");
+                IsMigrating = false;
+                OnMigrationStateChanged?.Invoke(false);
+                Disconnect();
+                yield break;
+            }
+
+            var startClientTask = StartClientWithRelay(newJoinCode);
+            while (!startClientTask.IsCompleted) yield return null;
+        }
+
+        OnMigrationStatusChanged?.Invoke("Reconnected! Spawning Player & Restoring State...");
+
+        float timeout = 5.0f;
+        float elapsed = 0f;
+        while ((NetworkManager.Singleton.LocalClient == null || NetworkManager.Singleton.LocalClient.PlayerObject == null) && elapsed < timeout)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (NetworkManager.Singleton.LocalClient != null && NetworkManager.Singleton.LocalClient.PlayerObject != null)
+        {
+            GameObject localPlayerObj = NetworkManager.Singleton.LocalClient.PlayerObject.gameObject;
+            if (CameraController.Instance != null)
+            {
+                CameraController.Instance.SetTarget(localPlayerObj.transform);
+            }
+        }
+
+        // Only the host respawns world pickups
+        if (NetworkManager.Singleton.IsServer && GameManager.Instance != null)
+        {
+            GameManager.Instance.SpawnItemsAroundPlayer();
+        }
+
+        // Notify GameManager to restore snapshot
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.RestorePlayerFromSnapshot();
+        }
+
+        // Countdown to unpause
+        for (int i = 3; i > 0; i--)
+        {
+            OnMigrationStatusChanged?.Invoke($"Resuming Game in {i}...");
+            yield return new WaitForSecondsRealtime(1.0f);
+        }
+
+        OnMigrationStatusChanged?.Invoke("Game Resumed!");
+        yield return new WaitForSecondsRealtime(0.5f);
+
+        IsMigrating = false;
+        OnMigrationStateChanged?.Invoke(false);
+        Debug.Log("[HostMigration] Host migration successfully completed!");
     }
 }

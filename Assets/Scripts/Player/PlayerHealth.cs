@@ -99,10 +99,93 @@ public class PlayerHealth : NetworkBehaviour
         netHealth.Value = Mathf.Clamp(netHealth.Value + amount, 0, maxHealth);
     }
 
+    public bool IsDead { get; private set; } = false;
+
     private void Die()
     {
-        Debug.Log("Player died!");
+        if (IsDead) return;
+        IsDead = true;
+
+        Debug.Log($"[PlayerHealth] Player '{gameObject.name}' died!");
         OnDeath?.Invoke();
+
+        // 1. Disable colliders
+        Collider2D[] colliders = GetComponentsInChildren<Collider2D>();
+        foreach (var col in colliders)
+        {
+            if (col != null) col.enabled = false;
+        }
+
+        // 2. Disable controls & physics
+        var rb = GetComponent<Rigidbody2D>();
+        if (rb != null) rb.velocity = Vector2.zero;
+
+        var playerCtrl = GetComponent<PlayerController>();
+        if (playerCtrl != null) playerCtrl.enabled = false;
+
+        var playerAim = GetComponent<PlayerAiming>();
+        if (playerAim != null) playerAim.enabled = false;
+
+        var weaponCtrl = GetComponent<WeaponController>();
+        if (weaponCtrl != null) weaponCtrl.enabled = false;
+
+        // 3. Play procedural code death animation
+        StartCoroutine(PlayDeathAnimationRoutine());
+    }
+
+    private System.Collections.IEnumerator PlayDeathAnimationRoutine()
+    {
+        float elapsed = 0f;
+        float duration = 1.2f;
+
+        Vector3 startPos = transform.position;
+        Quaternion startRot = transform.rotation;
+        Quaternion targetRot = Quaternion.Euler(0, 0, 90f); // Fall flat sideways
+
+        SpriteRenderer[] renderers = GetComponentsInChildren<SpriteRenderer>();
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+
+            // Tilt & pop slightly upward/backward
+            transform.rotation = Quaternion.Slerp(startRot, targetRot, t * 2f);
+            transform.position = startPos + new Vector3(0f, Mathf.Sin(t * Mathf.PI) * 0.25f, 0f);
+
+            // Fade renderers
+            foreach (var r in renderers)
+            {
+                if (r != null)
+                {
+                    Color c = r.color;
+                    c.a = Mathf.Lerp(1f, 0.2f, t);
+                    r.color = c;
+                }
+            }
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.rotation = targetRot;
+
+        // If local player, start Spectator Mode
+        bool isLocal = false;
+        if (IsSpawned) { if (IsOwner) isLocal = true; }
+        else { isLocal = true; }
+
+        if (isLocal)
+        {
+            Debug.Log("[PlayerHealth] Local player died. Transitioning to Spectator Mode...");
+            if (CameraController.Instance != null)
+            {
+                CameraController.Instance.StartSpectating();
+            }
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.EnableSpectatorUI(true);
+            }
+        }
     }
 
     public int GetCurrentHealth() => IsSpawned ? netHealth.Value : maxHealth;

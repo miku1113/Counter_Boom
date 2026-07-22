@@ -37,6 +37,10 @@ public class PlayerAiming : NetworkBehaviour
     [SerializeField] private float rightArmAngleOffset = 0f;
     [SerializeField] private Vector3 handPositionOffset = Vector3.zero;
 
+    [Header("Hand Point Fine Tuning Offsets")]
+    [SerializeField] private Vector3 leftArmHandOffset  = Vector3.zero;
+    [SerializeField] private Vector3 rightArmHandOffset = Vector3.zero;
+
     // Runtime state
     private int defaultLeftSortingOrder;
     private int defaultRightSortingOrder;
@@ -148,7 +152,7 @@ public class PlayerAiming : NetworkBehaviour
     public void SetAimInput(Vector2 input)
     {
         aimInput = input;
-        if (input.magnitude > 0.1f)
+        if (input.magnitude > 0.05f)
         {
             lastAimDirection = input.normalized;
             if (IsSpawned && IsOwner)
@@ -158,11 +162,13 @@ public class PlayerAiming : NetworkBehaviour
         }
     }
 
+    public bool IsAiming => aimInput.magnitude > 0.05f;
+    public Vector2 RawAimInput => aimInput;
     public Vector2 GetAimDirection()  => lastAimDirection;
 
     public Vector3 GetFirePoint()
     {
-        if (currentWeapon != null)
+        if (currentWeapon != null && currentWeapon.gameObject.activeSelf)
         {
             if (currentWeapon.firePoint != null)
                 return currentWeapon.firePoint.position;
@@ -185,8 +191,30 @@ public class PlayerAiming : NetworkBehaviour
             }
             if (fp != null)
                 return fp.position;
+
+            return currentWeapon.transform.position;
         }
-        return weaponAttachPoint != null ? weaponAttachPoint.position : transform.position;
+
+        // --- UNARMED / NO WEAPON HELD ---
+        // Calculate head-level position
+        Vector3 headPos;
+        if (leftEyeTransform != null && rightEyeTransform != null)
+        {
+            headPos = (leftEyeTransform.position + rightEyeTransform.position) * 0.5f;
+        }
+        else if (characterAssembler != null && characterAssembler.GetHeadTransform() != null)
+        {
+            headPos = characterAssembler.GetHeadTransform().position;
+        }
+        else
+        {
+            // Default vertical offset for head level
+            headPos = transform.position + new Vector3(0f, 0.45f, 0f);
+        }
+
+        // Offset outside of the head in the aim direction so dots start outside the head mesh
+        float headRadiusOffset = 0.4f;
+        return headPos + (Vector3)(lastAimDirection * headRadiusOffset);
     }
 
     public Vector3 GetAimStartPosition() => GetFirePoint();
@@ -202,7 +230,9 @@ public class PlayerAiming : NetworkBehaviour
         {
             Transform handPoint = offHandArm.Find("HandPoint");
             if (handPoint != null)
+            {
                 return handPoint.position;
+            }
         }
         return GetFirePoint();
     }
@@ -236,18 +266,6 @@ public class PlayerAiming : NetworkBehaviour
         if (characterAssembler != null)
         {
             characterAssembler.SetFacingDirection(facingRight);
-
-            Transform l = characterAssembler.GetLeftArmTransform();
-            if (l == null) l = transform.Find("Arms/LeftArm");
-
-            Transform r = characterAssembler.GetRightArmTransform();
-            if (r == null) r = transform.Find("Arms/RightArm");
-
-            if (l != null && r != null)
-            {
-                l.localPosition = facingRight ? leftArm_RightFacing  : leftArm_LeftFacing;
-                r.localPosition = facingRight ? rightArm_RightFacing : rightArm_LeftFacing;
-            }
         }
 
         // Rotation and flipping of weapon attach point is now handled in LateUpdate to sync with arm rotations.
@@ -280,6 +298,9 @@ public class PlayerAiming : NetworkBehaviour
         bool facingRight = lastAimDirection.x >= 0;
         float angle = Mathf.Atan2(lastAimDirection.y, lastAimDirection.x) * Mathf.Rad2Deg;
 
+        // Align arm pivots to LeftShoulderPoint and RightShoulderPoint defined on the body
+        AlignArmsToShoulderPoints(leftArm, rightArm);
+
         // When facing right: LeftArm is main holding arm, RightArm is off-hand.
         // When facing left: RightArm (the back arm) is main holding arm, LeftArm is off-hand.
         Transform mainArm    = facingRight ? leftArm  : rightArm;
@@ -287,19 +308,36 @@ public class PlayerAiming : NetworkBehaviour
 
         if (mainArm == null) return;
 
-        // 1. Rotate the main holding arm to point at the aim angle
-        float mainArmRotation = angle;
-        if (!facingRight)
+        // 1. Rotate main holding arm when a weapon is equipped, or keep both arms at rest when unequipped
+        if (currentWeapon != null)
         {
-            mainArmRotation = angle - 180f;
-        }
-        mainArmRotation += facingRight ? leftArmAngleOffset : -leftArmAngleOffset;
-        mainArm.rotation = Quaternion.Euler(0, 0, mainArmRotation);
+            float mainArmRotation = angle;
+            if (facingRight)
+            {
+                mainArmRotation += leftArmAngleOffset;
+            }
+            else
+            {
+                mainArmRotation = (angle - 180f) - rightArmAngleOffset;
+            }
+            mainArm.rotation = Quaternion.Euler(0, 0, mainArmRotation);
 
-        // Reset off-hand arm rotation when not throwing a grenade
-        if (offHandArm != null && grenadeThrowTimer <= 0f)
+            if (offHandArm != null && grenadeThrowTimer <= 0f)
+            {
+                offHandArm.localRotation = Quaternion.identity;
+            }
+        }
+        else
         {
-            offHandArm.localRotation = Quaternion.identity;
+            // No weapon equipped: reset both arms to default rest pose (unless throwing grenade)
+            if (leftArm != null && (leftArm != offHandArm || grenadeThrowTimer <= 0f))
+            {
+                leftArm.localRotation = Quaternion.identity;
+            }
+            if (rightArm != null && (rightArm != offHandArm || grenadeThrowTimer <= 0f))
+            {
+                rightArm.localRotation = Quaternion.identity;
+            }
         }
 
         // Keep hand sorting layers fixed (never change hand layers!)
@@ -320,6 +358,9 @@ public class PlayerAiming : NetworkBehaviour
                 Vector3 armDir = facingRight ? mainArm.right : -mainArm.right;
                 handPos = mainArm.position + armDir * mainArmLength;
             }
+
+            Vector3 handOffset = (mainArm == leftArm) ? leftArmHandOffset : rightArmHandOffset;
+            handPos += mainArm.rotation * handOffset;
 
             // Determine grip offset
             Vector3 finalGripOffset = Vector3.zero;
@@ -437,5 +478,42 @@ public class PlayerAiming : NetworkBehaviour
             Vector3 target = rightEyeDefaultPos + new Vector3(aimX, lastAimDirection.y, 0f) * eyeMoveRadius;
             rightEyeTransform.localPosition = Vector3.Lerp(rightEyeTransform.localPosition, target, Time.deltaTime * eyeLerpSpeed);
         }
+    }
+
+    private void AlignArmsToShoulderPoints(Transform leftArm, Transform rightArm)
+    {
+        if (leftArm != null)
+        {
+            Transform ls = FindShoulderPoint("left");
+            if (ls != null)
+            {
+                leftArm.position = ls.position;
+            }
+        }
+
+        if (rightArm != null)
+        {
+            Transform rs = FindShoulderPoint("right");
+            if (rs != null)
+            {
+                rightArm.position = rs.position;
+            }
+        }
+    }
+
+    private Transform FindShoulderPoint(string side)
+    {
+        Transform searchRoot = characterAssembler != null ? characterAssembler.transform : transform;
+        string targetName = side.ToLower() == "left" ? "leftshoulderpoint" : "rightshoulderpoint";
+
+        foreach (Transform child in searchRoot.GetComponentsInChildren<Transform>(true))
+        {
+            string nameLower = child.name.ToLower();
+            if (nameLower == targetName || (nameLower.Contains(side) && (nameLower.Contains("shoulder") || nameLower.Contains("holder") || nameLower.Contains("solder"))))
+            {
+                return child;
+            }
+        }
+        return null;
     }
 }

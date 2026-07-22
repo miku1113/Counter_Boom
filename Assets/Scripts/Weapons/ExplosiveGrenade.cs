@@ -16,12 +16,8 @@ public class ExplosiveGrenade : Grenade
             PlayerHealth health = col.GetComponent<PlayerHealth>();
             if (health != null)
             {
-                // Only the client owning the hit player (or the server) applies damage
-                if (health.IsOwner || health.IsServer)
-                {
-                    health.TakeDamage(damage);
-                    Debug.Log($"[ExplosiveGrenade] Dealt {damage} damage to {col.name}.");
-                }
+                health.TakeDamage(damage);
+                Debug.Log($"[ExplosiveGrenade] Dealt {damage} damage to {col.name}.");
             }
         }
     }

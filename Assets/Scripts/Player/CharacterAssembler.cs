@@ -243,6 +243,7 @@ public class CharacterAssembler : NetworkBehaviour
     public Transform GetWeaponAttachPoint() => weaponAttachPoint;
     public bool IsFacingRight() => isFacingRight;
     
+    public Transform GetHeadTransform() => headRenderer != null ? headRenderer.transform : null;
     public Transform GetLeftArmTransform() => leftArmRenderer != null ? leftArmRenderer.transform : null;
     public Transform GetRightArmTransform() => rightArmRenderer != null ? rightArmRenderer.transform : null;
 

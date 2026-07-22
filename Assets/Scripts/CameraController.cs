@@ -62,10 +62,74 @@ public class CameraController : MonoBehaviour
         Debug.Log($"[CameraController] Zoom set to {zoomMultiplier}x (OrthoSize: {targetOrthoSize})");
     }
 
+    public bool IsSpectating { get; set; } = false;
+    private System.Collections.Generic.List<Transform> spectateTargets = new System.Collections.Generic.List<Transform>();
+    private int currentSpectateIndex = 0;
+
+    /// <summary>
+    /// Starts spectating other alive players in the match.
+    /// </summary>
+    public void StartSpectating()
+    {
+        IsSpectating = true;
+        RefreshSpectateTargets();
+        if (spectateTargets.Count > 0)
+        {
+            currentSpectateIndex = 0;
+            SetTarget(spectateTargets[currentSpectateIndex]);
+        }
+        else
+        {
+            Debug.Log("[CameraController] No other alive players to spectate.");
+        }
+    }
+
+    public void SpectateNextTarget()
+    {
+        RefreshSpectateTargets();
+        if (spectateTargets.Count == 0) return;
+
+        currentSpectateIndex = (currentSpectateIndex + 1) % spectateTargets.Count;
+        SetTarget(spectateTargets[currentSpectateIndex]);
+    }
+
+    public void SpectatePreviousTarget()
+    {
+        RefreshSpectateTargets();
+        if (spectateTargets.Count == 0) return;
+
+        currentSpectateIndex--;
+        if (currentSpectateIndex < 0) currentSpectateIndex = spectateTargets.Count - 1;
+        SetTarget(spectateTargets[currentSpectateIndex]);
+    }
+
+    public string GetCurrentSpectatedName()
+    {
+        if (target != null) return target.name;
+        return "None";
+    }
+
+    private void RefreshSpectateTargets()
+    {
+        spectateTargets.Clear();
+        PlayerHealth[] allHealths = FindObjectsOfType<PlayerHealth>();
+        foreach (var h in allHealths)
+        {
+            if (h != null && !h.IsDead)
+            {
+                // Only spectate other players (not our own dead player)
+                var netObj = h.GetComponent<Unity.Netcode.NetworkObject>();
+                if (netObj != null && netObj.IsLocalPlayer) continue;
+
+                spectateTargets.Add(h.transform);
+            }
+        }
+    }
+
     private void LateUpdate()
     {
-        // Auto-find local player target if null (dynamically spawned)
-        if (target == null)
+        // Auto-find local player target if null (dynamically spawned) and not spectating
+        if (target == null && !IsSpectating)
         {
             FindLocalPlayerTarget();
         }
@@ -77,7 +141,6 @@ public class CameraController : MonoBehaviour
         }
 
         if (target == null) return;
-
 
         Vector3 desiredPosition  = target.position + offset;
         Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
@@ -93,6 +156,8 @@ public class CameraController : MonoBehaviour
 
     private void FindLocalPlayerTarget()
     {
+        if (IsSpectating) return;
+
         PlayerController[] players = FindObjectsOfType<PlayerController>();
         foreach (var p in players)
         {

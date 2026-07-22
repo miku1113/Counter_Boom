@@ -18,13 +18,19 @@ public class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPoint
     
     private void Start()
     {
+        if (background == null) background = GetComponent<RectTransform>();
+        if (handle == null && transform.childCount > 0) handle = transform.GetChild(0).GetComponent<RectTransform>();
+        
         canvas = GetComponentInParent<Canvas>();
-        joystickPosition = background.position;
+        if (background != null)
+        {
+            joystickPosition = background.position;
+        }
     }
     
     public void OnPointerDown(PointerEventData eventData)
     {
-        if (!fixedPosition)
+        if (!fixedPosition && background != null)
         {
             background.position = eventData.position;
             joystickPosition = eventData.position;
@@ -34,19 +40,32 @@ public class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPoint
     
     public void OnDrag(PointerEventData eventData)
     {
-        Vector2 position = RectTransformUtility.WorldToScreenPoint(canvas.worldCamera, background.position);
-        Vector2 radius = background.sizeDelta / 2;
-        
-        inputVector = (eventData.position - position) / (radius * canvas.scaleFactor);
-        
-        // Clamp to circle
-        if (inputVector.magnitude > 1f)
+        if (background == null || handle == null) return;
+
+        Camera cam = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay) ? canvas.worldCamera : null;
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(background, eventData.position, cam, out Vector2 localPoint))
         {
-            inputVector = inputVector.normalized;
+            Vector2 radius = background.rect.size / 2f;
+            if (radius.x > 0 && radius.y > 0)
+            {
+                inputVector = new Vector2(localPoint.x / radius.x, localPoint.y / radius.y);
+            }
+            else if (handleRange > 0)
+            {
+                inputVector = localPoint / handleRange;
+            }
+            else
+            {
+                inputVector = Vector2.zero;
+            }
+
+            if (inputVector.magnitude > 1f)
+            {
+                inputVector = inputVector.normalized;
+            }
+
+            handle.anchoredPosition = inputVector * handleRange;
         }
-        
-        // Move handle
-        handle.anchoredPosition = inputVector * handleRange;
     }
     
     public void OnPointerUp(PointerEventData eventData)

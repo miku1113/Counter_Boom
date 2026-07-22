@@ -198,8 +198,9 @@ public class ItemPickup : NetworkBehaviour
         }
     }
 
-    private void OnDestroy()
+    public override void OnDestroy()
     {
+        base.OnDestroy();
         if (PickupsInRange.Contains(this))
         {
             PickupsInRange.Remove(this);

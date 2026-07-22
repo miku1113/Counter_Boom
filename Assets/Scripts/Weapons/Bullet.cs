@@ -10,6 +10,7 @@ public class Bullet : MonoBehaviour
 
     private Rigidbody2D rb;
     private Vector2     direction;
+    private GameObject  shooter;
 
     private void Awake()
     {
@@ -17,16 +18,31 @@ public class Bullet : MonoBehaviour
     }
 
     /// <summary>
-    /// Initialises the bullet with direction, speed, and damage.
+    /// Initialises the bullet with direction, speed, damage, and shooter reference.
     /// </summary>
-    public void Initialize(Vector2 fireDirection, float bulletSpeed, int bulletDamage)
+    public void Initialize(Vector2 fireDirection, float bulletSpeed, int bulletDamage, GameObject shooterObject = null)
     {
         direction = fireDirection.normalized;
         speed     = bulletSpeed;
         damage    = bulletDamage;
+        shooter   = shooterObject;
 
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         transform.rotation = Quaternion.Euler(0, 0, angle);
+
+        // Ignore collisions with shooter colliders
+        if (shooter != null)
+        {
+            Collider2D bulletCol = GetComponent<Collider2D>();
+            if (bulletCol != null)
+            {
+                Collider2D[] shooterCols = shooter.transform.root.GetComponentsInChildren<Collider2D>();
+                foreach (Collider2D col in shooterCols)
+                {
+                    if (col != null) Physics2D.IgnoreCollision(col, bulletCol, true);
+                }
+            }
+        }
 
         Destroy(gameObject, lifetime);
     }
@@ -39,28 +55,35 @@ public class Bullet : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
+        // Ignore hitting the shooter
+        if (shooter != null && (collision.gameObject == shooter || collision.transform.root == shooter.transform.root))
+        {
+            return;
+        }
+
         // Primary check: does the hit object have a health component?
-        // This works regardless of what tags exist in the project.
         PlayerHealth health = collision.GetComponent<PlayerHealth>();
+        if (health == null) health = collision.GetComponentInParent<PlayerHealth>();
+
         if (health != null)
         {
-            // Only the owner client of the hit player (or the server) applies damage.
-            // This prevents double-counting damage when multiple clients simulate the same local bullet.
-            if (health.IsOwner || health.IsServer)
+            // Ignore hitting shooter's own health component
+            if (shooter != null && health.gameObject == shooter.transform.root.gameObject)
             {
-                health.TakeDamage(damage);
-                Debug.Log($"[Bullet] Hit '{collision.name}' for {damage} damage.");
+                return;
             }
+
+            // Apply damage to enemy player
+            health.TakeDamage(damage);
+            Debug.Log($"[Bullet] Hit '{collision.name}' for {damage} damage.");
+
             Destroy(gameObject);
             return;
         }
 
         // Secondary check: destroy on environment colliders
-        // Only use CompareTag for tags that are built-in or confirmed to exist.
-        // "Wall" and "Obstacle" must be added to Tags & Layers in Project Settings.
         if (collision.gameObject.layer == LayerMask.NameToLayer("Default"))
         {
-            // Fallback: destroy if we hit anything solid that isn't a trigger
             if (!collision.isTrigger)
                 Destroy(gameObject);
         }

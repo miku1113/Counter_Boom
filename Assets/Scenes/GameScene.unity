@@ -2336,6 +2336,8 @@ MonoBehaviour:
   playerAiming: {fileID: 0}
   weaponController: {fileID: 0}
   useKeyboardInEditor: 0
+  aimThreshold: 0.3
+  fireThreshold: 0.45
 --- !u!114 &836665009
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -90,6 +90,18 @@ public class BagManager : NetworkBehaviour
         {
             Instance = this;
         }
+
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name.ToLower();
+        bool isLobbyScene = activeScene.Contains("lobby");
+
+        if (isLobbyScene)
+        {
+            grenadeInventory[GrenadeType.Smoke] = 20;
+            activeGrenadeType = GrenadeType.Smoke;
+            OnGrenadeUpdated?.Invoke(GrenadeType.Smoke, 20);
+            OnBagUpdated?.Invoke();
+            Debug.Log("[BagManager] Initialized Lobby loadout: 20 Smoke Grenades, 0 Guns.");
+        }
     }
 
 #if UNITY_EDITOR

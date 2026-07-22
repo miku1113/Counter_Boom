@@ -35,11 +35,33 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("[PlayerController] Rigidbody2D is missing! Add one to the Player GameObject.");
         }
         
+        // Ensure Player has a non-trigger 2D Collider for solid map collision
+        Collider2D col = GetComponent<Collider2D>();
+        if (col == null) col = GetComponentInChildren<Collider2D>();
+        if (col == null)
+        {
+            CircleCollider2D circle = gameObject.AddComponent<CircleCollider2D>();
+            circle.radius = 0.4f;
+            circle.isTrigger = false;
+            Debug.Log("[PlayerController] Dynamically added CircleCollider2D to player for map collision.");
+        }
+
         Debug.Log($"[PlayerController] Initialized on {gameObject.name}");
         defaultMoveSpeed = moveSpeed;
     }
     
-    public bool IsLocal { get; private set; } = false;
+    private bool isLocalCached = false;
+
+    public bool IsLocal
+    {
+        get
+        {
+            if (isLocalCached) return true;
+            EvaluateIsLocal();
+            return isLocalCached;
+        }
+        private set => isLocalCached = value;
+    }
 
     // ─── Local Player Stun/Smoke Events & Triggers ─────────────────────────────
     public static event System.Action<float> OnLocalPlayerStunned;
@@ -61,15 +83,17 @@ public class PlayerController : MonoBehaviour
         OnLocalPlayerExitSmoke?.Invoke();
     }
 
-    private void RegisterCameraIfLocal()
+    private void EvaluateIsLocal()
     {
-        bool isLocal = false;
+        if (isLocalCached) return;
+
+        bool local = false;
 
         // 1. Check Unity Netcode (NGO)
         var netObj = GetComponent<Unity.Netcode.NetworkObject>();
         if (netObj != null)
         {
-            if (netObj.IsLocalPlayer) isLocal = true;
+            if (netObj.IsSpawned && (netObj.IsLocalPlayer || netObj.IsOwner)) local = true;
         }
         // 2. Check Photon PUN
         else 
@@ -77,32 +101,62 @@ public class PlayerController : MonoBehaviour
             var photonView = GetComponent<Photon.Pun.PhotonView>();
             if (photonView != null)
             {
-                if (photonView.IsMine) isLocal = true;
+                if (photonView.IsMine) local = true;
             }
             // 3. No Networking (Offline / Single Player)
             else
             {
-                isLocal = true;
+                local = true;
             }
         }
 
-        if (isLocal)
+        if (local)
         {
-            IsLocal = true;
-            if (CameraController.Instance != null)
-            {
-                CameraController.Instance.SetTarget(transform);
-            }
-            else
-            {
-                // Fallback: Try to find it if Instance isn't set yet (e.g. execution order)
-                var cam = FindObjectOfType<CameraController>();
-                if (cam != null) cam.SetTarget(transform);
-            }
+            isLocalCached = true;
+            RegisterCameraIfLocal();
         }
     }
 
-    
+    private void RegisterCameraIfLocal()
+    {
+        if (CameraController.Instance != null)
+        {
+            CameraController.Instance.SetTarget(transform);
+        }
+        else
+        {
+            var cam = FindObjectOfType<CameraController>();
+            if (cam != null) cam.SetTarget(transform);
+        }
+
+        // Register local player on inputs
+        if (MobileInputManager.Instance != null)
+        {
+            MobileInputManager.Instance.SetLocalPlayer(
+                this,
+                GetComponent<PlayerAiming>(),
+                GetComponent<WeaponController>()
+            );
+        }
+
+        // Register local player on aiming dots
+        if (AimingDots.Instance != null)
+        {
+            AimingDots.Instance.SetLocalPlayer(
+                transform,
+                GetComponent<PlayerAiming>()
+            );
+        }
+
+        // Register local player drop point on BagManager
+        if (BagManager.Instance != null)
+        {
+            Transform dp = transform.Find("DropPoint");
+            BagManager.Instance.dropPoint = dp != null ? dp : transform;
+            Debug.Log("[PlayerController] Linked local player drop point to BagManager.");
+        }
+    }
+
     private void Start()
     {
         // Ensure animator is found if not assigned
@@ -111,37 +165,14 @@ public class PlayerController : MonoBehaviour
             animator = GetComponentInChildren<Animator>();
         }
 
-        // Defer local checks to Start where Netcode has resolved client ownership
-        RegisterCameraIfLocal();
+        EvaluateIsLocal();
+    }
 
-        if (IsLocal)
+    private void Update()
+    {
+        if (!isLocalCached)
         {
-            // Register local player on inputs
-            if (MobileInputManager.Instance != null)
-            {
-                MobileInputManager.Instance.SetLocalPlayer(
-                    this,
-                    GetComponent<PlayerAiming>(),
-                    GetComponent<WeaponController>()
-                );
-            }
-
-            // Register local player on aiming dots
-            if (AimingDots.Instance != null)
-            {
-                AimingDots.Instance.SetLocalPlayer(
-                    transform,
-                    GetComponent<PlayerAiming>()
-                );
-            }
-
-            // Register local player drop point on BagManager
-            if (BagManager.Instance != null)
-            {
-                Transform dp = transform.Find("DropPoint");
-                BagManager.Instance.dropPoint = dp != null ? dp : transform;
-                Debug.Log("[PlayerController] Linked local player drop point to BagManager.");
-            }
+            EvaluateIsLocal();
         }
     }
     
@@ -166,6 +197,12 @@ public class PlayerController : MonoBehaviour
         // Apply movement
         if (rb != null)
         {
+            if (RelayNetworkManager.Instance != null && RelayNetworkManager.Instance.IsMigrating)
+            {
+                rb.velocity = Vector2.zero;
+                return;
+            }
+
             Vector2 velocity = moveInput * moveSpeed;
             rb.velocity = velocity;
         }

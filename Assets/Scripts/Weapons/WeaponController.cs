@@ -34,8 +34,6 @@ public class WeaponController : NetworkBehaviour
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-
         if (weaponAttachPoint == null)
             Debug.LogError("[WeaponController] ⚠️ weaponAttachPoint is NOT assigned! " +
                            "Please assign it in the Inspector. Weapons cannot be equipped without it.");
@@ -43,12 +41,54 @@ public class WeaponController : NetworkBehaviour
 
     private void Start()
     {
+        bool isLocal = false;
+        if (IsSpawned)
+        {
+            if (IsOwner) isLocal = true;
+        }
+        else
+        {
+            isLocal = true; // Offline fallback
+        }
+
+        if (isLocal)
+        {
+            Instance = this;
+        }
+
         // Auto-find PlayerAiming if not wired in Inspector
         if (playerAiming == null)
-            playerAiming = FindObjectOfType<PlayerAiming>();
+            playerAiming = GetComponent<PlayerAiming>();
 
-        if (startingWeaponPrefab != null)
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name.ToLower();
+        bool isLobbyScene = activeScene.Contains("lobby");
+
+        if (isLobbyScene)
+        {
+            ClearAttachPointChildren();
+        }
+        else if (startingWeaponPrefab != null)
+        {
             EquipWeaponToSlot(0, startingWeaponPrefab);
+        }
+    }
+
+    /// <summary>
+    /// Destroys any pre-attached default gun objects saved inside the Player prefab.
+    /// </summary>
+    public void ClearAttachPointChildren()
+    {
+        if (weaponAttachPoint != null)
+        {
+            for (int i = weaponAttachPoint.childCount - 1; i >= 0; i--)
+            {
+                Destroy(weaponAttachPoint.GetChild(i).gameObject);
+            }
+        }
+        weaponSlots[0] = null;
+        weaponSlots[1] = null;
+        if (playerAiming == null) playerAiming = GetComponent<PlayerAiming>();
+        playerAiming?.SetWeapon(null);
     }
 
     // ─── Public API ──────────────────────────────────────────────────────────
@@ -66,6 +106,54 @@ public class WeaponController : NetworkBehaviour
     /// If slotIndex == currentSlot the weapon is immediately shown and PlayerAiming is notified.
     /// </summary>
     public void EquipWeaponToSlot(int slotIndex, GameObject weaponPrefab)
+    {
+        if (weaponPrefab == null || slotIndex < 0 || slotIndex >= 2) return;
+
+        EquipWeaponToSlotInternal(slotIndex, weaponPrefab);
+
+        if (IsSpawned && IsOwner)
+        {
+            EquipWeaponServerRpc(slotIndex, weaponPrefab.name);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void EquipWeaponServerRpc(int slotIndex, string prefabName)
+    {
+        EquipWeaponClientRpc(slotIndex, prefabName);
+    }
+
+    [ClientRpc]
+    private void EquipWeaponClientRpc(int slotIndex, string prefabName)
+    {
+        if (IsOwner) return; // Owner already equipped locally
+
+        GameObject prefab = FindWeaponPrefabByName(prefabName);
+        if (prefab != null)
+        {
+            EquipWeaponToSlotInternal(slotIndex, prefab);
+        }
+    }
+
+    private GameObject FindWeaponPrefabByName(string prefabName)
+    {
+        if (string.IsNullOrEmpty(prefabName)) return null;
+
+        string cleanName = prefabName.Replace("(Clone)", "").Trim();
+
+        if (startingWeaponPrefab != null && startingWeaponPrefab.name.Replace("(Clone)", "").Trim() == cleanName)
+            return startingWeaponPrefab;
+
+        if (BagManager.Instance != null && BagManager.Instance.allItemData != null)
+        {
+            var data = BagManager.Instance.allItemData.Find(x => x != null && x.prefab != null && x.prefab.name.Replace("(Clone)", "").Trim() == cleanName);
+            if (data != null) return data.prefab;
+        }
+
+        return null;
+    }
+
+    private void EquipWeaponToSlotInternal(int slotIndex, GameObject weaponPrefab)
     {
         if (weaponPrefab == null || slotIndex < 0 || slotIndex >= 2) return;
 
@@ -102,14 +190,10 @@ public class WeaponController : NetworkBehaviour
 
         if (slotIndex == currentSlot)
         {
-            // ─── THIS IS THE KEY FIX ─────────────────────────────────────────
-            // We CANNOT call SwitchToSlot() here because its guard returns early
-            // when the weapon is already active (which it always is after Instantiate).
-            // Instead, directly activate and notify all dependents.
             newWeapon.gameObject.SetActive(true);
 
             if (playerAiming == null)
-                playerAiming = FindObjectOfType<PlayerAiming>();
+                playerAiming = GetComponent<PlayerAiming>();
 
             playerAiming?.SetWeapon(newWeapon);
             HandleAmmoChanged(newWeapon.GetCurrentAmmo(), newWeapon.maxAmmo);
@@ -147,12 +231,11 @@ public class WeaponController : NetworkBehaviour
             int other = 1 - slotIndex;
             if (weaponSlots[other] != null)
             {
-                // Force-switch: set currentSlot first so SwitchToSlot guard doesn't block
                 currentSlot = other;
                 weaponSlots[other].gameObject.SetActive(true);
 
                 if (playerAiming == null)
-                    playerAiming = FindObjectOfType<PlayerAiming>();
+                    playerAiming = GetComponent<PlayerAiming>();
 
                 playerAiming?.SetWeapon(weaponSlots[other]);
                 HandleAmmoChanged(weaponSlots[other].GetCurrentAmmo(), weaponSlots[other].maxAmmo);
@@ -161,7 +244,6 @@ public class WeaponController : NetworkBehaviour
             }
             else
             {
-                // No other weapon available
                 playerAiming?.SetWeapon(null);
                 Debug.Log($"[WeaponController] Slot {slotIndex} cleared — no other weapon available.");
             }
@@ -176,6 +258,31 @@ public class WeaponController : NetworkBehaviour
         if (slotIndex < 0 || slotIndex >= 2 || weaponSlots[slotIndex] == null) return;
         if (slotIndex == currentSlot && weaponSlots[currentSlot].gameObject.activeSelf) return;
 
+        SwitchToSlotInternal(slotIndex);
+
+        if (IsSpawned && IsOwner)
+        {
+            SwitchToSlotServerRpc(slotIndex);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void SwitchToSlotServerRpc(int slotIndex)
+    {
+        SwitchToSlotClientRpc(slotIndex);
+    }
+
+    [ClientRpc]
+    private void SwitchToSlotClientRpc(int slotIndex)
+    {
+        if (IsOwner) return;
+        SwitchToSlotInternal(slotIndex);
+    }
+
+    private void SwitchToSlotInternal(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= 2 || weaponSlots[slotIndex] == null) return;
+
         // Deactivate current
         if (weaponSlots[currentSlot] != null)
         {
@@ -187,7 +294,7 @@ public class WeaponController : NetworkBehaviour
         weaponSlots[currentSlot].gameObject.SetActive(true);
 
         if (playerAiming == null)
-            playerAiming = FindObjectOfType<PlayerAiming>();
+            playerAiming = GetComponent<PlayerAiming>();
 
         playerAiming?.SetWeapon(weaponSlots[currentSlot]);
         HandleAmmoChanged(weaponSlots[currentSlot].GetCurrentAmmo(), weaponSlots[currentSlot].maxAmmo);
@@ -216,11 +323,11 @@ public class WeaponController : NetworkBehaviour
         if (IsSpawned && IsOwner)
         {
             FireServerRpc(position, rotation, direction, speed, damage);
-            CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage);
+            CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage, gameObject);
         }
         else if (!IsSpawned)
         {
-            CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage);
+            CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage, gameObject);
         }
     }
 
@@ -234,7 +341,7 @@ public class WeaponController : NetworkBehaviour
     private void FireClientRpc(Vector3 position, Quaternion rotation, Vector2 direction, float speed, int damage)
     {
         if (IsOwner) return; // Owner already spawned locally for instant feedback
-        CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage);
+        CurrentWeapon?.SpawnBulletLocal(position, rotation, direction, speed, damage, gameObject);
     }
 
     // ─── Networked Grenade Throwing ─────────────────────────────────────────
@@ -280,7 +387,7 @@ public class WeaponController : NetworkBehaviour
         }
     }
 
-    [ServerRpc]
+    [ServerRpc(RequireOwnership = false)]
     private void ThrowGrenadeServerRpc(GrenadeType grenadeType, Vector3 position, Vector2 direction)
     {
         ThrowGrenadeClientRpc(grenadeType, position, direction);
@@ -306,6 +413,16 @@ public class WeaponController : NetworkBehaviour
         if (activePrefab == null) return;
 
         GameObject gObj = Instantiate(activePrefab, position, Quaternion.identity);
+
+        // Set grenade sorting order to -4 when facing right
+        bool facingRight = playerAiming != null ? (playerAiming.GetAimDirection().x >= 0) : true;
+        SpriteRenderer[] srs = gObj.GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var sr in srs)
+        {
+            sr.sortingLayerName = "Default";
+            sr.sortingOrder = facingRight ? -4 : 4;
+        }
+
         Grenade g = gObj.GetComponent<Grenade>();
         if (g != null)
         {

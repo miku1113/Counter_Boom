@@ -83,19 +83,14 @@ public class AimingDots : MonoBehaviour
         
         Vector2 aimDirection = playerAiming.GetAimDirection();
         
-        // Show dots only when aiming
-        bool showDots = aimDirection.magnitude > 0.1f;
-        
-        if (showDots)
-        {
-            UpdateDotPositions(aimDirection);
-        }
+        // Aiming dots remain permanently active and visible at all times
+        UpdateDotPositions(aimDirection);
         
         foreach (var dot in dots)
         {
             if (dot != null)
             {
-                dot.SetActive(showDots);
+                dot.SetActive(true);
             }
         }
     }

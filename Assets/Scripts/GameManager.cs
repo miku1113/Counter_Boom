@@ -88,4 +88,46 @@ public class GameManager : MonoBehaviour
         // Offline / single-player — always authoritative
         return true;
     }
+
+    /// <summary>
+    /// Restores the local player's position, health, and weapon state following a Host Migration.
+    /// </summary>
+    public void RestorePlayerFromSnapshot()
+    {
+        if (!RelayNetworkManager.HasSnapshot) return;
+
+        var snapshot = RelayNetworkManager.LastPlayerSnapshot;
+        Debug.Log($"[GameManager] Restoring player from snapshot: Position={snapshot.position}, HP={snapshot.health}");
+
+        GameObject pObj = null;
+        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.LocalClient != null && Unity.Netcode.NetworkManager.Singleton.LocalClient.PlayerObject != null)
+        {
+            pObj = Unity.Netcode.NetworkManager.Singleton.LocalClient.PlayerObject.gameObject;
+        }
+        if (pObj == null)
+        {
+            pObj = GameObject.FindGameObjectWithTag("Player");
+        }
+        if (pObj != null)
+        {
+            pObj.transform.position = snapshot.position;
+            pObj.transform.rotation = snapshot.rotation;
+
+            var health = pObj.GetComponent<PlayerHealth>();
+            if (health == null) health = PlayerHealth.Instance;
+            if (health != null && snapshot.health > 0)
+            {
+                int diff = snapshot.health - health.GetCurrentHealth();
+                if (diff > 0) health.Heal(diff);
+                else if (diff < 0) health.TakeDamage(-diff);
+            }
+
+            var weaponCtrl = pObj.GetComponent<WeaponController>();
+            if (weaponCtrl == null) weaponCtrl = WeaponController.Instance;
+            if (weaponCtrl != null)
+            {
+                weaponCtrl.SwitchToSlot(snapshot.currentWeaponIndex);
+            }
+        }
+    }
 }

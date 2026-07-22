@@ -7,6 +7,7 @@ public class RelayUIController : MonoBehaviour
     [Header("UI Buttons")]
     [SerializeField] private Button hostButton;
     [SerializeField] private Button joinButton;
+    [SerializeField] private Button generateCodeButton;
     [SerializeField] private Button disconnectButton;
 
     [Header("Input / Outputs")]
@@ -21,6 +22,7 @@ public class RelayUIController : MonoBehaviour
         // 1. Assign Click Listeners
         if (hostButton != null) hostButton.onClick.AddListener(OnHostClicked);
         if (joinButton != null) joinButton.onClick.AddListener(OnJoinClicked);
+        if (generateCodeButton != null) generateCodeButton.onClick.AddListener(OnGenerateCodeClicked);
         if (disconnectButton != null) disconnectButton.onClick.AddListener(OnDisconnectClicked);
 
         // 2. Clear Initial Text Values
@@ -28,6 +30,39 @@ public class RelayUIController : MonoBehaviour
         UpdateStatus("Ready to connect");
 
         if (disconnectButton != null) disconnectButton.gameObject.SetActive(false);
+    }
+
+    private async void OnGenerateCodeClicked()
+    {
+        if (RelayNetworkManager.Instance == null)
+        {
+            UpdateStatus("<color=red>Error: Network Manager Missing</color>");
+            return;
+        }
+
+        SetInteractiveState(false);
+        UpdateStatus("Generating private Relay room code...");
+
+        string joinCode = await RelayNetworkManager.Instance.StartPrivateHostWithRelay();
+
+        if (!string.IsNullOrEmpty(joinCode))
+        {
+            UpdateStatus("<color=green>Private room created! Auto-filled code.</color>");
+            if (generatedCodeText != null)
+            {
+                generatedCodeText.text = $"JOIN CODE: {joinCode}";
+            }
+            if (joinCodeInputField != null)
+            {
+                joinCodeInputField.text = joinCode;
+            }
+            if (disconnectButton != null) disconnectButton.gameObject.SetActive(true);
+        }
+        else
+        {
+            UpdateStatus("<color=red>Failed to generate private room code</color>");
+            SetInteractiveState(true);
+        }
     }
 
     private async void OnHostClicked()
@@ -130,6 +165,7 @@ public class RelayUIController : MonoBehaviour
     {
         if (hostButton != null) hostButton.interactable = state;
         if (joinButton != null) joinButton.interactable = state;
+        if (generateCodeButton != null) generateCodeButton.interactable = state;
         if (joinCodeInputField != null) joinCodeInputField.interactable = state;
     }
 }

@@ -1684,6 +1684,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxConnections: 3
+  lobbySceneName: CustomLobby
   gameplaySceneName: GameScene
 --- !u!114 &590384980
 MonoBehaviour:
@@ -3513,7 +3514,7 @@ PrefabInstance:
     - target: {fileID: 5413093164247618837, guid: a05e78b64b10a4effb0fad9718210e0c, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: 21300178, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
+      objectReference: {fileID: 92001753, guid: dd352cbfaf819423aa2eb2c24193c54e, type: 3}
     - target: {fileID: 5413093164247618837, guid: a05e78b64b10a4effb0fad9718210e0c, type: 3}
       propertyPath: m_WasSpriteAssigned
       value: 1
@@ -3529,7 +3530,7 @@ PrefabInstance:
     - target: {fileID: 6336033366823206062, guid: a05e78b64b10a4effb0fad9718210e0c, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: 21300060, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
+      objectReference: {fileID: 711979666, guid: dd352cbfaf819423aa2eb2c24193c54e, type: 3}
     - target: {fileID: 6336033366823206062, guid: a05e78b64b10a4effb0fad9718210e0c, type: 3}
       propertyPath: m_WasSpriteAssigned
       value: 1
@@ -3596,7 +3597,7 @@ PrefabInstance:
       objectReference: {fileID: 666714488}
     - target: {fileID: 7424463110344346310, guid: a05e78b64b10a4effb0fad9718210e0c, type: 3}
       propertyPath: availableSkins.Array.size
-      value: 5
+      value: 6
       objectReference: {fileID: 0}
     - target: {fileID: 7424463110344346310, guid: a05e78b64b10a4effb0fad9718210e0c, type: 3}
       propertyPath: availableSkins.Array.data[0]
@@ -5292,6 +5293,7 @@ MonoBehaviour:
   shopBackButton: {fileID: 445965284}
   hostButton: {fileID: 485204230}
   joinButton: {fileID: 1156176939}
+  generateCodeButton: {fileID: 0}
   joinCodeInputField: {fileID: 481117187}
   generatedCodeText: {fileID: 2061938614}
   playStatusText: {fileID: 576944970}
