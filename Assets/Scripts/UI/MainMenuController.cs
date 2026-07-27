@@ -58,6 +58,11 @@ public class MainMenuController : MonoBehaviour
 
     private void Start()
     {
+        ScreenAndUIScaler.EnforceLandscapeOrientation();
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas != null) ScreenAndUIScaler.ConfigureCanvas(canvas);
+
         // 1. Initialize Player Coins
         coins = PlayerPrefs.GetInt("Coins", 1000);
         PlayerPrefs.SetInt("Coins", coins);

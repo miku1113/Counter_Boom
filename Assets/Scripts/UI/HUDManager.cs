@@ -25,9 +25,11 @@ public class HUDManager : MonoBehaviour
     [Header("Pickup")]
     public Button pickupButton;
 
-    [Header("Health")]
+    [Header("Health & Energy")]
     public Slider          healthSlider;
     public TextMeshProUGUI healthText;
+    public Slider          energySlider;
+    public TextMeshProUGUI energyText;
 
     [Header("Consumables")]
     public Button          medikitButton;
@@ -51,6 +53,12 @@ public class HUDManager : MonoBehaviour
     [SerializeField] private Button prevSpectateButton;
     [SerializeField] private Button nextSpectateButton;
 
+    [Header("Settings Menu")]
+    [SerializeField] private Button settingsButton;
+    [SerializeField] private GameObject settingsPanel;
+    [SerializeField] private Button leaveGameButton;
+    [SerializeField] private Button closeSettingsButton;
+
     // ─── Lifecycle ───────────────────────────────────────────────────────────
 
     private void Start()
@@ -66,6 +74,13 @@ public class HUDManager : MonoBehaviour
         {
             canvas.gameObject.AddComponent<GraphicRaycaster>();
         }
+
+        // Enforce landscape orientation & uniform resolution-independent UI scaling
+        ScreenAndUIScaler.EnforceLandscapeOrientation();
+        if (canvas != null) ScreenAndUIScaler.ConfigureCanvas(canvas);
+
+        // Ensure Settings UI (Gear button & Leave Game popup) exists and is wired
+        EnsureSettingsUI();
 
         // Button listeners
         weaponSlot1?.onClick.AddListener(() => SwitchWeapon(0));
@@ -102,13 +117,27 @@ public class HUDManager : MonoBehaviour
             UpdateAmmoUI(WeaponController.Instance.GetCurrentAmmo(), WeaponController.Instance.GetMaxAmmo());
         }
 
+        // Auto-find Health & Energy UI elements if unassigned
+        AutoResolveHealthAndEnergyUI();
+
         // Subscribe to Health events
         var health = PlayerHealth.Instance;
         if (health == null) health = FindObjectOfType<PlayerHealth>();
         if (health != null)
         {
+            health.OnHealthChanged -= UpdateHealthUI;
             health.OnHealthChanged += UpdateHealthUI;
             UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
+        }
+
+        // Subscribe to Energy events
+        var energy = PlayerEnergy.Instance;
+        if (energy == null) energy = FindObjectOfType<PlayerEnergy>();
+        if (energy != null)
+        {
+            energy.OnEnergyChanged -= UpdateEnergyUI;
+            energy.OnEnergyChanged += UpdateEnergyUI;
+            UpdateEnergyUI(energy.GetCurrentEnergy(), energy.GetMaxEnergy());
         }
 
         // Seed weapon slot icons
@@ -160,6 +189,9 @@ public class HUDManager : MonoBehaviour
 
         if (PlayerHealth.Instance != null)
             PlayerHealth.Instance.OnHealthChanged -= UpdateHealthUI;
+
+        if (PlayerEnergy.Instance != null)
+            PlayerEnergy.Instance.OnEnergyChanged -= UpdateEnergyUI;
 
         // Unsubscribe from local player visual triggers
         PlayerController.OnLocalPlayerStunned -= HandleLocalPlayerStunned;
@@ -360,6 +392,44 @@ public class HUDManager : MonoBehaviour
         }
     }
 
+    private void AutoResolveHealthAndEnergyUI()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        Slider[] sliders = canvas.GetComponentsInChildren<Slider>(true);
+        foreach (var s in sliders)
+        {
+            if (s == null) continue;
+            string sName = s.gameObject.name.ToLower();
+            if (healthSlider == null && (sName.Contains("health") || sName.Contains("hp") || sName.Contains("life")))
+            {
+                healthSlider = s;
+            }
+            else if (energySlider == null && (sName.Contains("energy") || sName.Contains("stamina") || sName.Contains("boost") || sName.Contains("mana") || sName.Contains("power")))
+            {
+                energySlider = s;
+            }
+        }
+
+        TextMeshProUGUI[] tmps = canvas.GetComponentsInChildren<TextMeshProUGUI>(true);
+        foreach (var t in tmps)
+        {
+            if (t == null) continue;
+            string tName = t.gameObject.name.ToLower();
+            if (healthText == null && (tName.Contains("health") || tName.Contains("hp")))
+            {
+                healthText = t;
+            }
+            else if (energyText == null && (tName.Contains("energy") || tName.Contains("stamina") || tName.Contains("boost")))
+            {
+                energyText = t;
+            }
+        }
+    }
+
     private void UpdateHealthUI(int current, int max)
     {
         if (healthSlider != null)
@@ -369,6 +439,17 @@ public class HUDManager : MonoBehaviour
         }
         if (healthText != null)
             healthText.text = $"{current}/{max}";
+    }
+
+    private void UpdateEnergyUI(float current, float max)
+    {
+        if (energySlider != null)
+        {
+            energySlider.maxValue = max;
+            energySlider.value    = current;
+        }
+        if (energyText != null)
+            energyText.text = $"{Mathf.RoundToInt(current)}/{Mathf.RoundToInt(max)}";
     }
 
     /// <summary>
@@ -609,6 +690,237 @@ public class HUDManager : MonoBehaviour
         if (spectatingPlayerNameText != null && CameraController.Instance != null)
         {
             spectatingPlayerNameText.text = $"SPECTATING: {CameraController.Instance.GetCurrentSpectatedName()}";
+        }
+    }
+
+    /// <summary>
+    /// Disables action buttons (weapons, grenades, pickup, consumables, bag) during ghost spectating mode.
+    /// </summary>
+    public void SetGhostUI(bool isGhost)
+    {
+        if (weaponSlot1 != null) weaponSlot1.gameObject.SetActive(!isGhost);
+        if (weaponSlot2 != null) weaponSlot2.gameObject.SetActive(!isGhost);
+        if (boomButton != null) boomButton.gameObject.SetActive(!isGhost);
+        if (pickupButton != null) pickupButton.gameObject.SetActive(!isGhost);
+        if (medikitButton != null) medikitButton.gameObject.SetActive(!isGhost);
+        if (shakeButton != null) shakeButton.gameObject.SetActive(!isGhost);
+        if (bagButton != null) bagButton.gameObject.SetActive(!isGhost);
+
+        // Hide Health & Energy bars and text displays for ghosts
+        if (healthSlider != null) healthSlider.gameObject.SetActive(!isGhost);
+        if (healthText != null) healthText.gameObject.SetActive(!isGhost);
+        if (energySlider != null) energySlider.gameObject.SetActive(!isGhost);
+        if (energyText != null) energyText.gameObject.SetActive(!isGhost);
+    }
+
+    public void ToggleSettingsMenu()
+    {
+        if (settingsPanel == null) EnsureSettingsUI();
+        if (settingsPanel != null)
+        {
+            bool newState = !settingsPanel.activeSelf;
+            settingsPanel.SetActive(newState);
+        }
+    }
+
+    private void OnLeaveGameClicked()
+    {
+        Debug.Log("[HUDManager] Leaving game... Returning to Main Menu.");
+        
+        // Reset player inventory & state
+        if (BagManager.Instance != null) BagManager.Instance.ClearInventory();
+        if (WeaponController.Instance != null) WeaponController.Instance.ClearAttachPointChildren();
+
+        // Disconnect Relay / Netcode session
+        if (RelayNetworkManager.Instance != null)
+        {
+            try
+            {
+                RelayNetworkManager.Instance.Disconnect();
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[HUDManager] Relay disconnect exception: {ex.Message}");
+            }
+        }
+        else if (Unity.Netcode.NetworkManager.Singleton != null)
+        {
+            try
+            {
+                Unity.Netcode.NetworkManager.Singleton.Shutdown();
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[HUDManager] Shutdown exception: {ex.Message}");
+            }
+        }
+
+        // Load MainMenuScene (with fallbacks to MainMenu or scene index 0)
+        try
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenuScene");
+        }
+        catch
+        {
+            try
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
+            }
+            catch
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene(0);
+            }
+        }
+    }
+
+    private void EnsureSettingsUI()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // 1. Settings Toggle Button (top-right corner ⚙️)
+        if (settingsButton == null)
+        {
+            Transform existingBtn = canvas.transform.Find("SettingsButton");
+            if (existingBtn != null) settingsButton = existingBtn.GetComponent<Button>();
+            else
+            {
+                GameObject btnGO = new GameObject("SettingsButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+                btnGO.transform.SetParent(canvas.transform, false);
+
+                RectTransform rt = btnGO.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(1f, 1f);
+                rt.anchorMax = new Vector2(1f, 1f);
+                rt.pivot = new Vector2(1f, 1f);
+                rt.anchoredPosition = new Vector2(-25f, -25f);
+                rt.sizeDelta = new Vector2(50f, 50f);
+
+                UnityEngine.UI.Image img = btnGO.GetComponent<UnityEngine.UI.Image>();
+                img.color = new Color(0.15f, 0.18f, 0.25f, 0.9f);
+
+                GameObject textGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+                textGO.transform.SetParent(btnGO.transform, false);
+                RectTransform textRt = textGO.GetComponent<RectTransform>();
+                textRt.anchorMin = Vector2.zero; textRt.anchorMax = Vector2.one; textRt.sizeDelta = Vector2.zero;
+
+                TextMeshProUGUI tmp = textGO.GetComponent<TextMeshProUGUI>();
+                tmp.text = "⚙️";
+                tmp.fontSize = 28;
+                tmp.alignment = TextAlignmentOptions.Center;
+                tmp.color = Color.white;
+
+                settingsButton = btnGO.GetComponent<Button>();
+            }
+        }
+
+        // 2. Settings Panel Modal
+        if (settingsPanel == null)
+        {
+            Transform existingPanel = canvas.transform.Find("SettingsPanel");
+            if (existingPanel != null) settingsPanel = existingPanel.gameObject;
+            else
+            {
+                GameObject panelGO = new GameObject("SettingsPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+                panelGO.transform.SetParent(canvas.transform, false);
+
+                RectTransform rt = panelGO.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.5f, 0.5f);
+                rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(400f, 250f);
+                rt.anchoredPosition = Vector2.zero;
+
+                UnityEngine.UI.Image img = panelGO.GetComponent<UnityEngine.UI.Image>();
+                img.color = new Color(0.08f, 0.1f, 0.15f, 0.96f);
+
+                // Title Text
+                GameObject titleGO = new GameObject("TitleText", typeof(RectTransform), typeof(TextMeshProUGUI));
+                titleGO.transform.SetParent(panelGO.transform, false);
+                RectTransform titleRt = titleGO.GetComponent<RectTransform>();
+                titleRt.anchorMin = new Vector2(0f, 1f); titleRt.anchorMax = new Vector2(1f, 1f);
+                titleRt.pivot = new Vector2(0.5f, 1f);
+                titleRt.anchoredPosition = new Vector2(0f, -20f);
+                titleRt.sizeDelta = new Vector2(0f, 40f);
+
+                TextMeshProUGUI titleTmp = titleGO.GetComponent<TextMeshProUGUI>();
+                titleTmp.text = "SETTINGS";
+                titleTmp.fontSize = 28;
+                titleTmp.fontStyle = FontStyles.Bold;
+                titleTmp.alignment = TextAlignmentOptions.Center;
+                titleTmp.color = Color.white;
+
+                // Leave Game Button
+                GameObject leaveBtnGO = new GameObject("LeaveGameButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+                leaveBtnGO.transform.SetParent(panelGO.transform, false);
+                RectTransform leaveRt = leaveBtnGO.GetComponent<RectTransform>();
+                leaveRt.anchorMin = new Vector2(0.5f, 0.5f); leaveRt.anchorMax = new Vector2(0.5f, 0.5f);
+                leaveRt.pivot = new Vector2(0.5f, 0.5f);
+                leaveRt.anchoredPosition = new Vector2(0f, 10f);
+                leaveRt.sizeDelta = new Vector2(240f, 50f);
+
+                UnityEngine.UI.Image leaveImg = leaveBtnGO.GetComponent<UnityEngine.UI.Image>();
+                leaveImg.color = new Color(0.85f, 0.2f, 0.2f, 1f);
+
+                GameObject leaveTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+                leaveTextGO.transform.SetParent(leaveBtnGO.transform, false);
+                RectTransform lTextRt = leaveTextGO.GetComponent<RectTransform>();
+                lTextRt.anchorMin = Vector2.zero; lTextRt.anchorMax = Vector2.one; lTextRt.sizeDelta = Vector2.zero;
+
+                TextMeshProUGUI leaveTmp = leaveTextGO.GetComponent<TextMeshProUGUI>();
+                leaveTmp.text = "LEAVE GAME";
+                leaveTmp.fontSize = 20;
+                leaveTmp.fontStyle = FontStyles.Bold;
+                leaveTmp.alignment = TextAlignmentOptions.Center;
+                leaveTmp.color = Color.white;
+
+                leaveGameButton = leaveBtnGO.GetComponent<Button>();
+
+                // Close Button
+                GameObject closeBtnGO = new GameObject("CloseSettingsButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+                closeBtnGO.transform.SetParent(panelGO.transform, false);
+                RectTransform closeRt = closeBtnGO.GetComponent<RectTransform>();
+                closeRt.anchorMin = new Vector2(0.5f, 0f); closeRt.anchorMax = new Vector2(0.5f, 0f);
+                closeRt.pivot = new Vector2(0.5f, 0f);
+                closeRt.anchoredPosition = new Vector2(0f, 20f);
+                closeRt.sizeDelta = new Vector2(160f, 40f);
+
+                UnityEngine.UI.Image closeImg = closeBtnGO.GetComponent<UnityEngine.UI.Image>();
+                closeImg.color = new Color(0.3f, 0.35f, 0.45f, 1f);
+
+                GameObject closeTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+                closeTextGO.transform.SetParent(closeBtnGO.transform, false);
+                RectTransform cTextRt = closeTextGO.GetComponent<RectTransform>();
+                cTextRt.anchorMin = Vector2.zero; cTextRt.anchorMax = Vector2.one; cTextRt.sizeDelta = Vector2.zero;
+
+                TextMeshProUGUI closeTmp = closeTextGO.GetComponent<TextMeshProUGUI>();
+                closeTmp.text = "RESUME";
+                closeTmp.fontSize = 18;
+                closeTmp.alignment = TextAlignmentOptions.Center;
+                closeTmp.color = Color.white;
+
+                closeSettingsButton = closeBtnGO.GetComponent<Button>();
+
+                settingsPanel = panelGO;
+                settingsPanel.SetActive(false);
+            }
+        }
+
+        // Wire Button Listeners
+        if (settingsButton != null)
+        {
+            settingsButton.onClick.RemoveAllListeners();
+            settingsButton.onClick.AddListener(ToggleSettingsMenu);
+        }
+        if (closeSettingsButton != null)
+        {
+            closeSettingsButton.onClick.RemoveAllListeners();
+            closeSettingsButton.onClick.AddListener(() => settingsPanel?.SetActive(false));
+        }
+        if (leaveGameButton != null)
+        {
+            leaveGameButton.onClick.RemoveAllListeners();
+            leaveGameButton.onClick.AddListener(OnLeaveGameClicked);
         }
     }
 }

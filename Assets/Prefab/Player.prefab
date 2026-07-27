@@ -1077,6 +1077,9 @@ MonoBehaviour:
   moveSpeed: 5
   rb: {fileID: 1111370383705521264}
   animator: {fileID: 2183239288762129201}
+  ghostSprite: {fileID: 21300006, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
+  floatSpeed: 3
+  floatAmplitude: 0.12
 --- !u!114 &6722566033828709258
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -9,12 +9,20 @@ public class PlayerController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private Animator animator;
+
+    [Header("Ghost Settings")]
+    [Tooltip("Custom sprite assigned to player when in Ghost Mode")]
+    [SerializeField] private Sprite ghostSprite;
+    [SerializeField] private float floatSpeed = 3.0f;
+    [SerializeField] private float floatAmplitude = 0.12f;
     
     private Vector2 moveInput;
     private bool isMoving;
     
     private float defaultMoveSpeed;
     private Coroutine speedBoostCoroutine;
+    private Transform ghostVisualContainer;
+    private Vector3 ghostInitialVisualLocalPos;
     
     private void Awake()
     {
@@ -44,6 +52,16 @@ public class PlayerController : MonoBehaviour
             circle.radius = 0.4f;
             circle.isTrigger = false;
             Debug.Log("[PlayerController] Dynamically added CircleCollider2D to player for map collision.");
+        }
+
+        // Ensure PlayerHealth and PlayerEnergy exist on Player GameObject
+        if (GetComponent<PlayerHealth>() == null)
+        {
+            gameObject.AddComponent<PlayerHealth>();
+        }
+        if (GetComponent<PlayerEnergy>() == null)
+        {
+            gameObject.AddComponent<PlayerEnergy>();
         }
 
         Debug.Log($"[PlayerController] Initialized on {gameObject.name}");
@@ -166,6 +184,41 @@ public class PlayerController : MonoBehaviour
         }
 
         EvaluateIsLocal();
+
+        // Spawn player at a random non-collider position in the map (not at fixed center)
+        Vector3 spawnPos = GetRandomNonColliderSpawnPosition(Vector3.zero, 6.5f);
+        transform.position = spawnPos;
+        Debug.Log($"[PlayerController] Player '{gameObject.name}' spawned at random non-collider position: {spawnPos}");
+    }
+
+    /// <summary>
+    /// Calculates a random spawn position within maxRadius that does not overlap solid map colliders.
+    /// </summary>
+    public static Vector3 GetRandomNonColliderSpawnPosition(Vector3 center, float maxRadius = 6.5f)
+    {
+        for (int attempts = 0; attempts < 35; attempts++)
+        {
+            Vector2 randomOffset = Random.insideUnitCircle * maxRadius;
+            Vector3 testPos = center + new Vector3(randomOffset.x, randomOffset.y, 0f);
+
+            // Check if testPos overlaps any non-trigger solid map colliders
+            Collider2D[] overlaps = Physics2D.OverlapCircleAll(testPos, 0.45f);
+            bool isSolidObstacle = false;
+            foreach (var col in overlaps)
+            {
+                if (col != null && !col.isTrigger && !col.CompareTag("Player"))
+                {
+                    isSolidObstacle = true;
+                    break;
+                }
+            }
+
+            if (!isSolidObstacle)
+            {
+                return testPos;
+            }
+        }
+        return center;
     }
 
     private void Update()
@@ -174,8 +227,15 @@ public class PlayerController : MonoBehaviour
         {
             EvaluateIsLocal();
         }
+
+        // Floating air animation when in ghost mode (smooth vertical bobbing)
+        if (IsGhost && ghostVisualContainer != null)
+        {
+            float yOffset = Mathf.Sin(Time.time * floatSpeed) * floatAmplitude;
+            ghostVisualContainer.localPosition = ghostInitialVisualLocalPos + new Vector3(0f, yOffset, 0f);
+        }
     }
-    
+
     /// <summary>
     /// Called by input system to set movement direction
     /// </summary>
@@ -185,7 +245,7 @@ public class PlayerController : MonoBehaviour
         isMoving = input.magnitude > 0.1f;
         
         // Update animator
-        if (animator != null)
+        if (animator != null && animator.enabled)
         {
             animator.SetBool("isWalking", isMoving);
             animator.SetFloat("moveSpeed", input.magnitude);
@@ -225,6 +285,59 @@ public class PlayerController : MonoBehaviour
         yield return new WaitForSeconds(duration);
         moveSpeed = defaultMoveSpeed;
         speedBoostCoroutine = null;
-        Debug.Log($"[PlayerController] Speed reset to {moveSpeed}");
+    }
+
+    public bool IsGhost { get; private set; } = false;
+
+    public void EnableGhostMode()
+    {
+        if (IsGhost) return;
+        IsGhost = true;
+
+        // Decrease move speed by 20% for ghost mode so living players can escape
+        moveSpeed = defaultMoveSpeed * 0.8f;
+
+        // 1. Hide ALL original character body renderers (head, body, arms, legs, eyes, eyebrows, mouth)
+        SpriteRenderer[] originalRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var r in originalRenderers)
+        {
+            if (r != null)
+            {
+                r.enabled = false;
+            }
+        }
+
+        // 2. Create/Activate dedicated GhostVisual GameObject
+        Transform ghostChild = transform.Find("GhostVisualContainer");
+        if (ghostChild == null)
+        {
+            GameObject ghostGO = new GameObject("GhostVisualContainer");
+            ghostGO.transform.SetParent(transform, false);
+            ghostGO.transform.localPosition = Vector3.zero;
+            ghostGO.transform.localRotation = Quaternion.identity;
+
+            SpriteRenderer ghostSr = ghostGO.AddComponent<SpriteRenderer>();
+            if (ghostSprite != null)
+            {
+                ghostSr.sprite = ghostSprite;
+            }
+            ghostSr.color = new Color(0.8f, 0.92f, 1.0f, 0.7f); // Clean translucent ghost
+            ghostSr.sortingOrder = 100; // Ensure ghost renders clearly above floor
+
+            ghostChild = ghostGO.transform;
+        }
+
+        ghostChild.gameObject.SetActive(true);
+        ghostVisualContainer = ghostChild;
+        ghostInitialVisualLocalPos = Vector3.zero;
+
+        // Set colliders to trigger so ghost can pass through obstacles/players
+        Collider2D[] colliders = GetComponentsInChildren<Collider2D>();
+        foreach (var col in colliders)
+        {
+            if (col != null) col.isTrigger = true;
+        }
+
+        Debug.Log($"[PlayerController] Clean Ghost mode enabled on '{gameObject.name}'. Speed reduced to {moveSpeed} (-20%).");
     }
 }

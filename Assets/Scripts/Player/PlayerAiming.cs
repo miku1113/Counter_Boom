@@ -320,6 +320,13 @@ public class PlayerAiming : NetworkBehaviour
             {
                 mainArmRotation = (angle - 180f) - rightArmAngleOffset;
             }
+
+            // Apply procedural weapon switch hand dip animation
+            if (weaponSwitchOffsetTimer > 0f)
+            {
+                mainArmRotation += weaponSwitchOffsetTimer * -35f;
+            }
+
             mainArm.rotation = Quaternion.Euler(0, 0, mainArmRotation);
 
             if (offHandArm != null && grenadeThrowTimer <= 0f)
@@ -329,14 +336,45 @@ public class PlayerAiming : NetworkBehaviour
         }
         else
         {
-            // No weapon equipped: reset both arms to default rest pose (unless throwing grenade)
-            if (leftArm != null && (leftArm != offHandArm || grenadeThrowTimer <= 0f))
+            // Unarmed mode: Keep light front arm (leftArm) at rest pose, rotate & move ONLY dark back arm (rightArm)
+            if (leftArm != null && grenadeThrowTimer <= 0f)
             {
                 leftArm.localRotation = Quaternion.identity;
             }
-            if (rightArm != null && (rightArm != offHandArm || grenadeThrowTimer <= 0f))
+
+            if (rightArm != null)
             {
-                rightArm.localRotation = Quaternion.identity;
+                float darkArmRotation = angle;
+                if (facingRight)
+                {
+                    darkArmRotation += rightArmAngleOffset;
+                }
+                else
+                {
+                    darkArmRotation = (angle - 180f) - rightArmAngleOffset;
+                }
+
+                // Add dynamic wrist rotation snap when striking
+                if (punchAnimTimer > 0f)
+                {
+                    darkArmRotation += punchAnimTimer * (facingRight ? 18f : -18f);
+                }
+
+                rightArm.rotation = Quaternion.Euler(0, 0, darkArmRotation);
+
+                // Punch animation: ONLY move the dark back arm (rightArm) forward along aim direction!
+                if (punchAnimTimer > 0f)
+                {
+                    rightArm.position += (Vector3)(lastAimDirection * (punchAnimTimer * 0.75f));
+
+                    // Scale impact pop at peak extension
+                    float scaleFactor = 1f + (punchAnimTimer * 0.22f);
+                    rightArm.localScale = new Vector3(scaleFactor, scaleFactor, 1f);
+                }
+                else
+                {
+                    rightArm.localScale = Vector3.one;
+                }
             }
         }
 
@@ -515,5 +553,100 @@ public class PlayerAiming : NetworkBehaviour
             }
         }
         return null;
+    }
+
+    private float weaponSwitchOffsetTimer = 0f;
+    private Coroutine weaponSwitchCoroutine;
+
+    /// <summary>
+    /// Triggers a procedural hand/arm dip and re-equip animation when switching weapons.
+    /// </summary>
+    public void PlayWeaponSwitchAnimation()
+    {
+        if (weaponSwitchCoroutine != null) StopCoroutine(weaponSwitchCoroutine);
+        weaponSwitchCoroutine = StartCoroutine(WeaponSwitchRoutine());
+    }
+
+    private System.Collections.IEnumerator WeaponSwitchRoutine()
+    {
+        Animator anim = GetComponentInChildren<Animator>();
+        if (anim != null && anim.enabled)
+        {
+            anim.SetTrigger("switchWeapon");
+        }
+
+        float duration = 0.28f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+            // Parabola: dips down to max offset at t=0.5, returns to 0 at t=1
+            weaponSwitchOffsetTimer = Mathf.Sin(t * Mathf.PI);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        weaponSwitchOffsetTimer = 0f;
+        weaponSwitchCoroutine = null;
+    }
+
+    private float punchAnimTimer = 0f;
+    private bool punchRightArm = false;
+    private Coroutine punchCoroutine;
+
+    /// <summary>
+    /// Triggers a procedural boxing punch arm animation when unarmed.
+    /// </summary>
+    public void PlayMeleePunchAnimation(bool useRightArm)
+    {
+        if (punchCoroutine != null) StopCoroutine(punchCoroutine);
+        punchCoroutine = StartCoroutine(MeleePunchRoutine(useRightArm));
+    }
+
+    private System.Collections.IEnumerator MeleePunchRoutine(bool useRightArm)
+    {
+        punchRightArm = useRightArm;
+        Animator anim = GetComponentInChildren<Animator>();
+        if (anim != null && anim.enabled)
+        {
+            anim.SetTrigger("punch");
+        }
+
+        float duration = 0.24f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+            float curve;
+            if (t < 0.35f)
+            {
+                float norm = t / 0.35f;
+                curve = Mathf.Sin(norm * Mathf.PI * 0.5f); // Fast explosive thrust out
+            }
+            else
+            {
+                float norm = (t - 0.35f) / 0.65f;
+                curve = Mathf.Cos(norm * Mathf.PI * 0.5f); // Smooth recovery back
+            }
+
+            punchAnimTimer = curve;
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        Transform rArm = GetRightArmTransform();
+        if (rArm != null) rArm.localScale = Vector3.one;
+        punchAnimTimer = 0f;
+        punchCoroutine = null;
+    }
+
+    private Transform GetRightArmTransform()
+    {
+        Transform r = characterAssembler != null ? characterAssembler.GetRightArmTransform() : null;
+        if (r == null) r = transform.Find("Arms/RightArm");
+        if (r == null) r = transform.Find("Body/RightArm");
+        return r;
     }
 }

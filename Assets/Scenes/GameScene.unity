@@ -2361,12 +2361,24 @@ MonoBehaviour:
   pickupButton: {fileID: 1773190098}
   healthSlider: {fileID: 558121714}
   healthText: {fileID: 0}
+  energySlider: {fileID: 0}
+  energyText: {fileID: 0}
   medikitButton: {fileID: 0}
   medikitCountText: {fileID: 0}
   shakeButton: {fileID: 0}
   shakeCountText: {fileID: 0}
   bagButton: {fileID: 1536219360}
   joinCodeHUDText: {fileID: 161389538}
+  migrationOverlayPanel: {fileID: 0}
+  migrationStatusText: {fileID: 0}
+  spectatorPanel: {fileID: 0}
+  spectatingPlayerNameText: {fileID: 0}
+  prevSpectateButton: {fileID: 0}
+  nextSpectateButton: {fileID: 0}
+  settingsButton: {fileID: 0}
+  settingsPanel: {fileID: 0}
+  leaveGameButton: {fileID: 0}
+  closeSettingsButton: {fileID: 0}
 --- !u!1 &868112436
 GameObject:
   m_ObjectHideFlags: 0

@@ -55,6 +55,18 @@ public class Bullet : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
+        ProcessHit(collision);
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        ProcessHit(collision.collider);
+    }
+
+    private void ProcessHit(Collider2D collision)
+    {
+        if (collision == null) return;
+
         // Ignore hitting the shooter
         if (shooter != null && (collision.gameObject == shooter || collision.transform.root == shooter.transform.root))
         {

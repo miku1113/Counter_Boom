@@ -11,6 +11,7 @@ public class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPoint
     [Header("Settings")]
     [SerializeField] private float handleRange = 50f;
     [SerializeField] private bool fixedPosition = true;
+    [SerializeField] private float deadZone = 0.12f;
     
     private Vector2 inputVector;
     private Vector2 joystickPosition;
@@ -45,35 +46,51 @@ public class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPoint
         Camera cam = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay) ? canvas.worldCamera : null;
         if (RectTransformUtility.ScreenPointToLocalPointInRectangle(background, eventData.position, cam, out Vector2 localPoint))
         {
+            // Adjust localPoint to be relative to the exact center of background rect, regardless of RectTransform pivot!
+            Vector2 centerOffset = new Vector2(
+                (0.5f - background.pivot.x) * background.rect.width,
+                (0.5f - background.pivot.y) * background.rect.height
+            );
+            Vector2 pointFromCenter = localPoint - centerOffset;
+
             Vector2 radius = background.rect.size / 2f;
             if (radius.x > 0 && radius.y > 0)
             {
-                inputVector = new Vector2(localPoint.x / radius.x, localPoint.y / radius.y);
+                inputVector = new Vector2(pointFromCenter.x / radius.x, pointFromCenter.y / radius.y);
             }
             else if (handleRange > 0)
             {
-                inputVector = localPoint / handleRange;
+                inputVector = pointFromCenter / handleRange;
             }
             else
             {
                 inputVector = Vector2.zero;
             }
 
-            if (inputVector.magnitude > 1f)
+            // Apply deadzone to prevent accidental auto-rotation on initial touch
+            float mag = inputVector.magnitude;
+            if (mag < deadZone)
             {
-                inputVector = inputVector.normalized;
+                inputVector = Vector2.zero;
+                handle.anchoredPosition = Vector2.zero;
             }
-
-            handle.anchoredPosition = inputVector * handleRange;
+            else
+            {
+                if (mag > 1f)
+                {
+                    inputVector = inputVector.normalized;
+                }
+                handle.anchoredPosition = inputVector * handleRange;
+            }
         }
     }
     
     public void OnPointerUp(PointerEventData eventData)
     {
         inputVector = Vector2.zero;
-        handle.anchoredPosition = Vector2.zero;
+        if (handle != null) handle.anchoredPosition = Vector2.zero;
         
-        if (!fixedPosition)
+        if (!fixedPosition && background != null)
         {
             background.position = joystickPosition;
         }

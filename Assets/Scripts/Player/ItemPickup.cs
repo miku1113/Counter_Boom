@@ -84,6 +84,15 @@ public class ItemPickup : NetworkBehaviour
     {
         if (!other.CompareTag("Player")) return;
 
+        // Ghosts & dead players cannot pick up items
+        var playerHealth = other.GetComponent<PlayerHealth>();
+        if (playerHealth == null) playerHealth = other.GetComponentInParent<PlayerHealth>();
+        if (playerHealth != null && playerHealth.IsDead) return;
+
+        var playerCtrl = other.GetComponent<PlayerController>();
+        if (playerCtrl == null) playerCtrl = other.GetComponentInParent<PlayerController>();
+        if (playerCtrl != null && playerCtrl.IsGhost) return;
+
         var netObj = other.GetComponent<NetworkObject>();
         if (netObj != null && !netObj.IsLocalPlayer) return;
 
@@ -216,6 +225,8 @@ public class ItemPickup : NetworkBehaviour
 
     public void PickingUpManually()
     {
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead) return;
+
         Debug.Log($"[ItemPickup] PickingUpManually() called for '{itemData?.itemName}'.");
 
         if (BagManager.Instance == null)

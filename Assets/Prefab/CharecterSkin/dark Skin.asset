@@ -15,7 +15,7 @@ MonoBehaviour:
   head: {fileID: 21300062, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   body: {fileID: 21300058, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   leftArm: {fileID: 21300048, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
-  rightArm: {fileID: 21300050, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
+  rightArm: {fileID: 21300058, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
   leftLeg: {fileID: 21300084, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   rightLeg: {fileID: 21300084, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   leftEye: {fileID: 21300034, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}

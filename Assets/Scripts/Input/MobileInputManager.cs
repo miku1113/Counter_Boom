@@ -22,11 +22,8 @@ public class MobileInputManager : MonoBehaviour
     [SerializeField] private bool useKeyboardInEditor = true;
 
     [Header("Mini Militia Aim & Fire Joystick Setup")]
-    [Tooltip("Inner joystick threshold to start aiming (0.05 allows instant aiming near center)")]
-    [SerializeField] private float aimThreshold = 0.05f;
-    [Tooltip("Outer joystick threshold to trigger weapon firing (0.85 gives 80% joystick area for aiming)")]
-    [SerializeField] private float fireThreshold = 0.85f;
-    private bool isFiringFromAimJoystick = false;
+    [Tooltip("Inner joystick threshold to start aiming")]
+    [SerializeField] private float aimThreshold = 0.12f;
 
     private void Awake()
     {
@@ -48,23 +45,94 @@ public class MobileInputManager : MonoBehaviour
         playerController = controller;
         playerAiming = aiming;
         weaponController = weapon;
-        isFiringFromAimJoystick = false;
         Debug.Log("[MobileInputManager] Local player references registered successfully.");
     }
 
 
     private void Start()
     {
-        AutoFindJoysticks();
+        ScreenAndUIScaler.EnforceLandscapeOrientation();
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas != null) ScreenAndUIScaler.ConfigureCanvas(canvas);
 
-        if (shootButton != null)
-        {
-            // Shoot button is hidden as firing is now driven directly by the aim joystick
-            shootButton.gameObject.SetActive(false);
-        }
+        AutoFindJoysticks();
+        AutoFindOrCreateShootButton();
 
         if (reloadButton != null)
             reloadButton.onClick.AddListener(OnReloadButtonPressed);
+    }
+
+    private void AutoFindOrCreateShootButton()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+
+        if (shootButton == null && canvas != null)
+        {
+            Button[] buttons = canvas.GetComponentsInChildren<Button>(true);
+            foreach (var b in buttons)
+            {
+                if (b == null) continue;
+                string bName = b.gameObject.name.ToLower();
+                if (bName.Contains("shoot") || bName.Contains("fire") || bName.Contains("attack"))
+                {
+                    shootButton = b;
+                    break;
+                }
+            }
+
+            if (shootButton == null)
+            {
+                // Create dedicated Shoot Button dynamically on HUD Canvas
+                GameObject btnGO = new GameObject("ShootButton", typeof(RectTransform), typeof(Image), typeof(Button));
+                btnGO.transform.SetParent(canvas.transform, false);
+
+                RectTransform rt = btnGO.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(1f, 0f);
+                rt.anchorMax = new Vector2(1f, 0f);
+                rt.pivot = new Vector2(1f, 0f);
+                rt.anchoredPosition = new Vector2(-60f, 170f); // Positioned clearly on the right side above aim joystick
+                rt.sizeDelta = new Vector2(90f, 90f);
+
+                Image img = btnGO.GetComponent<Image>();
+                img.color = new Color(0.9f, 0.25f, 0.2f, 0.85f); // Red bullet fire button
+
+                GameObject textGO = new GameObject("Text", typeof(RectTransform), typeof(TMPro.TextMeshProUGUI));
+                textGO.transform.SetParent(btnGO.transform, false);
+                RectTransform textRt = textGO.GetComponent<RectTransform>();
+                textRt.anchorMin = Vector2.zero; textRt.anchorMax = Vector2.one; textRt.sizeDelta = Vector2.zero;
+
+                TMPro.TextMeshProUGUI tmp = textGO.GetComponent<TMPro.TextMeshProUGUI>();
+                tmp.text = "FIRE";
+                tmp.fontSize = 22;
+                tmp.fontStyle = TMPro.FontStyles.Bold;
+                tmp.alignment = TMPro.TextAlignmentOptions.Center;
+                tmp.color = Color.white;
+
+                shootButton = btnGO.GetComponent<Button>();
+            }
+        }
+
+        if (shootButton != null)
+        {
+            shootButton.gameObject.SetActive(true);
+
+            // Add EventTrigger for PointerDown and PointerUp to handle continuous firing when held down!
+            var trigger = shootButton.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+            if (trigger == null) trigger = shootButton.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            trigger.triggers.Clear();
+
+            var pointerDown = new UnityEngine.EventSystems.EventTrigger.Entry();
+            pointerDown.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
+            pointerDown.callback.AddListener((data) => OnShootButtonPressed());
+            trigger.triggers.Add(pointerDown);
+
+            var pointerUp = new UnityEngine.EventSystems.EventTrigger.Entry();
+            pointerUp.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
+            pointerUp.callback.AddListener((data) => OnShootButtonReleased());
+            trigger.triggers.Add(pointerUp);
+        }
     }
 
     private void AutoFindJoysticks()
@@ -175,25 +243,6 @@ public class MobileInputManager : MonoBehaviour
         }
 #endif
 
-        // Trigger weapon firing when the aim joystick is pulled into the outer ring (fireThreshold)
-        float aimMag = aimInput.magnitude;
-        if (aimMag >= fireThreshold)
-        {
-            if (!isFiringFromAimJoystick)
-            {
-                isFiringFromAimJoystick = true;
-                weaponController?.StartFiring();
-            }
-        }
-        else
-        {
-            if (isFiringFromAimJoystick)
-            {
-                isFiringFromAimJoystick = false;
-                weaponController?.StopFiring();
-            }
-        }
-
         playerController?.SetMoveInput(moveInput);
         playerAiming?.SetAimInput(aimInput);
     }
@@ -212,5 +261,22 @@ public class MobileInputManager : MonoBehaviour
     public void OnShootButtonReleased()
     {
         weaponController?.StopFiring();
+    }
+
+    /// <summary>
+    /// Disables Aim joystick and action buttons for ghost spectating while keeping Move joystick active.
+    /// </summary>
+    public void SetGhostUI(bool isGhost)
+    {
+        if (moveJoystick != null)
+        {
+            moveJoystick.gameObject.SetActive(true); // Move joystick remains active for ghost spectating!
+        }
+        if (aimJoystick != null)
+        {
+            aimJoystick.gameObject.SetActive(!isGhost); // Disable Aim joystick
+        }
+        if (shootButton != null) shootButton.gameObject.SetActive(!isGhost);
+        if (reloadButton != null) reloadButton.gameObject.SetActive(!isGhost);
     }
 }

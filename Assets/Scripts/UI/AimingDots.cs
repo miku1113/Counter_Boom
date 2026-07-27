@@ -71,19 +71,38 @@ public class AimingDots : MonoBehaviour
         }
     }
     
+    public void HideDots()
+    {
+        if (dots == null) return;
+        foreach (var dot in dots)
+        {
+            if (dot != null) dot.SetActive(false);
+        }
+    }
+
     private void Update()
     {
+        // If local player is dead or aiming is disabled, hide all dots
+        if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead)
+        {
+            HideDots();
+            return;
+        }
+
         // Auto-find local player if reference is lost or dynamically spawned late
         if (player == null || playerAiming == null)
         {
             FindLocalPlayer();
         }
 
-        if (playerAiming == null || player == null) return;
+        if (playerAiming == null || !playerAiming.enabled || player == null)
+        {
+            HideDots();
+            return;
+        }
         
         Vector2 aimDirection = playerAiming.GetAimDirection();
         
-        // Aiming dots remain permanently active and visible at all times
         UpdateDotPositions(aimDirection);
         
         foreach (var dot in dots)

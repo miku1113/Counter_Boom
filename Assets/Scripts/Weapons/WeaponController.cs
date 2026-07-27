@@ -60,17 +60,14 @@ public class WeaponController : NetworkBehaviour
         if (playerAiming == null)
             playerAiming = GetComponent<PlayerAiming>();
 
-        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name.ToLower();
-        bool isLobbyScene = activeScene.Contains("lobby");
-
-        if (isLobbyScene)
+        // Always start with 0 guns in both Lobby and Game scene
+        ClearAttachPointChildren();
+        for (int i = 0; i < weaponSlots.Length; i++)
         {
-            ClearAttachPointChildren();
+            weaponSlots[i] = null;
+            OnWeaponSlotUpdated?.Invoke(i);
         }
-        else if (startingWeaponPrefab != null)
-        {
-            EquipWeaponToSlot(0, startingWeaponPrefab);
-        }
+        currentSlot = 0;
     }
 
     /// <summary>
@@ -196,6 +193,7 @@ public class WeaponController : NetworkBehaviour
                 playerAiming = GetComponent<PlayerAiming>();
 
             playerAiming?.SetWeapon(newWeapon);
+            playerAiming?.PlayWeaponSwitchAnimation();
             HandleAmmoChanged(newWeapon.GetCurrentAmmo(), newWeapon.maxAmmo);
             CheckZoom();
 
@@ -297,6 +295,7 @@ public class WeaponController : NetworkBehaviour
             playerAiming = GetComponent<PlayerAiming>();
 
         playerAiming?.SetWeapon(weaponSlots[currentSlot]);
+        playerAiming?.PlayWeaponSwitchAnimation();
         HandleAmmoChanged(weaponSlots[currentSlot].GetCurrentAmmo(), weaponSlots[currentSlot].maxAmmo);
         CheckZoom();
 
@@ -312,7 +311,51 @@ public class WeaponController : NetworkBehaviour
 
     // ─── Input delegates ─────────────────────────────────────────────────────
 
-    public void StartFiring()  => CurrentWeapon?.StartFiring();
+    private float nextPunchTime = 0f;
+    private bool isPunchingRightArm = true;
+
+    public void StartFiring()
+    {
+        if (CurrentWeapon != null)
+        {
+            CurrentWeapon.StartFiring();
+        }
+        else
+        {
+            PerformMeleePunch();
+        }
+    }
+
+    public void PerformMeleePunch()
+    {
+        if (Time.time < nextPunchTime) return;
+        nextPunchTime = Time.time + 0.32f;
+
+        isPunchingRightArm = !isPunchingRightArm;
+
+        if (playerAiming == null) playerAiming = GetComponent<PlayerAiming>();
+        playerAiming?.PlayMeleePunchAnimation(isPunchingRightArm);
+
+        Vector2 aimDir = playerAiming != null ? playerAiming.GetAimDirection() : (Vector2)transform.right;
+        Vector2 punchOrigin = (Vector2)transform.position + aimDir * 0.65f;
+        float punchRadius = 0.6f;
+
+        Collider2D[] hits = Physics2D.OverlapCircleAll(punchOrigin, punchRadius);
+        foreach (var col in hits)
+        {
+            if (col == null || col.gameObject == gameObject) continue;
+
+            var health = col.GetComponent<PlayerHealth>();
+            if (health == null) health = col.GetComponentInParent<PlayerHealth>();
+
+            if (health != null && !health.IsDead)
+            {
+                health.TakeDamage(25);
+                Debug.Log($"[MeleePunch] Hit '{col.gameObject.name}' dealing 25 damage!");
+            }
+        }
+    }
+
     public void StopFiring()   => CurrentWeapon?.StopFiring();
     public void StartReload()  => CurrentWeapon?.Reload();
 

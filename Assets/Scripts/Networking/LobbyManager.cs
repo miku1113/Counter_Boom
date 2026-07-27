@@ -15,6 +15,7 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     [SerializeField] private GameObject playerListItemPrefab;
     [SerializeField] private Button leaveButton;
     [SerializeField] private TextMeshProUGUI errorText;
+    [SerializeField] private TextMeshProUGUI pingText;
     
     [Header("Settings")]
     [SerializeField] private int minPlayersToStart = 2;
@@ -23,6 +24,8 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     private float currentCountdown;
     private bool isCountingDown = false;
     private List<GameObject> playerListItems = new List<GameObject>();
+    private UnityEngine.Ping systemPingFallback;
+    private int cachedPingMs = -1;
     
     private void Start()
     {
@@ -34,6 +37,9 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         
         leaveButton.onClick.AddListener(OnLeaveRoom);
         ClearError();
+        
+        EnsurePingUI();
+        InvokeRepeating(nameof(UpdatePingDisplay), 0.1f, 0.5f);
         
         // Don't join room here - wait for OnConnectedToMaster or OnJoinedLobby callback
         if (!PhotonNetwork.IsConnected)
@@ -277,6 +283,105 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     {
         errorText.text = "";
         errorText.gameObject.SetActive(false);
+    }
+    
+    private void EnsurePingUI()
+    {
+        if (pingText != null) return;
+
+        Canvas canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        TextMeshProUGUI[] tmps = canvas.GetComponentsInChildren<TextMeshProUGUI>(true);
+        foreach (var tmp in tmps)
+        {
+            if (tmp == null) continue;
+            string n = tmp.gameObject.name.ToLower();
+            if (n.Contains("ping") || n.Contains("speed") || n.Contains("internet") || n.Contains("latency"))
+            {
+                pingText = tmp;
+                break;
+            }
+        }
+
+        if (pingText == null)
+        {
+            GameObject pingGO = new GameObject("PingText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            pingGO.transform.SetParent(canvas.transform, false);
+
+            RectTransform rect = pingGO.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(1f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(1f, 0f);
+            rect.anchoredPosition = new Vector2(-25f, 25f);
+            rect.sizeDelta = new Vector2(320f, 40f);
+
+            pingText = pingGO.GetComponent<TextMeshProUGUI>();
+            pingText.fontSize = 20;
+            pingText.alignment = TextAlignmentOptions.BottomRight;
+            pingText.raycastTarget = false;
+            pingText.fontStyle = FontStyles.Bold;
+        }
+    }
+
+    private void UpdatePingDisplay()
+    {
+        EnsurePingUI();
+        if (pingText == null) return;
+
+        int pingMs = GetCurrentPingMs();
+
+        if (pingMs <= 0)
+        {
+            pingText.text = "Internet Speed: <color=#CCCCCC>Measuring...</color>";
+            return;
+        }
+
+        string qualityStr;
+        string colorHex;
+
+        if (pingMs < 80)
+        {
+            qualityStr = "Strong";
+            colorHex = "#00FF66";
+        }
+        else if (pingMs < 200)
+        {
+            qualityStr = "Good";
+            colorHex = "#FFCC00";
+        }
+        else if (pingMs < 400)
+        {
+            qualityStr = "Weak";
+            colorHex = "#FF8800";
+        }
+        else
+        {
+            qualityStr = "Poor";
+            colorHex = "#FF3333";
+        }
+
+        pingText.text = $"Internet Speed: <color={colorHex}>{pingMs}ms ({qualityStr})</color>";
+    }
+
+    private int GetCurrentPingMs()
+    {
+        if (PhotonNetwork.IsConnected)
+        {
+            return PhotonNetwork.GetPing();
+        }
+
+        if (systemPingFallback == null)
+        {
+            systemPingFallback = new UnityEngine.Ping("8.8.8.8");
+        }
+        else if (systemPingFallback.isDone)
+        {
+            cachedPingMs = systemPingFallback.time;
+            systemPingFallback = new UnityEngine.Ping("8.8.8.8");
+        }
+
+        return cachedPingMs;
     }
     
     #endregion

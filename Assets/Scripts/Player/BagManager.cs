@@ -91,17 +91,42 @@ public class BagManager : NetworkBehaviour
             Instance = this;
         }
 
-        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name.ToLower();
-        bool isLobbyScene = activeScene.Contains("lobby");
+        // Always start with empty inventory in both Lobby and Game scene (0 guns, 0 grenades, 0 items)
+        ClearInventory();
+        Debug.Log("[BagManager] Initialized empty loadout: 0 Guns, 0 Items, 0 Grenades.");
+    }
 
-        if (isLobbyScene)
+    /// <summary>
+    /// Clears all inventory items, ammo counts, grenades, medikits, and shakes.
+    /// </summary>
+    public void ClearInventory()
+    {
+        foreach (AmmoType type in System.Enum.GetValues(typeof(AmmoType)))
         {
-            grenadeInventory[GrenadeType.Smoke] = 20;
-            activeGrenadeType = GrenadeType.Smoke;
-            OnGrenadeUpdated?.Invoke(GrenadeType.Smoke, 20);
-            OnBagUpdated?.Invoke();
-            Debug.Log("[BagManager] Initialized Lobby loadout: 20 Smoke Grenades, 0 Guns.");
+            if (type != AmmoType.None)
+            {
+                ammoInventory[type] = 0;
+                OnAmmoUpdated?.Invoke(type, 0);
+            }
         }
+
+        foreach (GrenadeType type in System.Enum.GetValues(typeof(GrenadeType)))
+        {
+            if (type != GrenadeType.None)
+            {
+                grenadeInventory[type] = 0;
+                OnGrenadeUpdated?.Invoke(type, 0);
+            }
+        }
+
+        scopeCount = 0;
+        medikitCount = 0;
+        proteinShakeCount = 0;
+
+        OnScopeUpdated?.Invoke(0);
+        OnMedikitUpdated?.Invoke(0);
+        OnProteinShakeUpdated?.Invoke(0);
+        OnBagUpdated?.Invoke();
     }
 
 #if UNITY_EDITOR
@@ -392,6 +417,10 @@ public class BagManager : NetworkBehaviour
         if (player == null) return;
         proteinShakeCount--;
         player.ApplySpeedBoost(1.5f, 5f);
+        if (PlayerEnergy.Instance != null)
+        {
+            PlayerEnergy.Instance.RestoreEnergy(50f);
+        }
         OnProteinShakeUpdated?.Invoke(proteinShakeCount);
         OnBagUpdated?.Invoke();
     }
