@@ -23,7 +23,7 @@ public class PlayerDebugHelper : MonoBehaviour
     
     private void OnDisable()
     {
-        Debug.LogError($"[PlayerDebug] ❌ Player DISABLED at {Time.time}");
-        Debug.LogError($"[PlayerDebug] Disabled by:\n{System.Environment.StackTrace}");
+        if (!Application.isPlaying) return; // Ignore normal cleanup on Play Mode stop
+        Debug.Log($"[PlayerDebug] Player DISABLED at {Time.time}");
     }
 }

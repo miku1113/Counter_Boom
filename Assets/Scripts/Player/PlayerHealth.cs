@@ -69,8 +69,22 @@ public class PlayerHealth : NetworkBehaviour
         }
     }
 
+    public void RestoreHealthFromSnapshot(int targetHp)
+    {
+        currentLocalHealth = Mathf.Clamp(targetHp, 1, maxHealth);
+        if (IsServer && IsSpawned)
+        {
+            netHealth.Value = currentLocalHealth;
+        }
+        OnHealthChanged?.Invoke(currentLocalHealth, maxHealth);
+    }
+
     public void TakeDamage(int amount)
     {
+        // Invincibility check: Ignore all damage in lobby scenes or non-gameplay scenes!
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (activeScene != "GameScene") return;
+
         if (IsSpawned)
         {
             if (IsServer)
@@ -99,6 +113,9 @@ public class PlayerHealth : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     private void TakeDamageServerRpc(int amount)
     {
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (activeScene != "GameScene") return;
+
         if (netHealth.Value <= 0) return;
         netHealth.Value = Mathf.Clamp(netHealth.Value - amount, 0, maxHealth);
         currentLocalHealth = netHealth.Value;
@@ -166,8 +183,18 @@ public class PlayerHealth : NetworkBehaviour
             if (anim != null) anim.enabled = false;
         }
 
-        // 4. Hide Aiming Dots
-        if (AimingDots.Instance != null)
+        bool isLocalPlayer = false;
+        if (IsSpawned)
+        {
+            if (IsOwner) isLocalPlayer = true;
+        }
+        else
+        {
+            isLocalPlayer = true;
+        }
+
+        // 4. Hide Aiming Dots ONLY if local player died
+        if (isLocalPlayer && AimingDots.Instance != null)
         {
             AimingDots.Instance.HideDots();
         }
@@ -186,6 +213,18 @@ public class PlayerHealth : NetworkBehaviour
         Transform visualRoot = transform.Find("Visuals");
         if (visualRoot == null) visualRoot = transform.Find("Character");
         if (visualRoot == null) visualRoot = transform;
+
+        // ── Snapshot the dead player's actual sprites BEFORE cloning ──────────
+        // CharacterAssembler.Start() runs after Instantiate and overwrites sprites
+        // with the LOCAL viewer's PlayerPrefs skin index. We capture the real skin
+        // first so we can re-stamp it onto the corpse immediately after cloning.
+        var spriteSnapshot = new System.Collections.Generic.Dictionary<string, Sprite>();
+        foreach (var r in visualRoot.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (r != null && r.sprite != null)
+                spriteSnapshot[r.gameObject.name] = r.sprite;
+        }
+        // ──────────────────────────────────────────────────────────────────────
 
         GameObject corpseVisuals = Instantiate(visualRoot.gameObject, corpse.transform);
         corpseVisuals.transform.localPosition = Vector3.zero;
@@ -213,42 +252,51 @@ public class PlayerHealth : NetworkBehaviour
         Animator[] animators = corpseVisuals.GetComponentsInChildren<Animator>(true);
         foreach (var anim in animators) Destroy(anim);
 
-        // Process corpse renderers: opacity decrease, disable eyes, sorting order
+        // Process corpse renderers: re-stamp correct skin, fade opacity, hide eyes
         SpriteRenderer[] renderers = corpseVisuals.GetComponentsInChildren<SpriteRenderer>(true);
         foreach (var r in renderers)
         {
-            if (r != null)
+            if (r == null) continue;
+
+            string rName = r.gameObject.name.ToLower();
+
+            // Hide GhostVisual if present on visual root clone
+            if (rName.Contains("ghostvisual"))
             {
-                string rName = r.gameObject.name.ToLower();
-
-                // Hide GhostVisual if present on visual root clone
-                if (rName.Contains("ghostvisual"))
-                {
-                    r.gameObject.SetActive(false);
-                    continue;
-                }
-
-                // Disable eyes completely on dead body
-                if (rName.Contains("eye"))
-                {
-                    r.enabled = false;
-                    r.gameObject.SetActive(false);
-                    continue;
-                }
-
-                r.enabled = true;
-
-                // Decrease opacity for dead body (faded dead appearance)
-                Color c = r.color;
-                c.a = 0.6f;
-                r.color = c;
-
-                r.sortingOrder = r.sortingOrder - 5;
+                r.gameObject.SetActive(false);
+                continue;
             }
+
+            // Disable eyes completely on dead body
+            if (rName.Contains("eye"))
+            {
+                r.enabled = false;
+                r.gameObject.SetActive(false);
+                continue;
+            }
+
+            // ── Re-stamp the dead player's actual sprite ───────────────────────
+            // Overrides whatever CharacterAssembler.Start() may have loaded
+            // using the local viewer's PlayerPrefs skin index.
+            if (spriteSnapshot.TryGetValue(r.gameObject.name, out Sprite originalSprite))
+            {
+                r.sprite = originalSprite;
+            }
+            // ──────────────────────────────────────────────────────────────────
+
+            r.enabled = true;
+
+            // Decrease opacity for dead body (faded dead appearance)
+            Color c = r.color;
+            c.a = 0.6f;
+            r.color = c;
+
+            r.sortingOrder = r.sortingOrder - 5;
         }
 
-        Debug.Log($"[PlayerHealth] Fixed dead body corpse created at {transform.position} with straight arms, disabled eyes, and reduced opacity.");
+        Debug.Log($"[PlayerHealth] Corpse created for '{gameObject.name}' at {transform.position} with original skin preserved.");
     }
+
 
     private System.Collections.IEnumerator PlayDeathAnimationRoutine()
     {
@@ -287,14 +335,27 @@ public class PlayerHealth : NetworkBehaviour
             playerCtrl.EnableGhostMode();
         }
 
-        // 4. Update UI controls: Disable Aim Joystick & combat buttons, KEEP Move Joystick active!
-        if (MobileInputManager.Instance != null)
+        bool isLocalPlayer = false;
+        if (IsSpawned)
         {
-            MobileInputManager.Instance.SetGhostUI(true);
+            if (IsOwner) isLocalPlayer = true;
         }
-        if (HUDManager.Instance != null)
+        else
         {
-            HUDManager.Instance.SetGhostUI(true);
+            isLocalPlayer = true;
+        }
+
+        // 4. Update UI controls ONLY if the local player died: Disable Aim Joystick & combat buttons, KEEP Move Joystick active!
+        if (isLocalPlayer)
+        {
+            if (MobileInputManager.Instance != null)
+            {
+                MobileInputManager.Instance.SetGhostUI(true);
+            }
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.SetGhostUI(true);
+            }
         }
     }
 

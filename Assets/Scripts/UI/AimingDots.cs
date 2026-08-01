@@ -82,11 +82,26 @@ public class AimingDots : MonoBehaviour
 
     private void Update()
     {
-        // If local player is dead or aiming is disabled, hide all dots
+        // Hide dots if local player is dead OR is a ghost
         if (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead)
         {
             HideDots();
+            player = null;
+            playerAiming = null;
             return;
+        }
+
+        // Also hide if the tracked player controller is a ghost
+        if (player != null)
+        {
+            var pc = player.GetComponent<PlayerController>();
+            if (pc != null && (pc.IsGhost || !pc.IsLocal))
+            {
+                HideDots();
+                player = null;
+                playerAiming = null;
+                return;
+            }
         }
 
         // Auto-find local player if reference is lost or dynamically spawned late
@@ -119,11 +134,17 @@ public class AimingDots : MonoBehaviour
         PlayerController[] players = FindObjectsOfType<PlayerController>();
         foreach (var p in players)
         {
-            if (p != null && p.IsLocal)
-            {
-                SetLocalPlayer(p.transform, p.GetComponent<PlayerAiming>());
-                break;
-            }
+            if (p == null || !p.IsLocal) continue;
+            // Skip dead or ghost players — we only want the alive local player
+            var health = p.GetComponent<PlayerHealth>();
+            if (health != null && health.IsDead) continue;
+            if (p.IsGhost) continue;
+
+            var aiming = p.GetComponent<PlayerAiming>();
+            if (aiming == null) continue;
+
+            SetLocalPlayer(p.transform, aiming);
+            break;
         }
     }
 

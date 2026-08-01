@@ -75,9 +75,19 @@ public class InteractiveLobbyController : MonoBehaviour
 
         RefreshLobbyUI();
 
-        // 4. Setup Internet Speed / Ping display UI
+        // 4. Setup Internet Speed / Ping display UI and Real-Time Voice Chat
         EnsurePingUI();
+        EnsureVoiceManager();
         InvokeRepeating(nameof(UpdatePingDisplay), 0.1f, 0.5f);
+    }
+
+    private void EnsureVoiceManager()
+    {
+        if (LobbyVoiceManager.Instance == null)
+        {
+            GameObject vGO = new GameObject("LobbyVoiceManager", typeof(LobbyVoiceManager));
+            Debug.Log("[InteractiveLobby] Real-time LobbyVoiceManager initialized.");
+        }
     }
 
     private void EnsureEventSystemAndRaycaster()
@@ -357,7 +367,28 @@ public class InteractiveLobbyController : MonoBehaviour
         foreach (ulong clientId in clientIds)
         {
             bool isServerHost = (NetworkManager.Singleton != null && (clientId == NetworkManager.ServerClientId || clientId == 0));
-            string displayName = isServerHost ? $"Player {clientId + 1} (Host)" : $"Player {clientId + 1}";
+
+            string pName = "Player";
+            PlayerController[] players = FindObjectsOfType<PlayerController>();
+            foreach (var p in players)
+            {
+                if (p != null && (p.OwnerClientId == clientId || p.IsLocal && clientId == 0))
+                {
+                    string netName = p.playerName.Value.ToString();
+                    if (!string.IsNullOrEmpty(netName))
+                    {
+                        pName = netName;
+                        break;
+                    }
+                }
+            }
+
+            if (pName == "Player" || pName == "You" || string.IsNullOrEmpty(pName))
+            {
+                pName = PlayerController.GetOrGeneratePlayerName();
+            }
+
+            string displayName = isServerHost ? $"{pName} (Host)" : pName;
 
             GameObject listItemObj = null;
 
@@ -419,12 +450,12 @@ public class InteractiveLobbyController : MonoBehaviour
         }
     }
 
-    private void OnLeaveLobbyClicked()
+    private async void OnLeaveLobbyClicked()
     {
-        Debug.Log("[InteractiveLobby] Leaving lobby...");
+        Debug.Log("[InteractiveLobby] Leaving lobby gracefully...");
         if (RelayNetworkManager.Instance != null)
         {
-            RelayNetworkManager.Instance.Disconnect();
+            await RelayNetworkManager.Instance.LeaveMatchGracefully();
         }
         UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenuScene");
     }

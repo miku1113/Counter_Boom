@@ -234,7 +234,14 @@ public class MainMenuManager : MonoBehaviourPunCallbacks
     
     private void OnSettings()
     {
-        settingsPanel.SetActive(true);
+        if (settingsPanel != null)
+        {
+            if (settingsPanel.GetComponent<SettingsManager>() == null)
+            {
+                settingsPanel.AddComponent<SettingsManager>();
+            }
+            settingsPanel.SetActive(true);
+        }
     }
     
     private void OnExit()

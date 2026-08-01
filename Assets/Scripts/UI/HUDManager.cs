@@ -58,6 +58,7 @@ public class HUDManager : MonoBehaviour
     [SerializeField] private GameObject settingsPanel;
     [SerializeField] private Button leaveGameButton;
     [SerializeField] private Button closeSettingsButton;
+    private GameObject leaveConfirmationModal;
 
     // ─── Lifecycle ───────────────────────────────────────────────────────────
 
@@ -201,14 +202,17 @@ public class HUDManager : MonoBehaviour
 
     private void HandleMigrationStateChanged(bool isMigrating)
     {
+        EnsureMigrationUI();
         if (migrationOverlayPanel != null)
         {
             migrationOverlayPanel.SetActive(isMigrating);
+            if (isMigrating) migrationOverlayPanel.transform.SetAsLastSibling();
         }
     }
 
     private void HandleMigrationStatusChanged(string statusMessage)
     {
+        EnsureMigrationUI();
         if (migrationStatusText != null)
         {
             migrationStatusText.text = statusMessage;
@@ -725,18 +729,32 @@ public class HUDManager : MonoBehaviour
 
     private void OnLeaveGameClicked()
     {
-        Debug.Log("[HUDManager] Leaving game... Returning to Main Menu.");
-        
+        EnsureConfirmationModalUI();
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+        if (leaveConfirmationModal != null)
+        {
+            leaveConfirmationModal.SetActive(true);
+            leaveConfirmationModal.transform.SetAsLastSibling();
+        }
+    }
+
+    private async void ConfirmLeaveGame()
+    {
+        Debug.Log("[HUDManager] User confirmed leave game... Gracefully disconnecting.");
+
+        if (leaveConfirmationModal != null) leaveConfirmationModal.SetActive(false);
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+
         // Reset player inventory & state
         if (BagManager.Instance != null) BagManager.Instance.ClearInventory();
         if (WeaponController.Instance != null) WeaponController.Instance.ClearAttachPointChildren();
 
-        // Disconnect Relay / Netcode session
+        // Disconnect Relay / Netcode session gracefully so host migration triggers for remaining players!
         if (RelayNetworkManager.Instance != null)
         {
             try
             {
-                RelayNetworkManager.Instance.Disconnect();
+                await RelayNetworkManager.Instance.LeaveMatchGracefully();
             }
             catch (System.Exception ex)
             {
@@ -771,6 +789,204 @@ public class HUDManager : MonoBehaviour
                 UnityEngine.SceneManagement.SceneManager.LoadScene(0);
             }
         }
+    }
+
+    private void EnsureConfirmationModalUI()
+    {
+        if (leaveConfirmationModal != null) return;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        Transform existing = canvas.transform.Find("LeaveConfirmationModal");
+        if (existing != null)
+        {
+            leaveConfirmationModal = existing.gameObject;
+            return;
+        }
+
+        // Fullscreen dark overlay
+        GameObject overlayGO = new GameObject("LeaveConfirmationModal", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        overlayGO.transform.SetParent(canvas.transform, false);
+
+        RectTransform oRt = overlayGO.GetComponent<RectTransform>();
+        oRt.anchorMin = Vector2.zero; oRt.anchorMax = Vector2.one; oRt.sizeDelta = Vector2.zero;
+        oRt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image oImg = overlayGO.GetComponent<UnityEngine.UI.Image>();
+        oImg.color = new Color(0f, 0f, 0f, 0.8f);
+
+        // Confirmation Card
+        GameObject cardGO = new GameObject("Card", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        cardGO.transform.SetParent(overlayGO.transform, false);
+        RectTransform cRt = cardGO.GetComponent<RectTransform>();
+        cRt.anchorMin = new Vector2(0.5f, 0.5f); cRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cRt.pivot = new Vector2(0.5f, 0.5f);
+        cRt.sizeDelta = new Vector2(460f, 250f);
+        cRt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image cImg = cardGO.GetComponent<UnityEngine.UI.Image>();
+        cImg.color = new Color(0.1f, 0.12f, 0.18f, 0.98f);
+
+        // Warning Icon / Title
+        GameObject titleGO = new GameObject("TitleText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        titleGO.transform.SetParent(cardGO.transform, false);
+        RectTransform tRt = titleGO.GetComponent<RectTransform>();
+        tRt.anchorMin = new Vector2(0f, 1f); tRt.anchorMax = new Vector2(1f, 1f);
+        tRt.pivot = new Vector2(0.5f, 1f);
+        tRt.anchoredPosition = new Vector2(0f, -20f);
+        tRt.sizeDelta = new Vector2(0f, 40f);
+
+        TextMeshProUGUI titleTmp = titleGO.GetComponent<TextMeshProUGUI>();
+        titleTmp.text = "⚠️ LEAVE GAME?";
+        titleTmp.fontSize = 24;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.alignment = TextAlignmentOptions.Center;
+        titleTmp.color = new Color(1f, 0.4f, 0.4f);
+
+        // Warning Message Body
+        GameObject descGO = new GameObject("DescText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        descGO.transform.SetParent(cardGO.transform, false);
+        RectTransform dRt = descGO.GetComponent<RectTransform>();
+        dRt.anchorMin = new Vector2(0f, 0.5f); dRt.anchorMax = new Vector2(1f, 0.5f);
+        dRt.pivot = new Vector2(0.5f, 0.5f);
+        dRt.anchoredPosition = new Vector2(0f, 10f);
+        dRt.sizeDelta = new Vector2(-40f, 80f);
+
+        TextMeshProUGUI descTmp = descGO.GetComponent<TextMeshProUGUI>();
+        descTmp.text = "Are you sure you want to leave?\nIf you leave, this game can be disrupted for remaining players.";
+        descTmp.fontSize = 17;
+        descTmp.alignment = TextAlignmentOptions.Center;
+        descTmp.color = new Color(0.9f, 0.9f, 0.9f);
+
+        // YES Button (Confirm)
+        GameObject yesBtnGO = new GameObject("YesButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        yesBtnGO.transform.SetParent(cardGO.transform, false);
+        RectTransform yRt = yesBtnGO.GetComponent<RectTransform>();
+        yRt.anchorMin = new Vector2(0.28f, 0f); yRt.anchorMax = new Vector2(0.28f, 0f);
+        yRt.pivot = new Vector2(0.5f, 0f);
+        yRt.anchoredPosition = new Vector2(0f, 20f);
+        yRt.sizeDelta = new Vector2(160f, 45f);
+
+        UnityEngine.UI.Image yImg = yesBtnGO.GetComponent<UnityEngine.UI.Image>();
+        yImg.color = new Color(0.85f, 0.2f, 0.2f, 1f);
+
+        GameObject yTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        yTextGO.transform.SetParent(yesBtnGO.transform, false);
+        RectTransform ytRt = yTextGO.GetComponent<RectTransform>();
+        ytRt.anchorMin = Vector2.zero; ytRt.anchorMax = Vector2.one; ytRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI yTmp = yTextGO.GetComponent<TextMeshProUGUI>();
+        yTmp.text = "YES, LEAVE";
+        yTmp.fontSize = 16;
+        yTmp.fontStyle = FontStyles.Bold;
+        yTmp.alignment = TextAlignmentOptions.Center;
+        yTmp.color = Color.white;
+
+        Button yesBtn = yesBtnGO.GetComponent<Button>();
+        yesBtn.onClick.AddListener(ConfirmLeaveGame);
+
+        // NO Button (Cancel)
+        GameObject noBtnGO = new GameObject("NoButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        noBtnGO.transform.SetParent(cardGO.transform, false);
+        RectTransform nRt = noBtnGO.GetComponent<RectTransform>();
+        nRt.anchorMin = new Vector2(0.72f, 0f); nRt.anchorMax = new Vector2(0.72f, 0f);
+        nRt.pivot = new Vector2(0.5f, 0f);
+        nRt.anchoredPosition = new Vector2(0f, 20f);
+        nRt.sizeDelta = new Vector2(160f, 45f);
+
+        UnityEngine.UI.Image nImg = noBtnGO.GetComponent<UnityEngine.UI.Image>();
+        nImg.color = new Color(0.25f, 0.3f, 0.4f, 1f);
+
+        GameObject nTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        nTextGO.transform.SetParent(noBtnGO.transform, false);
+        RectTransform ntRt = nTextGO.GetComponent<RectTransform>();
+        ntRt.anchorMin = Vector2.zero; ntRt.anchorMax = Vector2.one; ntRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI nTmp = nTextGO.GetComponent<TextMeshProUGUI>();
+        nTmp.text = "CANCEL";
+        nTmp.fontSize = 16;
+        nTmp.alignment = TextAlignmentOptions.Center;
+        nTmp.color = Color.white;
+
+        Button noBtn = noBtnGO.GetComponent<Button>();
+        noBtn.onClick.AddListener(() => leaveConfirmationModal?.SetActive(false));
+
+        leaveConfirmationModal = overlayGO;
+        leaveConfirmationModal.SetActive(false);
+    }
+
+    private void EnsureMigrationUI()
+    {
+        if (migrationOverlayPanel != null) return;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        Transform existing = canvas.transform.Find("MigrationOverlayPanel");
+        if (existing != null)
+        {
+            migrationOverlayPanel = existing.gameObject;
+            migrationStatusText = migrationOverlayPanel.GetComponentInChildren<TextMeshProUGUI>();
+            return;
+        }
+
+        // Fullscreen overlay panel
+        GameObject panelGO = new GameObject("MigrationOverlayPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        panelGO.transform.SetParent(canvas.transform, false);
+
+        RectTransform rt = panelGO.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.sizeDelta = Vector2.zero;
+        rt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image img = panelGO.GetComponent<UnityEngine.UI.Image>();
+        img.color = new Color(0.05f, 0.07f, 0.12f, 0.95f);
+
+        // Center card
+        GameObject cardGO = new GameObject("Card", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        cardGO.transform.SetParent(panelGO.transform, false);
+        RectTransform cRt = cardGO.GetComponent<RectTransform>();
+        cRt.anchorMin = new Vector2(0.5f, 0.5f); cRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cRt.pivot = new Vector2(0.5f, 0.5f);
+        cRt.sizeDelta = new Vector2(480f, 220f);
+        cRt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image cImg = cardGO.GetComponent<UnityEngine.UI.Image>();
+        cImg.color = new Color(0.12f, 0.15f, 0.22f, 0.98f);
+
+        // Title
+        GameObject titleGO = new GameObject("TitleText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        titleGO.transform.SetParent(cardGO.transform, false);
+        RectTransform tRt = titleGO.GetComponent<RectTransform>();
+        tRt.anchorMin = new Vector2(0f, 1f); tRt.anchorMax = new Vector2(1f, 1f);
+        tRt.pivot = new Vector2(0.5f, 1f);
+        tRt.anchoredPosition = new Vector2(0f, -20f);
+        tRt.sizeDelta = new Vector2(0f, 40f);
+
+        TextMeshProUGUI titleTmp = titleGO.GetComponent<TextMeshProUGUI>();
+        titleTmp.text = "HOST MIGRATION IN PROGRESS";
+        titleTmp.fontSize = 22;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.alignment = TextAlignmentOptions.Center;
+        titleTmp.color = new Color(1f, 0.85f, 0.3f);
+
+        // Migration status message text
+        GameObject statusGO = new GameObject("StatusText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        statusGO.transform.SetParent(cardGO.transform, false);
+        RectTransform sRt = statusGO.GetComponent<RectTransform>();
+        sRt.anchorMin = Vector2.zero; sRt.anchorMax = Vector2.one;
+        sRt.offsetMin = new Vector2(20f, 20f); sRt.offsetMax = new Vector2(-20f, -60f);
+
+        migrationStatusText = statusGO.GetComponent<TextMeshProUGUI>();
+        migrationStatusText.text = "Transferring host to another player... Please wait.";
+        migrationStatusText.fontSize = 17;
+        migrationStatusText.alignment = TextAlignmentOptions.Center;
+        migrationStatusText.color = Color.white;
+
+        migrationOverlayPanel = panelGO;
+        migrationOverlayPanel.SetActive(false);
     }
 
     private void EnsureSettingsUI()

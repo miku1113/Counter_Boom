@@ -106,28 +106,183 @@ public class GameManager : MonoBehaviour
         }
         if (pObj == null)
         {
+            // Search all player objects in scene for the owned controller
+            PlayerController[] controllers = FindObjectsOfType<PlayerController>();
+            foreach (var pc in controllers)
+            {
+                if (pc != null && pc.IsOwner)
+                {
+                    pObj = pc.gameObject;
+                    break;
+                }
+            }
+        }
+        if (pObj == null)
+        {
             pObj = GameObject.FindGameObjectWithTag("Player");
         }
+
+        // If pObj is STILL null and we are server/host, manually spawn player prefab for host
+        if (pObj == null && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+        {
+            if (Unity.Netcode.NetworkManager.Singleton.NetworkConfig != null && Unity.Netcode.NetworkManager.Singleton.NetworkConfig.PlayerPrefab != null)
+            {
+                GameObject spawned = Instantiate(Unity.Netcode.NetworkManager.Singleton.NetworkConfig.PlayerPrefab, snapshot.position, snapshot.rotation);
+                var netObj = spawned.GetComponent<Unity.Netcode.NetworkObject>();
+                if (netObj != null)
+                {
+                    netObj.SpawnWithOwnership(Unity.Netcode.NetworkManager.Singleton.LocalClientId, true);
+                    pObj = spawned;
+                    Debug.Log("[GameManager] Server manually spawned player object for Host migration!");
+                }
+            }
+        }
+
         if (pObj != null)
         {
             pObj.transform.position = snapshot.position;
             pObj.transform.rotation = snapshot.rotation;
 
+            // Restore character facing direction (sprite flip)
+            var assembler = pObj.GetComponentInChildren<CharacterAssembler>();
+            if (assembler != null)
+            {
+                assembler.SetFacingDirection(snapshot.facingRight);
+            }
+
+            // Target camera onto local player
+            if (CameraController.Instance != null)
+            {
+                CameraController.Instance.SetTarget(pObj.transform);
+            }
+
+
             var health = pObj.GetComponent<PlayerHealth>();
             if (health == null) health = PlayerHealth.Instance;
             if (health != null && snapshot.health > 0)
             {
-                int diff = snapshot.health - health.GetCurrentHealth();
-                if (diff > 0) health.Heal(diff);
-                else if (diff < 0) health.TakeDamage(-diff);
+                health.RestoreHealthFromSnapshot(snapshot.health);
             }
 
             var weaponCtrl = pObj.GetComponent<WeaponController>();
             if (weaponCtrl == null) weaponCtrl = WeaponController.Instance;
             if (weaponCtrl != null)
             {
+                // Re-equip weapons from snapshot (slot names) then switch to the active slot
+                if (snapshot.weaponSlotNames != null)
+                {
+                    for (int i = 0; i < snapshot.weaponSlotNames.Length; i++)
+                    {
+                        string wName = snapshot.weaponSlotNames[i];
+                        if (!string.IsNullOrEmpty(wName))
+                        {
+                            GameObject prefab = weaponCtrl.FindWeaponPrefabByNamePublic(wName);
+                            if (prefab != null)
+                                weaponCtrl.EquipWeaponToSlot(i, prefab);
+                        }
+                    }
+                }
                 weaponCtrl.SwitchToSlot(snapshot.currentWeaponIndex);
             }
+
+            var bag = pObj.GetComponent<BagManager>();
+            if (bag == null) bag = BagManager.Instance;
+            if (bag != null)
+            {
+                bag.RestoreFromSnapshot(snapshot);
+            }
+
+            if (snapshot.isGhost)
+            {
+                var pc = pObj.GetComponent<PlayerController>();
+                if (pc != null)
+                {
+                    pc.EnableGhostMode();
+                }
+
+                if (MobileInputManager.Instance != null)
+                {
+                    MobileInputManager.Instance.SetGhostUI(true);
+                }
+                if (HUDManager.Instance != null)
+                {
+                    HUDManager.Instance.SetGhostUI(true);
+                }
+                Debug.Log("[GameManager] Restored ghost mode & ghost UI controls on local player!");
+            }
+
+            Debug.Log($"[GameManager] Player state restored successfully at position {snapshot.position}, IsGhost: {snapshot.isGhost}");
         }
+        else
+        {
+            Debug.LogWarning("[GameManager] RestorePlayerFromSnapshot failed to locate or spawn local player object!");
+        }
+    }
+
+    /// <summary>
+    /// Restores world item pickups from a migration snapshot at their exact original positions
+    /// instead of randomly re-spawning new items. Called by the new host after host migration.
+    /// </summary>
+    public void RestoreWorldItemsFromSnapshot(System.Collections.Generic.List<RelayNetworkManager.WorldItemState> worldItems)
+    {
+        if (!Unity.Netcode.NetworkManager.Singleton.IsServer)
+        {
+            Debug.Log("[GameManager] RestoreWorldItemsFromSnapshot skipped — not server.");
+            return;
+        }
+
+        if (worldItems == null || worldItems.Count == 0)
+        {
+            Debug.Log("[GameManager] No world items in snapshot — falling back to fresh spawn.");
+            SpawnItemsAroundPlayer();
+            return;
+        }
+
+        int spawned = 0;
+        foreach (var state in worldItems)
+        {
+            // Find the matching prefab by itemName from the itemPrefabs list
+            GameObject matchedPrefab = null;
+            foreach (var prefab in itemPrefabs)
+            {
+                if (prefab == null) continue;
+                // Match by prefab name or by ItemPickup.itemData.itemName
+                string pName = prefab.name.Replace("(Clone)", "").Trim();
+                if (pName == state.itemName)
+                {
+                    matchedPrefab = prefab;
+                    break;
+                }
+                // Also check via ItemPickup component's itemData name
+                var pickup = prefab.GetComponent<ItemPickup>();
+                if (pickup != null && pickup.itemData != null && pickup.itemData.itemName == state.itemName)
+                {
+                    matchedPrefab = prefab;
+                    break;
+                }
+            }
+
+            if (matchedPrefab == null)
+            {
+                Debug.LogWarning($"[GameManager] RestoreWorldItems: no prefab found for item '{state.itemName}' — skipping.");
+                continue;
+            }
+
+            GameObject spawnObj = Instantiate(matchedPrefab, state.position, Quaternion.identity);
+            var netObj = spawnObj.GetComponent<Unity.Netcode.NetworkObject>();
+            if (netObj != null)
+            {
+                var itemPickup = spawnObj.GetComponent<ItemPickup>();
+                if (itemPickup != null)
+                {
+                    string nameStr = itemPickup.itemData != null ? itemPickup.itemData.itemName : state.itemName;
+                    itemPickup.SetNetworkState(state.amount, state.wasDropped, nameStr);
+                }
+                netObj.Spawn(true);
+                spawned++;
+            }
+        }
+
+        Debug.Log($"[GameManager] Restored {spawned}/{worldItems.Count} world items from migration snapshot.");
     }
 }

@@ -1,8 +1,20 @@
 using UnityEngine;
+using Unity.Netcode;
+using Unity.Collections;
+using TMPro;
 
 [RequireComponent(typeof(Rigidbody2D))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
+    public NetworkVariable<FixedString32Bytes> playerName = new NetworkVariable<FixedString32Bytes>(
+        writePerm: NetworkVariableWritePermission.Owner
+    );
+
+    private TextMeshPro nameTagTMP;
+
+    [Header("Name Tag Settings")]
+    [SerializeField] private float nameTagFontSize = 1.4f;
+
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
     
@@ -23,22 +35,119 @@ public class PlayerController : MonoBehaviour
     private Coroutine speedBoostCoroutine;
     private Transform ghostVisualContainer;
     private Vector3 ghostInitialVisualLocalPos;
+
+    public static string GetOrGeneratePlayerName()
+    {
+        int nameHasBeenSet = PlayerPrefs.GetInt("PlayerNameHasBeenSet", 0);
+        string savedName = PlayerPrefs.GetString("PlayerName", "");
+
+        if (nameHasBeenSet == 1 && !string.IsNullOrEmpty(savedName) && savedName.Trim() != "" && savedName != "Player" && savedName != "You")
+        {
+            return savedName.Trim();
+        }
+
+        // User has not explicitly submitted a custom name: generate a Guest Code!
+        int guestCode = Random.Range(1000, 9999);
+        string guestName = $"Guest_{guestCode}";
+        PlayerPrefs.SetString("PlayerName", guestName);
+        PlayerPrefs.SetInt("PlayerNameHasBeenSet", 0);
+        PlayerPrefs.Save();
+        return guestName;
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        RestoreGameplayComponents();
+
+        isLocalCached = false;
+        EvaluateIsLocal();
+
+        if (IsOwner || IsLocalPlayer)
+        {
+            isLocalCached = true;
+            playerName.Value = GetOrGeneratePlayerName();
+            RegisterCameraIfLocal();
+            Debug.Log($"[PlayerController] OnNetworkSpawn: Registered local player '{gameObject.name}' (OwnerClientId: {OwnerClientId})");
+        }
+
+        EnsureNameTag();
+        playerName.OnValueChanged += (oldVal, newVal) => UpdateNameTag(newVal.ToString());
+        UpdateNameTag(playerName.Value.ToString());
+    }
+
+    public void RestoreGameplayComponents()
+    {
+        // 1. Ensure Rigidbody2D is Dynamic and simulated
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.bodyType = RigidbodyType2D.Dynamic;
+            rb.simulated = true;
+            rb.gravityScale = 0f;
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        }
+
+        // 2. Enable all colliders
+        foreach (var col in GetComponentsInChildren<Collider2D>(true))
+        {
+            col.enabled = true;
+        }
+
+        // 3. Enable gameplay components
+        var pa = GetComponent<PlayerAiming>(); if (pa != null) pa.enabled = true;
+        var wc = GetComponent<WeaponController>(); if (wc != null) wc.enabled = true;
+        var bm = GetComponent<BagManager>(); if (bm != null) bm.enabled = true;
+        var ph = GetComponent<PlayerHealth>(); if (ph != null) ph.enabled = true;
+        var pe = GetComponent<PlayerEnergy>(); if (pe != null) pe.enabled = true;
+        var ca = GetComponentInChildren<CharacterAssembler>(); if (ca != null) { ca.enabled = true; ca.LoadEquippedSkin(); }
+        var anim = GetComponent<Animator>(); if (anim != null) anim.enabled = true;
+    }
+
+    private void EnsureNameTag()
+    {
+        Transform tagTrans = transform.Find("OverheadNameTag");
+        if (tagTrans == null)
+        {
+            GameObject tagGO = new GameObject("OverheadNameTag");
+            tagGO.transform.SetParent(transform, false);
+            tagGO.transform.localPosition = new Vector3(0f, 0.55f, 0f);
+
+            nameTagTMP = tagGO.AddComponent<TextMeshPro>();
+            nameTagTMP.fontSize = nameTagFontSize;
+            nameTagTMP.fontStyle = FontStyles.Bold;
+            nameTagTMP.alignment = TextAlignmentOptions.Center;
+            // Bright yellow outline-style: visible against any skin or background
+            nameTagTMP.color = new Color(1f, 0.95f, 0.3f, 1f);
+            nameTagTMP.outlineWidth = 0.15f;
+            nameTagTMP.outlineColor = new Color32(0, 0, 0, 200);
+            nameTagTMP.sortingOrder = 200; // Well above all character sprite renderers
+        }
+        else
+        {
+            nameTagTMP = tagTrans.GetComponent<TextMeshPro>();
+        }
+    }
+
+    public void UpdateNameTag(string nameText)
+    {
+        if (nameTagTMP == null) EnsureNameTag();
+        // Skip empty names — keep previous text until real name arrives via OnValueChanged
+        if (string.IsNullOrEmpty(nameText)) return;
+        if (nameTagTMP != null)
+        {
+            nameTagTMP.text = nameText;
+            nameTagTMP.enabled = true;
+        }
+    }
     
     private void Awake()
     {
-        if (rb == null)
-        {
-            rb = GetComponent<Rigidbody2D>();
-        }
+        RestoreGameplayComponents();
         
         // Ensure proper setup for top-down 2D game
-        if (rb != null)
-        {
-            rb.gravityScale = 0f; // No gravity for top-down
-            rb.constraints = RigidbodyConstraints2D.FreezeRotation; // Don't rotate
-            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        }
-        else
+        if (rb == null)
         {
             Debug.LogError("[PlayerController] Rigidbody2D is missing! Add one to the Player GameObject.");
         }
@@ -104,6 +213,13 @@ public class PlayerController : MonoBehaviour
     private void EvaluateIsLocal()
     {
         if (isLocalCached) return;
+
+        // Prevent unspawned preview objects in MainMenuScene from evaluating as local player
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "MainMenuScene")
+        {
+            var no = GetComponent<Unity.Netcode.NetworkObject>();
+            if (no == null || !no.IsSpawned) return;
+        }
 
         bool local = false;
 
@@ -185,10 +301,23 @@ public class PlayerController : MonoBehaviour
 
         EvaluateIsLocal();
 
-        // Spawn player at a random non-collider position in the map (not at fixed center)
-        Vector3 spawnPos = GetRandomNonColliderSpawnPosition(Vector3.zero, 6.5f);
-        transform.position = spawnPos;
-        Debug.Log($"[PlayerController] Player '{gameObject.name}' spawned at random non-collider position: {spawnPos}");
+        if (RelayNetworkManager.HasSnapshot)
+        {
+            transform.position = RelayNetworkManager.LastPlayerSnapshot.position;
+            transform.rotation = RelayNetworkManager.LastPlayerSnapshot.rotation;
+            if (RelayNetworkManager.LastPlayerSnapshot.isGhost)
+            {
+                EnableGhostMode();
+            }
+            Debug.Log($"[PlayerController] Player '{gameObject.name}' spawned at restored snapshot position: {transform.position}, IsGhost: {IsGhost}");
+        }
+        else
+        {
+            // Spawn player at a random non-collider position in the map (not at fixed center)
+            Vector3 spawnPos = GetRandomNonColliderSpawnPosition(Vector3.zero, 6.5f);
+            transform.position = spawnPos;
+            Debug.Log($"[PlayerController] Player '{gameObject.name}' spawned at random non-collider position: {spawnPos}");
+        }
     }
 
     /// <summary>
@@ -254,8 +383,8 @@ public class PlayerController : MonoBehaviour
     
     private void FixedUpdate()
     {
-        // Apply movement
-        if (rb != null)
+        // Apply movement only when Rigidbody2D is dynamic and simulated
+        if (rb != null && rb.bodyType == RigidbodyType2D.Dynamic && rb.simulated)
         {
             if (RelayNetworkManager.Instance != null && RelayNetworkManager.Instance.IsMigrating)
             {
@@ -297,39 +426,52 @@ public class PlayerController : MonoBehaviour
         // Decrease move speed by 20% for ghost mode so living players can escape
         moveSpeed = defaultMoveSpeed * 0.8f;
 
-        // 1. Hide ALL original character body renderers (head, body, arms, legs, eyes, eyebrows, mouth)
-        SpriteRenderer[] originalRenderers = GetComponentsInChildren<SpriteRenderer>(true);
-        foreach (var r in originalRenderers)
+        // 1. Hide ALL original skin renderers unconditionally
+        SpriteRenderer[] allRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var r in allRenderers)
         {
-            if (r != null)
-            {
-                r.enabled = false;
-            }
+            if (r != null) r.enabled = false;
         }
 
-        // 2. Create/Activate dedicated GhostVisual GameObject
+        // 2. Find or create GhostVisualContainer
         Transform ghostChild = transform.Find("GhostVisualContainer");
         if (ghostChild == null)
         {
             GameObject ghostGO = new GameObject("GhostVisualContainer");
             ghostGO.transform.SetParent(transform, false);
             ghostGO.transform.localPosition = Vector3.zero;
-            ghostGO.transform.localRotation = Quaternion.identity;
-
-            SpriteRenderer ghostSr = ghostGO.AddComponent<SpriteRenderer>();
-            if (ghostSprite != null)
-            {
-                ghostSr.sprite = ghostSprite;
-            }
-            ghostSr.color = new Color(0.8f, 0.92f, 1.0f, 0.7f); // Clean translucent ghost
-            ghostSr.sortingOrder = 100; // Ensure ghost renders clearly above floor
-
             ghostChild = ghostGO.transform;
         }
-
-        ghostChild.gameObject.SetActive(true);
         ghostVisualContainer = ghostChild;
         ghostInitialVisualLocalPos = Vector3.zero;
+
+        // 3. Show ghost sprite ONLY to the local ghost player (living players see nothing)
+        //    The ghost sprite is assigned in the Inspector on the PlayerController prefab.
+        if (IsLocal)
+        {
+            // Get or add a SpriteRenderer on the GhostVisualContainer
+            SpriteRenderer ghostSR = ghostChild.GetComponent<SpriteRenderer>();
+            if (ghostSR == null) ghostSR = ghostChild.gameObject.AddComponent<SpriteRenderer>();
+
+            if (ghostSprite != null)
+            {
+                ghostSR.sprite = ghostSprite;
+            }
+            ghostSR.color = new Color(0.8f, 0.92f, 1.0f, 0.75f); // Translucent blue-white ghost
+            ghostSR.sortingOrder = 110;
+            ghostChild.gameObject.SetActive(true);
+        }
+        else
+        {
+            // Remote ghost: completely invisible to living players
+            ghostChild.gameObject.SetActive(false);
+        }
+
+        // 4. Hide name tag — ghosts have no overhead name
+        if (nameTagTMP != null)
+        {
+            nameTagTMP.enabled = false;
+        }
 
         // Set colliders to trigger so ghost can pass through obstacles/players
         Collider2D[] colliders = GetComponentsInChildren<Collider2D>();
@@ -338,6 +480,17 @@ public class PlayerController : MonoBehaviour
             if (col != null) col.isTrigger = true;
         }
 
-        Debug.Log($"[PlayerController] Clean Ghost mode enabled on '{gameObject.name}'. Speed reduced to {moveSpeed} (-20%).");
+        // Camera: retarget onto local ghost for spectating
+        if (IsLocal)
+        {
+            if (CameraController.Instance != null)
+            {
+                CameraController.Instance.SetTarget(transform);
+            }
+            // AimingDots hides via Update() IsGhost check
+        }
+
+        Debug.Log($"[PlayerController] Ghost mode enabled on '{gameObject.name}' (IsLocal: {IsLocal}). Speed: {moveSpeed}.");
     }
+
 }

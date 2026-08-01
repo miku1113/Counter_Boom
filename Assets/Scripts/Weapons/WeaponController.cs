@@ -99,6 +99,24 @@ public class WeaponController : NetworkBehaviour
     public int GetCurrentSlot() => currentSlot;
 
     /// <summary>
+    /// Returns the prefab names of equipped weapons per slot (2 slots).
+    /// Empty string means the slot is empty.
+    /// Used by host migration snapshot to restore weapons after reconnect.
+    /// </summary>
+    public string[] GetEquippedWeaponNames()
+    {
+        string[] names = new string[weaponSlots.Length];
+        for (int i = 0; i < weaponSlots.Length; i++)
+        {
+            names[i] = weaponSlots[i] != null
+                ? weaponSlots[i].gameObject.name.Replace("(Clone)", "").Trim()
+                : "";
+        }
+        return names;
+    }
+
+
+    /// <summary>
     /// Instantiates weaponPrefab into the given slot.
     /// If slotIndex == currentSlot the weapon is immediately shown and PlayerAiming is notified.
     /// </summary>
@@ -132,7 +150,13 @@ public class WeaponController : NetworkBehaviour
         }
     }
 
-    private GameObject FindWeaponPrefabByName(string prefabName)
+    public GameObject FindWeaponPrefabByName(string prefabName)
+        => FindWeaponPrefabByNamePublic(prefabName);
+
+    /// <summary>
+    /// Looks up a weapon prefab by its name. Used during host migration to re-equip weapons from snapshot.
+    /// </summary>
+    public GameObject FindWeaponPrefabByNamePublic(string prefabName)
     {
         if (string.IsNullOrEmpty(prefabName)) return null;
 

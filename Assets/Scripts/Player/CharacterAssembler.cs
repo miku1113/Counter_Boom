@@ -49,24 +49,27 @@ public class CharacterAssembler : NetworkBehaviour
         }
     }
     
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        UpdateSortingLayers();
+
+        if (IsOwner)
+        {
+            int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            equippedSkinIndex.Value = equippedIndex;
+            OnSkinIndexChanged(0, equippedIndex);
+        }
+        else
+        {
+            OnSkinIndexChanged(0, equippedSkinIndex.Value);
+        }
+    }
+
     private void Start()
     {
         UpdateSortingLayers();
-        
-        if (IsSpawned)
-        {
-            if (IsOwner)
-            {
-                int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
-                equippedSkinIndex.Value = equippedIndex;
-                OnSkinIndexChanged(0, equippedIndex);
-            }
-            else
-            {
-                OnSkinIndexChanged(0, equippedSkinIndex.Value);
-            }
-        }
-        else
+        if (!IsSpawned)
         {
             LoadEquippedSkin();
         }

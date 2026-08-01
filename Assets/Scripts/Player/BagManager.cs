@@ -613,4 +613,38 @@ public class BagManager : NetworkBehaviour
 
         Debug.Log($"[BagManager] Spawned local-only pickup: {pickupObj.name} × {amount} at {position}");
     }
+
+    /// <summary>
+    /// Restores bag inventory, consumable counts, and ammo from a migration snapshot.
+    /// </summary>
+    public void RestoreFromSnapshot(RelayNetworkManager.PlayerMigrationSnapshot snapshot)
+    {
+        medikitCount = snapshot.medikitCount;
+        proteinShakeCount = snapshot.proteinShakeCount;
+        scopeCount = snapshot.scopeCount;
+
+        if (snapshot.ammoCounts != null)
+        {
+            foreach (var kvp in snapshot.ammoCounts)
+            {
+                ammoInventory[kvp.Key] = kvp.Value;
+                OnAmmoUpdated?.Invoke(kvp.Key, kvp.Value);
+            }
+        }
+
+        if (snapshot.grenadeCounts != null)
+        {
+            foreach (var kvp in snapshot.grenadeCounts)
+            {
+                grenadeInventory[kvp.Key] = kvp.Value;
+                OnGrenadeUpdated?.Invoke(kvp.Key, kvp.Value);
+            }
+        }
+
+        OnMedikitUpdated?.Invoke(medikitCount);
+        OnProteinShakeUpdated?.Invoke(proteinShakeCount);
+        OnScopeUpdated?.Invoke(scopeCount);
+        OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] Restored bag inventory from snapshot: Medikits={medikitCount}, Shakes={proteinShakeCount}, Scopes={scopeCount}");
+    }
 }
