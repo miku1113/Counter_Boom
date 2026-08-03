@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
 
 public class MainMenuController : MonoBehaviour
 {
@@ -14,6 +15,10 @@ public class MainMenuController : MonoBehaviour
     [Header("Settings Panel")]
     [SerializeField] private GameObject settingsPanel;
     [SerializeField] private SettingsManager settingsManager;
+
+    [Header("Ambient Particle System (Optional)")]
+    [SerializeField] private ParticleSystem ambientParticleSystem;
+    [SerializeField] private Vector3 particleFlowDirection = new Vector3(5.0f, 0.0f, 0.0f);
 
     [Header("Navigation Buttons")]
     [SerializeField] private Button navPlayButton;
@@ -96,7 +101,18 @@ public class MainMenuController : MonoBehaviour
         // 2b. Initialize Player Profile Header UI & Settings Panel UI
         UpdatePlayerProfileUI();
         EnsureSettingsPanelUI();
-        EnsureEmberParticles();
+
+        if (ambientParticleSystem != null)
+        {
+            var velocity = ambientParticleSystem.velocityOverLifetime;
+            if (velocity.enabled)
+            {
+                velocity.space = ParticleSystemSimulationSpace.World;
+                velocity.x = new ParticleSystem.MinMaxCurve(particleFlowDirection.x * 0.8f, particleFlowDirection.x * 1.2f);
+                velocity.y = new ParticleSystem.MinMaxCurve(particleFlowDirection.y - 0.5f, particleFlowDirection.y + 0.5f);
+                velocity.z = new ParticleSystem.MinMaxCurve(particleFlowDirection.z - 0.1f, particleFlowDirection.z + 0.1f);
+            }
+        }
 
         // 3. Register Navigation Listeners
         if (navPlayButton != null) navPlayButton.onClick.AddListener(() => ShowPanel(playPanel));
@@ -231,14 +247,6 @@ public class MainMenuController : MonoBehaviour
         }
     }
 
-    private void EnsureEmberParticles()
-    {
-        if (FindObjectOfType<FireEmberParticleSystem>() == null)
-        {
-            FireEmberParticleSystem.CreateEmberEffect(new Vector3(-6f, 0f, 0f));
-        }
-    }
-
     private void ShowPanel(GameObject panelToShow)
     {
         if (panelToShow == settingsPanel)
@@ -271,7 +279,10 @@ public class MainMenuController : MonoBehaviour
         }
         else if (panelToShow == cabinetPanel)
         {
-            cabinetSelectedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            List<int> unlocked = GetUnlockedSkinIndices();
+            int equippedRealIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            int pos = unlocked.IndexOf(equippedRealIndex);
+            cabinetSelectedIndex = pos >= 0 ? pos : 0;
             UpdateCabinetUI();
         }
         else if (panelToShow == shopPanel)
@@ -301,7 +312,9 @@ public class MainMenuController : MonoBehaviour
             previewAssembler.SetCharacterSkin(skins[equippedIndex]);
         }
 
-        cabinetSelectedIndex = equippedIndex;
+        List<int> unlocked = GetUnlockedSkinIndices();
+        int pos = unlocked.IndexOf(equippedIndex);
+        cabinetSelectedIndex = pos >= 0 ? pos : 0;
     }
 
     #region Name Entry Logic
@@ -489,31 +502,35 @@ public class MainMenuController : MonoBehaviour
     #region Cabinet (Customization) Logic
     private void CycleCabinetPrev()
     {
-        if (skins == null || skins.Length == 0) return;
-        cabinetSelectedIndex = (cabinetSelectedIndex - 1 + skins.Length) % skins.Length;
+        List<int> unlocked = GetUnlockedSkinIndices();
+        if (unlocked.Count == 0) return;
+        cabinetSelectedIndex = (cabinetSelectedIndex - 1 + unlocked.Count) % unlocked.Count;
         UpdateCabinetUI();
     }
 
     private void CycleCabinetNext()
     {
-        if (skins == null || skins.Length == 0) return;
-        cabinetSelectedIndex = (cabinetSelectedIndex + 1) % skins.Length;
+        List<int> unlocked = GetUnlockedSkinIndices();
+        if (unlocked.Count == 0) return;
+        cabinetSelectedIndex = (cabinetSelectedIndex + 1) % unlocked.Count;
         UpdateCabinetUI();
     }
 
     private void EquipSelectedSkin()
     {
-        if (skins == null || skins.Length == 0) return;
+        List<int> unlocked = GetUnlockedSkinIndices();
+        if (unlocked.Count == 0 || cabinetSelectedIndex < 0 || cabinetSelectedIndex >= unlocked.Count) return;
+        int realIndex = unlocked[cabinetSelectedIndex];
 
-        // Check if selected skin is unlocked
-        if (IsSkinUnlocked(cabinetSelectedIndex))
+        PlayerPrefs.SetInt("EquippedSkinIndex", realIndex);
+        if (skins != null && realIndex >= 0 && realIndex < skins.Length && skins[realIndex] != null)
         {
-            PlayerPrefs.SetInt("EquippedSkinIndex", cabinetSelectedIndex);
-            PlayerPrefs.Save();
-            Debug.Log($"[MainMenu] Equipped skin index: {cabinetSelectedIndex}");
-            UpdateCabinetUI();
-            UpdatePlayerProfileUI();
+            PlayerPrefs.SetString("EquippedSkinName", skins[realIndex].skinName);
         }
+        PlayerPrefs.Save();
+        Debug.Log($"[MainMenu] Equipped skin index: {realIndex} ({skins[realIndex]?.skinName})");
+        UpdateCabinetUI();
+        UpdatePlayerProfileUI();
     }
 
     private void UpdateCabinetUI()
@@ -521,17 +538,26 @@ public class MainMenuController : MonoBehaviour
         if (previewAssembler == null) SetupPreviewPlayer();
         if (skins == null || skins.Length == 0 || previewAssembler == null) return;
 
+        List<int> unlocked = GetUnlockedSkinIndices();
+        if (unlocked.Count == 0) return;
+
+        if (cabinetSelectedIndex < 0 || cabinetSelectedIndex >= unlocked.Count)
+        {
+            cabinetSelectedIndex = 0;
+        }
+
+        int realIndex = unlocked[cabinetSelectedIndex];
+
         // Apply skin to assembler preview model
-        previewAssembler.SetCharacterSkin(skins[cabinetSelectedIndex]);
+        previewAssembler.SetCharacterSkin(skins[realIndex]);
 
         // Render details
         if (cabinetSkinNameText != null)
         {
-            cabinetSkinNameText.text = skins[cabinetSelectedIndex].skinName;
+            cabinetSkinNameText.text = skins[realIndex].skinName;
         }
 
-        bool isUnlocked = IsSkinUnlocked(cabinetSelectedIndex);
-        bool isEquipped = PlayerPrefs.GetInt("EquippedSkinIndex", 0) == cabinetSelectedIndex;
+        bool isEquipped = PlayerPrefs.GetInt("EquippedSkinIndex", 0) == realIndex;
 
         if (cabinetSkinStatusText != null)
         {
@@ -540,15 +566,10 @@ public class MainMenuController : MonoBehaviour
                 cabinetSkinStatusText.text = "<color=green>EQUIPPED</color>";
                 if (cabinetEquipButton != null) cabinetEquipButton.interactable = false;
             }
-            else if (isUnlocked)
-            {
-                cabinetSkinStatusText.text = "<color=yellow>UNLOCKED</color>";
-                if (cabinetEquipButton != null) cabinetEquipButton.interactable = true;
-            }
             else
             {
-                cabinetSkinStatusText.text = "<color=red>LOCKED (Go to Shop)</color>";
-                if (cabinetEquipButton != null) cabinetEquipButton.interactable = false;
+                cabinetSkinStatusText.text = "<color=yellow>SELECT</color>";
+                if (cabinetEquipButton != null) cabinetEquipButton.interactable = true;
             }
         }
     }
@@ -557,34 +578,37 @@ public class MainMenuController : MonoBehaviour
     #region Shop Logic
     private void CycleShopPrev()
     {
-        if (skins == null || skins.Length == 0) return;
-        shopSelectedIndex = (shopSelectedIndex - 1 + skins.Length) % skins.Length;
+        List<int> locked = GetLockedSkinIndices();
+        if (locked.Count == 0) return;
+        shopSelectedIndex = (shopSelectedIndex - 1 + locked.Count) % locked.Count;
         UpdateShopUI();
     }
 
     private void CycleShopNext()
     {
-        if (skins == null || skins.Length == 0) return;
-        shopSelectedIndex = (shopSelectedIndex + 1) % skins.Length;
+        List<int> locked = GetLockedSkinIndices();
+        if (locked.Count == 0) return;
+        shopSelectedIndex = (shopSelectedIndex + 1) % locked.Count;
         UpdateShopUI();
     }
 
     private void BuySelectedSkin()
     {
-        if (skins == null || skins.Length == 0) return;
+        List<int> locked = GetLockedSkinIndices();
+        if (locked.Count == 0 || shopSelectedIndex < 0 || shopSelectedIndex >= locked.Count) return;
 
-        CharacterSkinData targetSkin = skins[shopSelectedIndex];
-        if (IsSkinUnlocked(shopSelectedIndex)) return;
+        int realIndex = locked[shopSelectedIndex];
+        CharacterSkinData targetSkin = skins[realIndex];
 
         if (coins >= targetSkin.price)
         {
-            // Deduct coins and save unlock state
             coins -= targetSkin.price;
             PlayerPrefs.SetInt("Coins", coins);
-            PlayerPrefs.SetInt($"Skin_Unlocked_{shopSelectedIndex}", 1);
+            PlayerPrefs.SetInt($"Skin_Unlocked_{realIndex}", 1);
             PlayerPrefs.Save();
 
-            Debug.Log($"[MainMenu] Purchased skin '{targetSkin.skinName}' for {targetSkin.price} coins.");
+            Debug.Log($"[MainMenu] Purchased skin '{targetSkin.skinName}' (index {realIndex}) for {targetSkin.price} coins.");
+            shopSelectedIndex = 0;
             UpdateShopUI();
             UpdatePlayerProfileUI();
         }
@@ -826,52 +850,79 @@ public class MainMenuController : MonoBehaviour
     }
     #endregion
 
-    private void UpdateShopUI()
+    private bool IsSkinUnlocked(int index)
+    {
+        if (index == 0) return true; // Default skin is always unlocked
+        return PlayerPrefs.GetInt($"Skin_Unlocked_{index}", 0) == 1;
+    }
+
+    private System.Collections.Generic.List<int> GetUnlockedSkinIndices()
+    {
+        var unlocked = new System.Collections.Generic.List<int>();
+        if (skins == null) return unlocked;
+        for (int i = 0; i < skins.Length; i++)
+        {
+            if (IsSkinUnlocked(i)) unlocked.Add(i);
+        }
+        return unlocked;
+    }
+
+    private System.Collections.Generic.List<int> GetLockedSkinIndices()
+    {
+        var locked = new System.Collections.Generic.List<int>();
+        if (skins == null) return locked;
+        for (int i = 0; i < skins.Length; i++)
+        {
+            if (!IsSkinUnlocked(i)) locked.Add(i);
+        }
+        return locked;
+    }
+
+    public void UpdateShopUI()
     {
         if (previewAssembler == null) SetupPreviewPlayer();
         if (skins == null || skins.Length == 0 || previewAssembler == null) return;
 
-        // Apply skin to assembler preview model
-        previewAssembler.SetCharacterSkin(skins[shopSelectedIndex]);
-
-        // Render coins balance
         if (shopCoinsText != null)
         {
             shopCoinsText.text = $"{coins}";
         }
 
+        System.Collections.Generic.List<int> locked = GetLockedSkinIndices();
+        if (locked.Count == 0)
+        {
+            if (shopSkinNameText != null) shopSkinNameText.text = "ALL SKINS OWNED";
+            if (shopSkinPriceText != null) shopSkinPriceText.text = "No skins left in shop";
+            if (shopBuyButton != null) shopBuyButton.gameObject.SetActive(false);
+            ResetPreviewToEquippedSkin();
+            return;
+        }
+
+        if (shopSelectedIndex < 0 || shopSelectedIndex >= locked.Count)
+        {
+            shopSelectedIndex = 0;
+        }
+
+        int realIndex = locked[shopSelectedIndex];
+
+        // Apply skin to assembler preview model
+        previewAssembler.SetCharacterSkin(skins[realIndex]);
+
         // Render skin info
         if (shopSkinNameText != null)
         {
-            shopSkinNameText.text = skins[shopSelectedIndex].skinName;
+            shopSkinNameText.text = skins[realIndex].skinName;
         }
-
-        bool isUnlocked = IsSkinUnlocked(shopSelectedIndex);
 
         if (shopSkinPriceText != null)
         {
-            if (isUnlocked)
+            shopSkinPriceText.text = $"Price: {skins[realIndex].price} Coins";
+            if (shopBuyButton != null)
             {
-                shopSkinPriceText.text = "UNLOCKED";
-                if (shopBuyButton != null) shopBuyButton.gameObject.SetActive(false);
-            }
-            else
-            {
-                shopSkinPriceText.text = $"Price: {skins[shopSelectedIndex].price} Coins";
-                if (shopBuyButton != null)
-                {
-                    shopBuyButton.gameObject.SetActive(true);
-                    // Disable if player can't afford
-                    shopBuyButton.interactable = coins >= skins[shopSelectedIndex].price;
-                }
+                shopBuyButton.gameObject.SetActive(true);
+                shopBuyButton.interactable = coins >= skins[realIndex].price;
             }
         }
-    }
-
-    private bool IsSkinUnlocked(int index)
-    {
-        if (index == 0) return true; // Default skin is always unlocked
-        return PlayerPrefs.GetInt($"Skin_Unlocked_{index}", 0) == 1;
     }
     #endregion
 

@@ -546,12 +546,12 @@ TextureImporter:
       name: PackSea01_7
       rect:
         serializedVersion: 2
-        x: 534
-        y: 809
-        width: 97
-        height: 51
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
+        x: 144
+        y: 795
+        width: 73
+        height: 50
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -559,90 +559,6 @@ TextureImporter:
       bones: []
       spriteID: e2305410000000000800000000000000
       internalID: 21300014
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_8
-      rect:
-        serializedVersion: 2
-        x: 693
-        y: 815
-        width: 61
-        height: 25
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 03305410000000000800000000000000
-      internalID: 21300016
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_9
-      rect:
-        serializedVersion: 2
-        x: 795
-        y: 782
-        width: 89
-        height: 76
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 23305410000000000800000000000000
-      internalID: 21300018
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_10
-      rect:
-        serializedVersion: 2
-        x: 905
-        y: 798
-        width: 81
-        height: 45
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 43305410000000000800000000000000
-      internalID: 21300020
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_11
-      rect:
-        serializedVersion: 2
-        x: 232
-        y: 747
-        width: 26
-        height: 45
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 63305410000000000800000000000000
-      internalID: 21300022
       vertices: []
       indices: 
       edges: []
@@ -673,9 +589,9 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 301
-        y: 749
+        y: 696
         width: 73
-        height: 48
+        height: 101
       alignment: 2
       pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -697,8 +613,8 @@ TextureImporter:
         y: 723
         width: 77
         height: 76
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
+      alignment: 9
+      pivot: {x: 0.5, y: 0.79}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -711,36 +627,15 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_15
-      rect:
-        serializedVersion: 2
-        x: 550
-        y: 722
-        width: 67
-        height: 48
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: e3305410000000000800000000000000
-      internalID: 21300030
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PackSea01_16
       rect:
         serializedVersion: 2
         x: 688
-        y: 755
-        width: 73
-        height: 49
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
+        y: 753
+        width: 98
+        height: 57
+      alignment: 9
+      pivot: {x: 0.35, y: 0.79}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -748,27 +643,6 @@ TextureImporter:
       bones: []
       spriteID: 04305410000000000800000000000000
       internalID: 21300032
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_17
-      rect:
-        serializedVersion: 2
-        x: 958
-        y: 742
-        width: 36
-        height: 47
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 24305410000000000800000000000000
-      internalID: 21300034
       vertices: []
       indices: 
       edges: []
@@ -816,27 +690,6 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_20
-      rect:
-        serializedVersion: 2
-        x: 160
-        y: 742
-        width: 55
-        height: 40
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 84305410000000000800000000000000
-      internalID: 21300040
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PackSea01_21
       rect:
         serializedVersion: 2
@@ -853,27 +706,6 @@ TextureImporter:
       bones: []
       spriteID: a4305410000000000800000000000000
       internalID: 21300042
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_22
-      rect:
-        serializedVersion: 2
-        x: 634
-        y: 763
-        width: 19
-        height: 22
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: c4305410000000000800000000000000
-      internalID: 21300044
       vertices: []
       indices: 
       edges: []
@@ -958,27 +790,6 @@ TextureImporter:
       bones: []
       spriteID: 45305410000000000800000000000000
       internalID: 21300052
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_27
-      rect:
-        serializedVersion: 2
-        x: 307
-        y: 677
-        width: 55
-        height: 69
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 65305410000000000800000000000000
-      internalID: 21300054
       vertices: []
       indices: 
       edges: []
@@ -1114,7 +925,7 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 243
-        y: 711
+        y: 689
         width: 15
         height: 19
       alignment: 2
@@ -1215,15 +1026,15 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_39
+      name: vilan_body
       rect:
         serializedVersion: 2
-        x: 205
-        y: 683
-        width: 66
-        height: 22
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
+        x: 183
+        y: 721
+        width: 87
+        height: 58
+      alignment: 9
+      pivot: {x: 0.62, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -1281,10 +1092,10 @@ TextureImporter:
       name: PackSea01_42
       rect:
         serializedVersion: 2
-        x: 68
-        y: 642
-        width: 62
-        height: 21
+        x: 159
+        y: 579
+        width: 87
+        height: 55
       alignment: 2
       pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -1324,11 +1135,11 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 304
-        y: 616
+        y: 617
         width: 89
         height: 59
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
+      alignment: 9
+      pivot: {x: 0.35, y: 0.85}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -1378,27 +1189,6 @@ TextureImporter:
       bones: []
       spriteID: c7305410000000000800000000000000
       internalID: 21300092
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_47
-      rect:
-        serializedVersion: 2
-        x: 744
-        y: 636
-        width: 37
-        height: 47
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: e7305410000000000800000000000000
-      internalID: 21300094
       vertices: []
       indices: 
       edges: []
@@ -1698,27 +1488,6 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_62
-      rect:
-        serializedVersion: 2
-        x: 48
-        y: 389
-        width: 59
-        height: 17
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: c9305410000000000800000000000000
-      internalID: 21300124
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PackSea01_63
       rect:
         serializedVersion: 2
@@ -1740,97 +1509,13 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_64
-      rect:
-        serializedVersion: 2
-        x: 874
-        y: 340
-        width: 100
-        height: 57
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 0a305410000000000800000000000000
-      internalID: 21300128
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_65
-      rect:
-        serializedVersion: 2
-        x: 44
-        y: 352
-        width: 66
-        height: 20
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 2a305410000000000800000000000000
-      internalID: 21300130
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_66
-      rect:
-        serializedVersion: 2
-        x: 116
-        y: 327
-        width: 36
-        height: 46
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 4a305410000000000800000000000000
-      internalID: 21300132
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_67
-      rect:
-        serializedVersion: 2
-        x: 190
-        y: 327
-        width: 46
-        height: 44
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 6a305410000000000800000000000000
-      internalID: 21300134
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PackSea01_68
       rect:
         serializedVersion: 2
         x: 283
-        y: 369
-        width: 59
-        height: 17
+        y: 362
+        width: 88
+        height: 57
       alignment: 2
       pivot: {x: 0.5, y: 1}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -1866,27 +1551,6 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_70
-      rect:
-        serializedVersion: 2
-        x: 349
-        y: 321
-        width: 39
-        height: 47
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: ca305410000000000800000000000000
-      internalID: 21300140
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PackSea01_71
       rect:
         serializedVersion: 2
@@ -1911,12 +1575,12 @@ TextureImporter:
       name: PackSea01_72
       rect:
         serializedVersion: 2
-        x: 514
+        x: 515
         y: 315
         width: 81
-        height: 49
+        height: 77
       alignment: 9
-      pivot: {x: 0.47, y: 0.91}
+      pivot: {x: 0.47, y: 0.61}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -2000,7 +1664,7 @@ TextureImporter:
         width: 66
         height: 64
       alignment: 9
-      pivot: {x: 0.5, y: 0.9}
+      pivot: {x: 0.52, y: 0.9}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -2163,12 +1827,12 @@ TextureImporter:
       name: PackSea01_84
       rect:
         serializedVersion: 2
-        x: 889
-        y: 295
+        x: 880
+        y: 256
         width: 83
-        height: 26
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
+        height: 58
+      alignment: 9
+      pivot: {x: 0.5, y: 0.76}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -2197,27 +1861,6 @@ TextureImporter:
       bones: []
       spriteID: ac305410000000000800000000000000
       internalID: 21300170
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PackSea01_86
-      rect:
-        serializedVersion: 2
-        x: 898
-        y: 250
-        width: 65
-        height: 37
-      alignment: 2
-      pivot: {x: 0.5, y: 1}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: cc305410000000000800000000000000
-      internalID: 21300172
       vertices: []
       indices: 
       edges: []
@@ -2265,27 +1908,6 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PackSea01_89
-      rect:
-        serializedVersion: 2
-        x: 550
-        y: 773
-        width: 67
-        height: 33
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 2d305410000000000800000000000000
-      internalID: 21300178
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: PackSea01_90
       rect:
         serializedVersion: 2
@@ -2302,6 +1924,174 @@ TextureImporter:
       bones: []
       spriteID: 4d305410000000000800000000000000
       internalID: 21300180
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_39
+      rect:
+        serializedVersion: 2
+        x: 94
+        y: 134
+        width: 73
+        height: 49
+      alignment: 2
+      pivot: {x: 0.5, y: 1}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: dbdc9267635654d71a394aec0be8f43a
+      internalID: 674641130
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_91
+      rect:
+        serializedVersion: 2
+        x: 184
+        y: 95
+        width: 97
+        height: 61
+      alignment: 9
+      pivot: {x: 0.38, y: 0.88}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: d75d432f9f8e74c4eb846e3a70497319
+      internalID: -1952069247
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_92
+      rect:
+        serializedVersion: 2
+        x: 294
+        y: 127
+        width: 98
+        height: 98
+      alignment: 9
+      pivot: {x: 0.5, y: 0.54}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 2f873b51356be42cf859a61167e4533f
+      internalID: 875673268
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_93
+      rect:
+        serializedVersion: 2
+        x: 501
+        y: 91
+        width: 90
+        height: 77
+      alignment: 9
+      pivot: {x: 0.5, y: 0.68}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 64246d7554ce947c7bd9de9ef6d405fb
+      internalID: -1498789257
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_94
+      rect:
+        serializedVersion: 2
+        x: 729
+        y: 126
+        width: 85
+        height: 60
+      alignment: 9
+      pivot: {x: 0.38, y: 0.73}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4d0642fd81a914e63b479f1c6a9deb3d
+      internalID: 1818393653
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_95
+      rect:
+        serializedVersion: 2
+        x: 769
+        y: 38
+        width: 99
+        height: 62
+      alignment: 9
+      pivot: {x: 0.44, y: 0.7}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 87e08becc11424772a27f69fb1a70f04
+      internalID: -753180795
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_96
+      rect:
+        serializedVersion: 2
+        x: 870
+        y: 136
+        width: 102
+        height: 86
+      alignment: 9
+      pivot: {x: 0.59, y: 0.55}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9d61a8daba3ee4f118499ffe1bb42ffb
+      internalID: 1073621722
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PackSea01_97
+      rect:
+        serializedVersion: 2
+        x: 659
+        y: 194
+        width: 98
+        height: 72
+      alignment: 9
+      pivot: {x: 0.5, y: 0.59}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 38bf320b20f064f1581e583f9026751b
+      internalID: 2029331101
       vertices: []
       indices: 
       edges: []
@@ -2350,7 +2140,7 @@ TextureImporter:
       PackSea01_36: 21300072
       PackSea01_37: 21300074
       PackSea01_38: 21300076
-      PackSea01_39: 21300078
+      PackSea01_39: 674641130
       PackSea01_4: 21300008
       PackSea01_40: 21300080
       PackSea01_41: 21300082
@@ -2408,6 +2198,14 @@ TextureImporter:
       PackSea01_89: 21300178
       PackSea01_9: 21300018
       PackSea01_90: 21300180
+      PackSea01_91: -1952069247
+      PackSea01_92: 875673268
+      PackSea01_93: -1498789257
+      PackSea01_94: 1818393653
+      PackSea01_95: -753180795
+      PackSea01_96: 1073621722
+      PackSea01_97: 2029331101
+      vilan_body: 21300078
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -43,10 +43,7 @@ public class CharacterAssembler : NetworkBehaviour
 
     private void OnSkinIndexChanged(int oldVal, int newVal)
     {
-        if (availableSkins != null && newVal >= 0 && newVal < availableSkins.Length)
-        {
-            SetCharacterSkin(availableSkins[newVal]);
-        }
+        ApplySkinByIndex(newVal);
     }
     
     public override void OnNetworkSpawn()
@@ -57,38 +54,79 @@ public class CharacterAssembler : NetworkBehaviour
         if (IsOwner)
         {
             int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            string equippedName = PlayerPrefs.GetString("EquippedSkinName", "");
+
+            // If name exists, match index by name in availableSkins
+            if (availableSkins != null && availableSkins.Length > 0 && !string.IsNullOrEmpty(equippedName))
+            {
+                int matchedIndex = System.Array.FindIndex(availableSkins, s => s != null && s.skinName == equippedName);
+                if (matchedIndex >= 0) equippedIndex = matchedIndex;
+            }
+
             equippedSkinIndex.Value = equippedIndex;
-            OnSkinIndexChanged(0, equippedIndex);
+            ApplySkinByIndex(equippedIndex);
         }
         else
         {
-            OnSkinIndexChanged(0, equippedSkinIndex.Value);
+            ApplySkinByIndex(equippedSkinIndex.Value);
         }
     }
 
     private void Start()
     {
         UpdateSortingLayers();
-        if (!IsSpawned)
+        if (IsOwner || !IsSpawned)
+        {
+            LoadEquippedSkin();
+        }
+        else
+        {
+            ApplySkinByIndex(equippedSkinIndex.Value);
+        }
+    }
+
+    /// <summary>
+    /// Reads the equipped skin index and name from PlayerPrefs and applies it.
+    /// Only called for the local player or non-networked preview objects.
+    /// </summary>
+    public void LoadEquippedSkin()
+    {
+        if (availableSkins == null || availableSkins.Length == 0) return;
+
+        int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+        string equippedName = PlayerPrefs.GetString("EquippedSkinName", "");
+
+        CharacterSkinData targetSkin = null;
+
+        if (!string.IsNullOrEmpty(equippedName))
+        {
+            targetSkin = System.Array.Find(availableSkins, s => s != null && s.skinName == equippedName);
+        }
+
+        if (targetSkin == null && equippedIndex >= 0 && equippedIndex < availableSkins.Length)
+        {
+            targetSkin = availableSkins[equippedIndex];
+        }
+
+        if (targetSkin != null)
+        {
+            SetCharacterSkin(targetSkin);
+        }
+    }
+
+    public void ApplySkinByIndex(int index)
+    {
+        if (availableSkins != null && index >= 0 && index < availableSkins.Length && availableSkins[index] != null)
+        {
+            SetCharacterSkin(availableSkins[index]);
+        }
+        else if (IsOwner || !IsSpawned)
         {
             LoadEquippedSkin();
         }
     }
 
-    /// <summary>
-    /// Reads the equipped skin index from PlayerPrefs and applies it.
-    /// </summary>
-    public void LoadEquippedSkin()
-    {
-        if (availableSkins != null && availableSkins.Length > 0)
-        {
-            int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
-            if (equippedIndex >= 0 && equippedIndex < availableSkins.Length)
-            {
-                SetCharacterSkin(availableSkins[equippedIndex]);
-            }
-        }
-    }
+    public int GetEquippedSkinIndexNetworkValue() => equippedSkinIndex.Value;
 
 #if UNITY_EDITOR
     [ContextMenu("Auto-Populate Skins")]

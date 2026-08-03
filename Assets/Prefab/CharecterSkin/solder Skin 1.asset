@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64e43d080db844f61977979541f1e21b, type: 3}
   m_Name: solder Skin 1
   m_EditorClassIdentifier: 
-  head: {fileID: 92001753, guid: dd352cbfaf819423aa2eb2c24193c54e, type: 3}
-  body: {fileID: 711979666, guid: dd352cbfaf819423aa2eb2c24193c54e, type: 3}
-  leftArm: {fileID: 21300048, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
-  rightArm: {fileID: 21300058, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
+  head: {fileID: 1354139729, guid: 68f77930ce6a24b97bb6f55eeda6f23d, type: 3}
+  body: {fileID: 624634021, guid: 68f77930ce6a24b97bb6f55eeda6f23d, type: 3}
+  leftArm: {fileID: 552968358, guid: 68f77930ce6a24b97bb6f55eeda6f23d, type: 3}
+  rightArm: {fileID: -438517182, guid: 68f77930ce6a24b97bb6f55eeda6f23d, type: 3}
   leftLeg: {fileID: 21300080, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   rightLeg: {fileID: 21300080, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}
   leftEye: {fileID: 21300034, guid: f5f1c19ce87450f4b97f8b363746558d, type: 3}

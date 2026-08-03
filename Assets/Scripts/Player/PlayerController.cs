@@ -101,7 +101,19 @@ public class PlayerController : NetworkBehaviour
         var bm = GetComponent<BagManager>(); if (bm != null) bm.enabled = true;
         var ph = GetComponent<PlayerHealth>(); if (ph != null) ph.enabled = true;
         var pe = GetComponent<PlayerEnergy>(); if (pe != null) pe.enabled = true;
-        var ca = GetComponentInChildren<CharacterAssembler>(); if (ca != null) { ca.enabled = true; ca.LoadEquippedSkin(); }
+        var ca = GetComponentInChildren<CharacterAssembler>(); 
+        if (ca != null) 
+        { 
+            ca.enabled = true; 
+            if (IsOwner || !IsSpawned)
+            {
+                ca.LoadEquippedSkin(); 
+            }
+            else
+            {
+                ca.ApplySkinByIndex(ca.GetEquippedSkinIndexNetworkValue());
+            }
+        }
         var anim = GetComponent<Animator>(); if (anim != null) anim.enabled = true;
     }
 

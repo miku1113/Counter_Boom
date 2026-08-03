@@ -12,16 +12,10 @@ public static class FixPlayerPrefab
         EditorApplication.delayCall += FixPrefab;
     }
 
-    [MenuItem("Tools/Fix Player Prefab")]
+    [MenuItem("Tools/Fix Player Prefabs")]
     public static void FixPrefab()
     {
-        string path = "Assets/Prefab/Player.prefab";
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        if (prefab == null)
-        {
-            Debug.LogWarning($"[FixPlayerPrefab] Could not find Player prefab at {path}");
-            return;
-        }
+        string[] paths = new string[] { "Assets/Prefab/Player.prefab", "Assets/Resources/Player.prefab" };
 
         // Find and sort all CharacterSkinData in the project
         string[] guids = AssetDatabase.FindAssets("t:CharacterSkinData");
@@ -39,6 +33,17 @@ public static class FixPlayerPrefab
             if (!aDefault && bDefault) return 1;
             return string.Compare(a.skinName ?? "", b.skinName ?? "", System.StringComparison.Ordinal);
         });
+
+        foreach (string path in paths)
+        {
+            FixSinglePrefab(path, skinList);
+        }
+    }
+
+    private static void FixSinglePrefab(string path, System.Collections.Generic.List<CharacterSkinData> skinList)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (prefab == null) return;
 
         CharacterAssembler prefabAssembler = prefab.GetComponentInChildren<CharacterAssembler>();
         bool skinsOutdated = false;
@@ -72,19 +77,17 @@ public static class FixPlayerPrefab
 
         if (needsModify)
         {
-            Debug.Log("[FixPlayerPrefab] Detected missing network components or outdated skins on Player prefab. Updating prefab now...");
+            Debug.Log($"[FixPlayerPrefab] Detected missing network components or outdated skins on prefab '{path}'. Updating prefab now...");
             GameObject prefabRoot = PrefabUtility.LoadPrefabContents(path);
 
             if (prefabRoot.GetComponent<NetworkObject>() == null)
             {
                 prefabRoot.AddComponent<NetworkObject>();
-                Debug.Log("[FixPlayerPrefab] Added NetworkObject component.");
             }
 
             if (prefabRoot.GetComponent<ClientNetworkTransform>() == null)
             {
                 prefabRoot.AddComponent<ClientNetworkTransform>();
-                Debug.Log("[FixPlayerPrefab] Added ClientNetworkTransform component.");
             }
 
             if (prefabRoot.GetComponent<OwnerNetworkAnimator>() == null)
@@ -96,11 +99,6 @@ public static class FixPlayerPrefab
                     var so = new SerializedObject(ona);
                     so.FindProperty("m_Animator").objectReferenceValue = anim;
                     so.ApplyModifiedProperties();
-                    Debug.Log("[FixPlayerPrefab] Added OwnerNetworkAnimator component and assigned Animator reference.");
-                }
-                else
-                {
-                    Debug.LogWarning("[FixPlayerPrefab] Added OwnerNetworkAnimator but could not find Animator on prefab or children.");
                 }
             }
 
@@ -108,12 +106,11 @@ public static class FixPlayerPrefab
             if (assembler != null)
             {
                 assembler.availableSkins = skinList.ToArray();
-                Debug.Log($"[FixPlayerPrefab] Updated availableSkins on Player prefab with {skinList.Count} sorted skins.");
             }
 
             PrefabUtility.SaveAsPrefabAsset(prefabRoot, path);
             PrefabUtility.UnloadPrefabContents(prefabRoot);
-            Debug.Log("[FixPlayerPrefab] Saved Player prefab changes.");
+            Debug.Log($"[FixPlayerPrefab] Saved Player prefab changes for '{path}'.");
         }
     }
 }

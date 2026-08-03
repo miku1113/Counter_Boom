@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 64e43d080db844f61977979541f1e21b, type: 3}
+  m_Name: maharaj
+  m_EditorClassIdentifier: 
+  head: {fileID: -2090452626, guid: 2251b3eb4d14449f190d15ef860696c9, type: 3}
+  body: {fileID: 215927730, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}
+  leftArm: {fileID: 1779860374, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}
+  rightArm: {fileID: -28494859, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}
+  leftLeg: {fileID: 0}
+  rightLeg: {fileID: 0}
+  leftEye: {fileID: 21300042, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
+  rightEye: {fileID: 21300042, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
+  leftEyebrow: {fileID: 21300024, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
+  rightEyebrow: {fileID: 21300024, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
+  mouth: {fileID: 0}
+  skinName: maharaj
+  price: 150

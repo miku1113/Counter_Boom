@@ -7672,6 +7672,11 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1047552995}
   m_CullTransparentMesh: 1
+--- !u!198 &1068003784 stripped
+ParticleSystem:
+  m_CorrespondingSourceObject: {fileID: 3930299429914882054, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+  m_PrefabInstance: {fileID: 7092665865151928536}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1070002569
 GameObject:
   m_ObjectHideFlags: 0
@@ -10701,6 +10706,8 @@ MonoBehaviour:
   shopPanel: {fileID: 106535799}
   settingsPanel: {fileID: 538411545}
   settingsManager: {fileID: 538411549}
+  ambientParticleSystem: {fileID: 1068003784}
+  particleFlowDirection: {x: 5, y: 0, z: 0}
   navPlayButton: {fileID: 907754359}
   navCabinetButton: {fileID: 233216986}
   navShopButton: {fileID: 1987134593}
@@ -15479,6 +15486,63 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2141665172}
   m_CullTransparentMesh: 1
+--- !u!1001 &7092665865151928536
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -2.48
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.619067
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.030435445
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7439677376534061711, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8989781334653328806, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
+      propertyPath: m_Name
+      value: AirBreezeParticles
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a80d07bb8c515434092b58850dc30ab5, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -15490,3 +15554,4 @@ SceneRoots:
   - {fileID: 1492350673}
   - {fileID: 839804991}
   - {fileID: 1990174749}
+  - {fileID: 7092665865151928536}

@@ -364,27 +364,65 @@ public class RelayNetworkManager : MonoBehaviour
             await InitializeUnityServicesAsync();
         }
 
+        Allocation allocation = null;
+        int retries = 3;
+        for (int attempt = 1; attempt <= retries; attempt++)
+        {
+            try
+            {
+                Debug.Log($"[RelayManager] Requesting Relay allocation (attempt {attempt}/{retries}) for {maxConnections} connections...");
+                allocation = await RelayService.Instance.CreateAllocationAsync(maxConnections);
+                if (allocation != null) break;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[RelayManager] Relay allocation attempt {attempt} failed: {ex.Message}");
+                if (attempt < retries)
+                {
+                    await Task.Delay(500);
+                }
+            }
+        }
+
+        string joinCode = null;
+        if (allocation != null)
+        {
+            try
+            {
+                joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
+                Debug.Log($"[RelayManager] Relay Allocation created successfully. Join Code: {joinCode}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[RelayManager] Failed to get JoinCode for allocation: {ex.Message}");
+            }
+        }
+
+        UnityTransport transport = NetworkManager.Singleton != null ? NetworkManager.Singleton.GetComponent<UnityTransport>() : null;
+        if (transport == null)
+        {
+            Debug.LogError("[RelayManager] UnityTransport component is missing on the NetworkManager GameObject!");
+            return null;
+        }
+
         try
         {
-            Debug.Log($"[RelayManager] Requesting Relay allocation for {maxConnections} connections...");
-            Allocation allocation = await RelayService.Instance.CreateAllocationAsync(maxConnections);
-            string joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
-            Debug.Log($"[RelayManager] Relay Allocation created successfully. Join Code: {joinCode}");
-
-            UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
-            if (transport == null)
+            if (allocation != null && !string.IsNullOrEmpty(joinCode))
             {
-                Debug.LogError("[RelayManager] UnityTransport component is missing on the NetworkManager GameObject!");
-                return null;
+                transport.SetHostRelayData(
+                    allocation.RelayServer.IpV4,
+                    (ushort)allocation.RelayServer.Port,
+                    allocation.AllocationIdBytes,
+                    allocation.Key,
+                    allocation.ConnectionData
+                );
             }
-
-            transport.SetHostRelayData(
-                allocation.RelayServer.IpV4,
-                (ushort)allocation.RelayServer.Port,
-                allocation.AllocationIdBytes,
-                allocation.Key,
-                allocation.ConnectionData
-            );
+            else
+            {
+                Debug.LogWarning("[RelayManager] Unity Relay service allocation failed or unavailable. Falling back to direct local host connection...");
+                transport.SetConnectionData("127.0.0.1", 7777);
+                joinCode = $"LOCAL_{Random.Range(1000, 9999)}";
+            }
 
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
             {
@@ -397,11 +435,10 @@ public class RelayNetworkManager : MonoBehaviour
 
             if (NetworkManager.Singleton.StartHost())
             {
-                Debug.Log("[RelayManager] NGO Host started successfully over Unity Relay.");
+                Debug.Log($"[RelayManager] NGO Host started successfully with code '{joinCode}'.");
                 CurrentJoinCode = joinCode;
                 lastValidJoinCode = joinCode;
 
-                // Load the interactive lobby scene first. Netcode automatically syncs and loads this scene for joining clients!
                 string targetScene = !string.IsNullOrEmpty(lobbySceneName) ? lobbySceneName : gameplaySceneName;
                 NetworkManager.Singleton.SceneManager.LoadScene(targetScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
                 return joinCode;
