@@ -10,6 +10,10 @@ public class PlayerController : NetworkBehaviour
         writePerm: NetworkVariableWritePermission.Owner
     );
 
+    public NetworkVariable<PlayerRole> playerRole = new NetworkVariable<PlayerRole>(
+        PlayerRole.Hostage, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
     private TextMeshPro nameTagTMP;
 
     [Header("Name Tag Settings")]
@@ -74,6 +78,36 @@ public class PlayerController : NetworkBehaviour
         EnsureNameTag();
         playerName.OnValueChanged += (oldVal, newVal) => UpdateNameTag(newVal.ToString());
         UpdateNameTag(playerName.Value.ToString());
+
+        if (IsServer)
+        {
+            if (MatchRoleManager.Instance == null && FindObjectOfType<MatchRoleManager>() != null)
+            {
+                // MatchRoleManager instance found
+            }
+            if (MatchRoleManager.Instance != null)
+            {
+                PlayerRole assignedRole = MatchRoleManager.Instance.GetRoleForClient(OwnerClientId);
+                playerRole.Value = assignedRole;
+                Debug.Log($"[PlayerController] OnNetworkSpawn: Server set playerRole for '{gameObject.name}' (ClientId {OwnerClientId}) -> {assignedRole}");
+            }
+        }
+
+        playerRole.OnValueChanged += OnPlayerRoleNetworkChanged;
+        OnPlayerRoleNetworkChanged(playerRole.Value, playerRole.Value);
+    }
+
+    private void OnPlayerRoleNetworkChanged(PlayerRole oldRole, PlayerRole newRole)
+    {
+        Debug.Log($"[PlayerController] playerRole NetworkVariable synced for '{gameObject.name}': {oldRole} -> {newRole}");
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene")
+        {
+            RepositionForGameScene();
+        }
+        if (IsLocal && HUDManager.Instance != null)
+        {
+            HUDManager.Instance.UpdateRoleBadgeDisplay();
+        }
     }
 
     public void RestoreGameplayComponents()
@@ -239,7 +273,15 @@ public class PlayerController : NetworkBehaviour
         var netObj = GetComponent<Unity.Netcode.NetworkObject>();
         if (netObj != null)
         {
-            if (netObj.IsSpawned && (netObj.IsLocalPlayer || netObj.IsOwner)) local = true;
+            if (netObj.IsSpawned)
+            {
+                if (netObj.IsLocalPlayer || netObj.IsOwner) local = true;
+            }
+            else if (Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                // Netcode not listening / offline test mode
+                local = true;
+            }
         }
         // 2. Check Photon PUN
         else 
@@ -303,6 +345,77 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+    {
+        if (scene.name == "GameScene")
+        {
+            RepositionForGameScene();
+        }
+    }
+
+    public void RepositionForGameScene()
+    {
+        if (RelayNetworkManager.IsMigrating && RelayNetworkManager.HasSnapshot && RelayNetworkManager.LastPlayerSnapshot.HasValue)
+        {
+            var snap = RelayNetworkManager.LastPlayerSnapshot.Value;
+            transform.position = snap.position;
+            transform.rotation = snap.rotation;
+            if (snap.isGhost)
+            {
+                EnableGhostMode();
+            }
+            Debug.Log($"[PlayerController] Repositioned from snapshot position: {transform.position}");
+            return;
+        }
+
+        // Fresh match spawn: ALWAYS reset ghost state so player starts alive!
+        DisableGhostMode();
+
+        if (MatchRoleManager.Instance != null)
+        {
+            MatchRoleManager.Instance.SyncLocationsFromGameManager();
+            PlayerRole role;
+            if (IsServer)
+            {
+                role = MatchRoleManager.Instance.GetRoleForClient(OwnerClientId);
+                playerRole.Value = role;
+            }
+            else
+            {
+                role = playerRole.Value;
+            }
+
+            Vector3 spawnPos = MatchRoleManager.Instance.GetSpawnPositionForRole(role);
+            transform.position = spawnPos;
+
+            if (rb != null) rb.velocity = Vector2.zero;
+            Debug.Log($"[PlayerController] OnSceneLoaded ('GameScene'): Repositioned player '{gameObject.name}' (IsServer: {IsServer}, Role: {role}) to position: {spawnPos}");
+        }
+        else
+        {
+            Vector3 spawnPos = GetRandomNonColliderSpawnPosition(Vector3.zero, 6.5f);
+            transform.position = spawnPos;
+            if (rb != null) rb.velocity = Vector2.zero;
+            Debug.Log($"[PlayerController] OnSceneLoaded ('GameScene'): Repositioned player '{gameObject.name}' to position: {spawnPos}");
+        }
+
+        if (IsLocal && HUDManager.Instance != null)
+        {
+            HUDManager.Instance.UpdateRoleBadgeDisplay();
+        }
+    }
+
     private void Start()
     {
         // Ensure animator is found if not assigned
@@ -313,22 +426,9 @@ public class PlayerController : NetworkBehaviour
 
         EvaluateIsLocal();
 
-        if (RelayNetworkManager.HasSnapshot)
+        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene")
         {
-            transform.position = RelayNetworkManager.LastPlayerSnapshot.position;
-            transform.rotation = RelayNetworkManager.LastPlayerSnapshot.rotation;
-            if (RelayNetworkManager.LastPlayerSnapshot.isGhost)
-            {
-                EnableGhostMode();
-            }
-            Debug.Log($"[PlayerController] Player '{gameObject.name}' spawned at restored snapshot position: {transform.position}, IsGhost: {IsGhost}");
-        }
-        else
-        {
-            // Spawn player at a random non-collider position in the map (not at fixed center)
-            Vector3 spawnPos = GetRandomNonColliderSpawnPosition(Vector3.zero, 6.5f);
-            transform.position = spawnPos;
-            Debug.Log($"[PlayerController] Player '{gameObject.name}' spawned at random non-collider position: {spawnPos}");
+            RepositionForGameScene();
         }
     }
 
@@ -337,9 +437,10 @@ public class PlayerController : NetworkBehaviour
     /// </summary>
     public static Vector3 GetRandomNonColliderSpawnPosition(Vector3 center, float maxRadius = 6.5f)
     {
-        for (int attempts = 0; attempts < 35; attempts++)
+        for (int attempts = 0; attempts < 50; attempts++)
         {
-            Vector2 randomOffset = Random.insideUnitCircle * maxRadius;
+            float radius = (attempts < 30) ? maxRadius : maxRadius * 2.0f;
+            Vector2 randomOffset = Random.insideUnitCircle * radius;
             Vector3 testPos = center + new Vector3(randomOffset.x, randomOffset.y, 0f);
 
             // Check if testPos overlaps any non-trigger solid map colliders
@@ -347,7 +448,7 @@ public class PlayerController : NetworkBehaviour
             bool isSolidObstacle = false;
             foreach (var col in overlaps)
             {
-                if (col != null && !col.isTrigger && !col.CompareTag("Player"))
+                if (col != null && !col.isTrigger && !col.CompareTag("Player") && col.GetComponent<KeyItemPickup>() == null && col.GetComponent<MainGateController>() == null)
                 {
                     isSolidObstacle = true;
                     break;
@@ -359,7 +460,7 @@ public class PlayerController : NetworkBehaviour
                 return testPos;
             }
         }
-        return center;
+        return new Vector3(0f, 0f, 0f);
     }
 
     private void Update()
@@ -398,7 +499,7 @@ public class PlayerController : NetworkBehaviour
         // Apply movement only when Rigidbody2D is dynamic and simulated
         if (rb != null && rb.bodyType == RigidbodyType2D.Dynamic && rb.simulated)
         {
-            if (RelayNetworkManager.Instance != null && RelayNetworkManager.Instance.IsMigrating)
+            if (RelayNetworkManager.IsMigrating)
             {
                 rb.velocity = Vector2.zero;
                 return;
@@ -430,6 +531,165 @@ public class PlayerController : NetworkBehaviour
 
     public bool IsGhost { get; private set; } = false;
 
+    private static Sprite fallbackGhostSprite;
+
+    public static Sprite GetFallbackGhostSprite()
+    {
+        if (fallbackGhostSprite != null) return fallbackGhostSprite;
+
+        int width = 128;
+        int height = 128;
+        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+
+        Color transparent = new Color(0f, 0f, 0f, 0f);
+        Color ghostBody = new Color(0.82f, 0.94f, 1.0f, 0.85f);
+        Color eyeColor = new Color(0.12f, 0.18f, 0.3f, 0.95f);
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                tex.SetPixel(x, y, transparent);
+            }
+        }
+
+        float centerX = width * 0.5f;
+        float headCenterY = height * 0.62f;
+        float headRadius = width * 0.36f;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float dx = x - centerX;
+                float dy = y - headCenterY;
+                float distToHead = Mathf.Sqrt(dx * dx + dy * dy);
+
+                // Upper rounded head
+                if (y >= headCenterY && distToHead <= headRadius)
+                {
+                    float edgeAlpha = Mathf.Clamp01((headRadius - distToHead) / 2.5f);
+                    tex.SetPixel(x, y, new Color(ghostBody.r, ghostBody.g, ghostBody.b, ghostBody.a * edgeAlpha));
+                }
+                // Floating tail & body
+                else if (y < headCenterY && y > height * 0.1f && Mathf.Abs(dx) <= headRadius * (y / headCenterY))
+                {
+                    float wave = Mathf.Sin((y / (float)height) * Mathf.PI * 4f) * 6f;
+                    float distFromEdge = (headRadius * (y / headCenterY)) - Mathf.Abs(dx + wave);
+                    if (distFromEdge >= 0f)
+                    {
+                        float edgeAlpha = Mathf.Clamp01(distFromEdge / 2f);
+                        tex.SetPixel(x, y, new Color(ghostBody.r, ghostBody.g, ghostBody.b, ghostBody.a * edgeAlpha));
+                    }
+                }
+            }
+        }
+
+        // Cute dark ghost eyes
+        int eyeOffsetY = Mathf.RoundToInt(headCenterY + 4f);
+        int leftEyeX = Mathf.RoundToInt(centerX - 12f);
+        int rightEyeX = Mathf.RoundToInt(centerX + 12f);
+
+        for (int ey = -7; ey <= 7; ey++)
+        {
+            for (int ex = -5; ex <= 5; ex++)
+            {
+                if (ex * ex + ey * ey <= 28)
+                {
+                    tex.SetPixel(leftEyeX + ex, eyeOffsetY + ey, eyeColor);
+                    tex.SetPixel(rightEyeX + ex, eyeOffsetY + ey, eyeColor);
+                }
+            }
+        }
+
+        tex.Apply();
+        fallbackGhostSprite = Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.4f), 100f);
+        return fallbackGhostSprite;
+    }
+
+    public void DisableGhostMode()
+    {
+        IsGhost = false;
+        moveSpeed = defaultMoveSpeed;
+
+        // Re-enable combat & skin components
+        PlayerAiming aiming = GetComponent<PlayerAiming>();
+        if (aiming != null) aiming.enabled = true;
+
+        WeaponController wc = GetComponent<WeaponController>();
+        if (wc != null) wc.enabled = true;
+
+        CharacterAssembler ca = GetComponentInChildren<CharacterAssembler>();
+        if (ca != null)
+        {
+            ca.enabled = true;
+            ca.LoadEquippedSkin();
+        }
+
+        Animator[] animators = GetComponentsInChildren<Animator>(true);
+        foreach (var anim in animators)
+        {
+            if (anim != null) anim.enabled = true;
+        }
+
+        // Re-enable all original character skin & visual child objects
+        foreach (Transform child in transform)
+        {
+            if (child != null && child.name != "GhostVisualContainer")
+            {
+                child.gameObject.SetActive(true);
+            }
+        }
+
+        // Hide Ghost visual container
+        if (ghostVisualContainer != null)
+        {
+            ghostVisualContainer.gameObject.SetActive(false);
+        }
+        else
+        {
+            Transform ghostChild = transform.Find("GhostVisualContainer");
+            if (ghostChild != null) ghostChild.gameObject.SetActive(false);
+        }
+
+        // Re-enable all child renderers
+        SpriteRenderer[] allRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var r in allRenderers)
+        {
+            if (r != null && r.gameObject.name != "GhostVisualContainer")
+            {
+                r.enabled = true;
+            }
+        }
+
+        // Reset solid BoxCollider2D
+        BoxCollider2D boxCol = GetComponent<BoxCollider2D>();
+        if (boxCol == null) boxCol = GetComponentInChildren<BoxCollider2D>();
+        if (boxCol != null)
+        {
+            boxCol.enabled = true;
+            boxCol.isTrigger = false;
+        }
+
+        Rigidbody2D playerRb = GetComponent<Rigidbody2D>();
+        if (playerRb != null)
+        {
+            playerRb.simulated = true;
+            playerRb.bodyType = RigidbodyType2D.Dynamic;
+            playerRb.gravityScale = 0f;
+            playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
+        }
+
+        if (IsLocal)
+        {
+            if (MobileInputManager.Instance != null) MobileInputManager.Instance.SetGhostUI(false);
+            if (HUDManager.Instance != null) HUDManager.Instance.SetGhostUI(false);
+        }
+
+        Debug.Log($"[PlayerController] Ghost mode disabled on '{gameObject.name}'. Player is alive.");
+    }
+
     public void EnableGhostMode()
     {
         if (IsGhost) return;
@@ -438,14 +698,46 @@ public class PlayerController : NetworkBehaviour
         // Decrease move speed by 20% for ghost mode so living players can escape
         moveSpeed = defaultMoveSpeed * 0.8f;
 
-        // 1. Hide ALL original skin renderers unconditionally
+        // 1. Disable scripts/animators that re-enable skin parts every frame
+        PlayerAiming aiming = GetComponent<PlayerAiming>();
+        if (aiming != null) aiming.enabled = false;
+
+        WeaponController wc = GetComponent<WeaponController>();
+        if (wc != null)
+        {
+            wc.ClearAttachPointChildren();
+            wc.enabled = false;
+        }
+
+        CharacterAssembler ca = GetComponentInChildren<CharacterAssembler>();
+        if (ca != null) ca.enabled = false;
+
+        Animator[] animators = GetComponentsInChildren<Animator>(true);
+        foreach (var anim in animators)
+        {
+            if (anim != null) anim.enabled = false;
+        }
+
+        // 2. Hide all original skin & weapon child GameObjects unconditionally
+        foreach (Transform child in transform)
+        {
+            if (child != null && child.name != "GhostVisualContainer" && child.name != "Canvas" && child.name != "DropPoint")
+            {
+                child.gameObject.SetActive(false);
+            }
+        }
+
+        // Also disable any lingering renderers on top level or remaining children
         SpriteRenderer[] allRenderers = GetComponentsInChildren<SpriteRenderer>(true);
         foreach (var r in allRenderers)
         {
-            if (r != null) r.enabled = false;
+            if (r != null && r.gameObject.name != "GhostVisualContainer")
+            {
+                r.enabled = false;
+            }
         }
 
-        // 2. Find or create GhostVisualContainer
+        // 3. Find or create GhostVisualContainer
         Transform ghostChild = transform.Find("GhostVisualContainer");
         if (ghostChild == null)
         {
@@ -457,19 +749,15 @@ public class PlayerController : NetworkBehaviour
         ghostVisualContainer = ghostChild;
         ghostInitialVisualLocalPos = Vector3.zero;
 
-        // 3. Show ghost sprite ONLY to the local ghost player (living players see nothing)
-        //    The ghost sprite is assigned in the Inspector on the PlayerController prefab.
+        // 4. Show translucent floating ghost sprite ONLY to local ghost player
         if (IsLocal)
         {
-            // Get or add a SpriteRenderer on the GhostVisualContainer
             SpriteRenderer ghostSR = ghostChild.GetComponent<SpriteRenderer>();
             if (ghostSR == null) ghostSR = ghostChild.gameObject.AddComponent<SpriteRenderer>();
 
-            if (ghostSprite != null)
-            {
-                ghostSR.sprite = ghostSprite;
-            }
-            ghostSR.color = new Color(0.8f, 0.92f, 1.0f, 0.75f); // Translucent blue-white ghost
+            Sprite s = (ghostSprite != null) ? ghostSprite : GetFallbackGhostSprite();
+            ghostSR.sprite = s;
+            ghostSR.color = new Color(0.8f, 0.95f, 1.0f, 0.85f); // Translucent blue-white ghost
             ghostSR.sortingOrder = 110;
             ghostChild.gameObject.SetActive(true);
         }
@@ -479,17 +767,28 @@ public class PlayerController : NetworkBehaviour
             ghostChild.gameObject.SetActive(false);
         }
 
-        // 4. Hide name tag — ghosts have no overhead name
+        // 5. Hide name tag — ghosts have no overhead name
         if (nameTagTMP != null)
         {
             nameTagTMP.enabled = false;
         }
 
-        // Set colliders to trigger so ghost can pass through obstacles/players
-        Collider2D[] colliders = GetComponentsInChildren<Collider2D>();
-        foreach (var col in colliders)
+        // Ensure ghost player retains solid BoxCollider2D so it collides with walls
+        BoxCollider2D boxCol = GetComponent<BoxCollider2D>();
+        if (boxCol == null) boxCol = GetComponentInChildren<BoxCollider2D>();
+        if (boxCol != null)
         {
-            if (col != null) col.isTrigger = true;
+            boxCol.enabled = true;
+            boxCol.isTrigger = false;
+        }
+
+        Rigidbody2D playerRb = GetComponent<Rigidbody2D>();
+        if (playerRb != null)
+        {
+            playerRb.simulated = true;
+            playerRb.bodyType = RigidbodyType2D.Dynamic;
+            playerRb.gravityScale = 0f;
+            playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
         }
 
         // Camera: retarget onto local ghost for spectating
@@ -499,7 +798,6 @@ public class PlayerController : NetworkBehaviour
             {
                 CameraController.Instance.SetTarget(transform);
             }
-            // AimingDots hides via Update() IsGhost check
         }
 
         Debug.Log($"[PlayerController] Ghost mode enabled on '{gameObject.name}' (IsLocal: {IsLocal}). Speed: {moveSpeed}.");

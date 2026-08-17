@@ -277,7 +277,7 @@ public class CharacterAssembler : NetworkBehaviour
     
     private void SetSorting(SpriteRenderer r, int order)
     {
-        r.sortingLayerName = "Default";
+        r.sortingLayerName = "player";
         r.sortingOrder = order;
     }
     

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64e43d080db844f61977979541f1e21b, type: 3}
   m_Name: aquaman
   m_EditorClassIdentifier: 
-  head: {fileID: 21300028, guid: 5cf1b4629c7cb104e98d369448084abd, type: 3}
+  head: {fileID: -1231493989, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}
   body: {fileID: 1894129570, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}
   leftArm: {fileID: -1822563824, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}
   rightArm: {fileID: -1842558313, guid: b54ad520cf18c4a84996cd5111228e67, type: 3}

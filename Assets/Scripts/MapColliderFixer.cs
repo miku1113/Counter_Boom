@@ -52,8 +52,23 @@ public static class MapColliderFixer
             if (col2D == null) continue;
             GameObject go = col2D.gameObject;
 
-            // Skip player, pickup items, or canvas elements
-            if (go.CompareTag("Player") || go.GetComponent<ItemPickup>() != null || go.GetComponent<Canvas>() != null || go.GetComponentInParent<Canvas>() != null)
+            // Skip player, player child components, pickup items, main gate, keys, cutscene or canvas elements
+            // Also skip door/room/zone triggers — they must stay as triggers
+            if (go.CompareTag("Player") || 
+                go.GetComponent<PlayerController>() != null ||
+                go.GetComponentInParent<PlayerController>() != null ||
+                go.GetComponent<ItemPickup>() != null || 
+                go.GetComponent<KeyItemPickup>() != null || 
+                go.GetComponent<MainGateController>() != null ||
+                go.GetComponent<DoorController>() != null ||
+                go.GetComponent<RoomController>() != null ||
+                go.GetComponent<WalkableFloorZone>() != null ||
+                go.name.ToLower().Contains("player") ||
+                go.name.ToLower().Contains("key") ||
+                go.name.ToLower().Contains("gate") ||
+                go.name.ToLower().Contains("cutscene") ||
+                go.GetComponent<Canvas>() != null || 
+                go.GetComponentInParent<Canvas>() != null)
             {
                 continue;
             }

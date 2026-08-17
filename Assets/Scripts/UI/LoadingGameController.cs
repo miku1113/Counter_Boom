@@ -6,7 +6,7 @@ using Unity.Netcode;
 
 public class LoadingGameController : MonoBehaviour
 {
-    public enum MatchMode { QuickPlay, JoinCode, PrivateHost }
+    public enum MatchMode { QuickPlay, JoinCode, PrivateHost, InGameLoading }
     public static MatchMode TargetMode = MatchMode.QuickPlay;
     public static string JoinCodeToUse = "";
 
@@ -42,6 +42,10 @@ public class LoadingGameController : MonoBehaviour
 
     private void Awake()
     {
+        if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
+        {
+            TargetMode = MatchMode.InGameLoading;
+        }
         EnsureUI();
     }
 
@@ -69,6 +73,11 @@ public class LoadingGameController : MonoBehaviour
 
     private async void ExecuteMatchmaking()
     {
+        if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
+        {
+            TargetMode = MatchMode.InGameLoading;
+        }
+
         UpdateStatus("Connecting to Relay & Unity Services...");
         await Task.Delay(200);
 
@@ -76,6 +85,11 @@ public class LoadingGameController : MonoBehaviour
         {
             UpdateStatus("<color=red>Error: RelayNetworkManager missing!</color>");
             return;
+        }
+
+        if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
+        {
+            TargetMode = MatchMode.InGameLoading;
         }
 
         bool success = false;
@@ -97,6 +111,30 @@ public class LoadingGameController : MonoBehaviour
                 string code = await RelayNetworkManager.Instance.StartPrivateHostWithRelay();
                 success = !string.IsNullOrEmpty(code);
                 break;
+
+            case MatchMode.InGameLoading:
+                UpdateStatus("Preparing match, spawn points & 1:3 Thief/Hostage roles...");
+                await Task.Delay(800);
+                if (MatchRoleManager.Instance == null)
+                {
+                    GameObject go = new GameObject("MatchRoleManager", typeof(MatchRoleManager));
+                }
+                if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+                {
+                    if (MatchRoleManager.Instance != null)
+                    {
+                        MatchRoleManager.Instance.AssignRolesForConnectedPlayers();
+                    }
+                    UpdateStatus("Loading gameplay scene...");
+                    await Task.Delay(400);
+                    NetworkManager.Singleton.SceneManager.LoadScene("GameScene", UnityEngine.SceneManagement.LoadSceneMode.Single);
+                }
+                else
+                {
+                    // Non-host clients wait for the server to load GameScene via Netcode SceneManager
+                    UpdateStatus("Waiting for host to launch gameplay scene...");
+                }
+                return;
         }
 
         if (success)

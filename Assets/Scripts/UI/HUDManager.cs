@@ -1138,6 +1138,116 @@ public class HUDManager : MonoBehaviour
             leaveGameButton.onClick.RemoveAllListeners();
             leaveGameButton.onClick.AddListener(OnLeaveGameClicked);
         }
+
+        EnsureNotificationUI();
+    }
+
+    [Header("Match Notifications & Role Badge")]
+    [SerializeField] private TextMeshProUGUI notificationText;
+    [SerializeField] private TextMeshProUGUI roleBadgeText;
+
+    public void ShowNotification(string message)
+    {
+        EnsureNotificationUI();
+        if (notificationText != null)
+        {
+            notificationText.text = message;
+            notificationText.gameObject.SetActive(true);
+            CancelInvoke(nameof(HideNotification));
+            Invoke(nameof(HideNotification), 4f);
+        }
+        Debug.Log($"[HUDManager] Notification: {message}");
+    }
+
+    private void HideNotification()
+    {
+        if (notificationText != null)
+        {
+            notificationText.gameObject.SetActive(false);
+        }
+    }
+
+    private void EnsureNotificationUI()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas == null) return;
+
+        if (notificationText == null)
+        {
+            GameObject notifGO = new GameObject("HUDNotificationText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            notifGO.transform.SetParent(canvas.transform, false);
+
+            RectTransform rt = notifGO.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 0.72f);
+            rt.anchorMax = new Vector2(0.5f, 0.72f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.sizeDelta = new Vector2(650f, 50f);
+
+            notificationText = notifGO.GetComponent<TextMeshProUGUI>();
+            notificationText.fontSize = 20;
+            notificationText.fontStyle = FontStyles.Bold;
+            notificationText.alignment = TextAlignmentOptions.Center;
+            notificationText.color = new Color(1f, 0.95f, 0.4f, 1f); // Bright yellow highlight
+            notificationText.outlineWidth = 0.2f;
+            notificationText.outlineColor = Color.black;
+            notifGO.SetActive(false);
+        }
+
+        if (roleBadgeText == null)
+        {
+            GameObject roleGO = new GameObject("HUDRoleBadgeText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            roleGO.transform.SetParent(canvas.transform, false);
+
+            RectTransform rt = roleGO.GetComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(25f, -95f);
+            rt.sizeDelta = new Vector2(300f, 40f);
+
+            roleBadgeText = roleGO.GetComponent<TextMeshProUGUI>();
+            roleBadgeText.fontSize = 18;
+            roleBadgeText.fontStyle = FontStyles.Bold;
+            roleBadgeText.alignment = TextAlignmentOptions.Left;
+            roleBadgeText.color = Color.white;
+            roleBadgeText.outlineWidth = 0.15f;
+            roleBadgeText.outlineColor = Color.black;
+
+            UpdateRoleBadgeDisplay();
+        }
+    }
+
+    public void UpdateRoleBadgeDisplay()
+    {
+        if (roleBadgeText == null) EnsureNotificationUI();
+        if (roleBadgeText == null) return;
+
+        roleBadgeText.richText = true;
+
+        PlayerController localPlayer = null;
+        PlayerController[] players = FindObjectsOfType<PlayerController>();
+        foreach (var p in players)
+        {
+            if (p != null && (p.IsOwner || p.IsLocal))
+            {
+                localPlayer = p;
+                break;
+            }
+        }
+
+        if (localPlayer != null)
+        {
+            if (localPlayer.playerRole.Value == PlayerRole.Thief)
+            {
+                roleBadgeText.text = "ROLE: <color=#FF3333>🔴 THIEF</color>";
+            }
+            else
+            {
+                roleBadgeText.text = "ROLE: <color=#00E5FF>🔵 HOSTAGE</color>";
+            }
+        }
     }
 }
 

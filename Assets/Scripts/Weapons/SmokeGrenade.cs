@@ -6,9 +6,15 @@ public class SmokeGrenade : Grenade
     public GameObject smokeCloudPrefab;
     public float      smokeLifetime = 6f; // Lingers for 6 seconds
 
+    protected override void Awake()
+    {
+        base.Awake();
+        damage = 0; // Smoke grenade deals 0 health damage
+    }
+
     protected override void Explode()
     {
-        base.Explode();
+        damage = 0; // Explicitly ensure 0 damage
 
         GameObject smoke = null;
 
@@ -16,16 +22,14 @@ public class SmokeGrenade : Grenade
         {
             // Spawn volumetric smoke screen using multiple instances of the assigned custom prefab
             smoke = ProceduralEffectsGenerator.CreateSmokeCloud(transform.position, explosionRadius, smokeLifetime, smokeCloudPrefab);
-            Debug.Log($"[SmokeGrenade] Spawned volumetric prefab smoke screen (multiple puffs) at {transform.position}.");
+            Debug.Log($"[SmokeGrenade] Spawned volumetric prefab smoke screen at {transform.position} (0 damage).");
         }
         else
         {
             // If prefab is null, generate the volumetric smoke cloud programmatically from code
             smoke = ProceduralEffectsGenerator.CreateSmokeCloud(transform.position, explosionRadius, smokeLifetime);
-            Debug.Log($"[SmokeGrenade] Spawned procedural volumetric smoke screen at {transform.position}.");
+            Debug.Log($"[SmokeGrenade] Spawned procedural volumetric smoke screen at {transform.position} (0 damage).");
         }
-
-
 
         if (smoke != null)
         {
@@ -51,7 +55,7 @@ public class SmokeGrenade : Grenade
             // Procedural smoke parent manages its own lifetime
             Destroy(smoke, smokeLifetime);
         }
+
+        Destroy(gameObject);
     }
-
-
 }

@@ -99,9 +99,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4e2cb9c85f2a34676889d92043cd3dfe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  fuseTime: 0.5
+  fuseTime: 1
   explosionRadius: 5
   throwForce: 10
+  damage: 50
   explosionEffect: {fileID: 4088997058349922941, guid: 21fda5653cf6e41b7a04792ed2c23a4b, type: 3}
   rb: {fileID: 1889726186788058745}
 --- !u!50 &1889726186788058745

@@ -6,8 +6,16 @@ public class StunGrenade : Grenade
     public float speedMultiplier = 0.2f; // Slows movement to 20%
     public float stunDuration    = 4f;   // Lasts 4 seconds
 
+    protected override void Awake()
+    {
+        base.Awake();
+        damage = 0; // Stun grenade deals 0 health damage
+    }
+
     protected override void Explode()
     {
+        damage = 0; // Explicitly ensure 0 damage
+
         // If no visual explosionEffect prefab is assigned, create the procedural stun blast
         if (explosionEffect == null)
         {
@@ -27,11 +35,9 @@ public class StunGrenade : Grenade
                 {
                     controller.ApplySpeedBoost(speedMultiplier, stunDuration);
                     PlayerController.TriggerLocalPlayerStun(stunDuration);
-                    Debug.Log($"[StunGrenade] Stunned local player '{col.name}' (speed set to {speedMultiplier}x for {stunDuration}s).");
+                    Debug.Log($"[StunGrenade] Stunned local player '{col.name}' (speed set to {speedMultiplier}x for {stunDuration}s, 0 damage).");
                 }
             }
         }
     }
-
-
 }

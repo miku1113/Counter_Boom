@@ -54,10 +54,10 @@ public class RelayNetworkManager : MonoBehaviour
         public List<WorldItemState> worldItems;
     }
 
-    public static PlayerMigrationSnapshot LastPlayerSnapshot;
+    public static PlayerMigrationSnapshot? LastPlayerSnapshot = null;
     public static bool HasSnapshot = false;
 
-    public bool IsMigrating { get; private set; } = false;
+    public static bool IsMigrating { get; private set; } = false;
 
     public static event System.Action<bool> OnMigrationStateChanged;
     public static event System.Action<string> OnMigrationStatusChanged;
@@ -162,6 +162,8 @@ public class RelayNetworkManager : MonoBehaviour
     /// </summary>
     public async Task<bool> QuickPlayMatchmaking()
     {
+        if (!IsMigrating) ClearSnapshot();
+
         if (!isServicesInitialized)
         {
             await InitializeUnityServicesAsync();
@@ -359,6 +361,8 @@ public class RelayNetworkManager : MonoBehaviour
     /// </summary>
     public async Task<string> StartHostWithRelay()
     {
+        if (!IsMigrating) ClearSnapshot();
+
         if (!isServicesInitialized)
         {
             await InitializeUnityServicesAsync();
@@ -485,7 +489,19 @@ public class RelayNetworkManager : MonoBehaviour
                 }
             }
 
-            NetworkManager.Singleton.SceneManager.LoadScene(gameplaySceneName, UnityEngine.SceneManagement.LoadSceneMode.Single);
+            // Assign roles to all connected players before loading GameScene
+            if (MatchRoleManager.Instance == null && FindObjectOfType<MatchRoleManager>() == null)
+            {
+                new GameObject("MatchRoleManager", typeof(MatchRoleManager));
+            }
+            if (MatchRoleManager.Instance != null)
+            {
+                MatchRoleManager.Instance.AssignRolesForConnectedPlayers();
+            }
+
+            LoadingGameController.TargetMode = LoadingGameController.MatchMode.InGameLoading;
+            string targetScene = !string.IsNullOrEmpty(gameplaySceneName) ? gameplaySceneName : "GameScene";
+            NetworkManager.Singleton.SceneManager.LoadScene(targetScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
         }
         else
         {
@@ -498,6 +514,8 @@ public class RelayNetworkManager : MonoBehaviour
     /// </summary>
     public async Task<bool> StartClientWithRelay(string joinCode)
     {
+        if (!IsMigrating) ClearSnapshot();
+
         if (string.IsNullOrEmpty(joinCode))
         {
             Debug.LogWarning("[RelayManager] Cannot join: Join Code is empty or null.");
@@ -713,6 +731,29 @@ public class RelayNetworkManager : MonoBehaviour
             NetworkManager.Singleton.Shutdown();
             Debug.Log("[RelayManager] Shut down active Netcode connection.");
         }
+
+        if (!IsMigrating) ClearSnapshot();
+    }
+
+    /// <summary>
+    /// Clears any saved player snapshot and persistent ghost state from memory and PlayerPrefs.
+    /// Call when starting a new game, quick matching, or leaving a room so player doesn't spawn as ghost.
+    /// </summary>
+    public static void ClearSnapshot()
+    {
+        HasSnapshot = false;
+        IsMigrating = false;
+        LastPlayerSnapshot = null; // nullable struct, this is valid
+
+        PlayerPrefs.DeleteKey("Snapshot_PosX");
+        PlayerPrefs.DeleteKey("Snapshot_PosY");
+        PlayerPrefs.DeleteKey("Snapshot_PosZ");
+        PlayerPrefs.DeleteKey("Snapshot_Health");
+        PlayerPrefs.DeleteKey("Snapshot_IsGhost");
+        PlayerPrefs.DeleteKey("Snapshot_Slot");
+        PlayerPrefs.Save();
+
+        Debug.Log("[RelayNetworkManager] Cleared local player snapshot & persistent ghost state.");
     }
 
     /// <summary>
@@ -1106,14 +1147,14 @@ public class RelayNetworkManager : MonoBehaviour
         // item types are preserved, rather than randomly re-spawning new items.
         if (NetworkManager.Singleton.IsServer && GameManager.Instance != null)
         {
-            if (HasSnapshot && LastPlayerSnapshot.worldItems != null && LastPlayerSnapshot.worldItems.Count > 0)
+            if (HasSnapshot && LastPlayerSnapshot.HasValue && LastPlayerSnapshot.Value.worldItems != null && LastPlayerSnapshot.Value.worldItems.Count > 0)
             {
-                GameManager.Instance.RestoreWorldItemsFromSnapshot(LastPlayerSnapshot.worldItems);
+                GameManager.Instance.RestoreWorldItemsFromSnapshot(LastPlayerSnapshot.Value.worldItems);
             }
             else
             {
                 // Fallback: no world item snapshot available — spawn fresh items
-                GameManager.Instance.SpawnItemsAroundPlayer();
+                GameManager.Instance.SpawnItemsOnFloor();
             }
         }
 
@@ -1167,8 +1208,8 @@ public class RelayNetworkManager : MonoBehaviour
         GameObject playerPrefab = GetPlayerPrefab();
         if (playerPrefab != null)
         {
-            Vector3 spawnPos = HasSnapshot ? LastPlayerSnapshot.position : Vector3.zero;
-            Quaternion spawnRot = HasSnapshot ? LastPlayerSnapshot.rotation : Quaternion.identity;
+            Vector3 spawnPos = HasSnapshot && LastPlayerSnapshot.HasValue ? LastPlayerSnapshot.Value.position : Vector3.zero;
+            Quaternion spawnRot = HasSnapshot && LastPlayerSnapshot.HasValue ? LastPlayerSnapshot.Value.rotation : Quaternion.identity;
 
             GameObject playerObj = Instantiate(playerPrefab, spawnPos, spawnRot);
             NetworkObject netObj = playerObj.GetComponent<NetworkObject>();

@@ -2,23 +2,28 @@ using UnityEngine;
 
 public class ExplosiveGrenade : Grenade
 {
-    [Header("Explosive Stats")]
-    public int damage = 50;
+    protected override void Awake()
+    {
+        base.Awake();
+        damage = 50; // Explosive grenade deals 50 lethal area damage
+    }
 
     protected override void Explode()
     {
-        base.Explode();
+        damage = 50; // Ensure damage is set
 
-        // Area damage — apply to anything with a PlayerHealth component in radius
-        Collider2D[] hitColliders = Physics2D.OverlapCircleAll(transform.position, explosionRadius);
-        foreach (Collider2D col in hitColliders)
+        // 1. Create the awesome red explosion blast effect
+        ProceduralEffectsGenerator.CreateRedExplosionBlast(transform.position, explosionRadius);
+
+        // 2. Clear Inspector prefab reference so base.Explode() does NOT spawn the old fallback prefab
+        explosionEffect = null;
+
+        // 3. Trigger screen shake
+        if (CameraController.Instance != null)
         {
-            PlayerHealth health = col.GetComponent<PlayerHealth>();
-            if (health != null)
-            {
-                health.TakeDamage(damage);
-                Debug.Log($"[ExplosiveGrenade] Dealt {damage} damage to {col.name}.");
-            }
+            CameraController.Instance.TriggerShake(0.55f, 0.45f);
         }
+
+        base.Explode();
     }
 }

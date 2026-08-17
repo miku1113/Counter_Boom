@@ -415,22 +415,17 @@ public class WeaponController : NetworkBehaviour
 
     public void ThrowGrenade()
     {
-        if (BagManager.Instance == null) return;
-        
-        GrenadeType activeType = BagManager.Instance.activeGrenadeType;
-        int count = BagManager.Instance.GetGrenadeCount(activeType);
+        GrenadeType activeType = BagManager.Instance != null ? BagManager.Instance.activeGrenadeType : GrenadeType.Explosive;
+        int count = BagManager.Instance != null ? BagManager.Instance.GetGrenadeCount(activeType) : 0;
         Debug.Log($"[WeaponController] ThrowGrenade requested. Active Type: {activeType}, Count: {count}");
 
         if (count <= 0)
         {
             Debug.LogWarning($"[WeaponController] Cannot throw: Count of active grenade type '{activeType}' is {count}.");
-            return;
-        }
-
-        GameObject activePrefab = BagManager.Instance.GetActiveGrenadePrefab();
-        if (activePrefab == null)
-        {
-            Debug.LogError($"[WeaponController] No prefab found for active grenade type '{activeType}'!");
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ShowNotification("⚠️ No grenades remaining in bag!");
+            }
             return;
         }
 
@@ -438,7 +433,10 @@ public class WeaponController : NetworkBehaviour
         Vector2 aimDir   = playerAiming != null ? playerAiming.GetAimDirection()      : Vector2.right;
 
         // Decrement local inventory count
-        BagManager.Instance.ConsumeGrenade(activeType);
+        if (BagManager.Instance != null)
+        {
+            BagManager.Instance.ConsumeGrenade(activeType);
+        }
 
         if (IsSpawned)
         {
@@ -474,29 +472,68 @@ public class WeaponController : NetworkBehaviour
             playerAiming.TriggerGrenadeThrowAnimation();
         }
 
-        if (BagManager.Instance == null) return;
+        GameObject activePrefab = BagManager.Instance != null ? BagManager.Instance.GetGrenadePrefabByType(grenadeType) : null;
+        if (activePrefab == null && BagManager.Instance != null)
+        {
+            activePrefab = BagManager.Instance.GetActiveGrenadePrefab();
+        }
 
-        GameObject activePrefab = BagManager.Instance.GetGrenadePrefabByType(grenadeType);
-        if (activePrefab == null) return;
+        GameObject gObj;
+        if (activePrefab != null)
+        {
+            gObj = Instantiate(activePrefab, position, Quaternion.identity);
+        }
+        else
+        {
+            // Procedural fallback Grenade object if no prefab exists in scene/Resources
+            gObj = new GameObject($"Procedural_{grenadeType}_Grenade");
+            gObj.transform.position = position;
 
-        GameObject gObj = Instantiate(activePrefab, position, Quaternion.identity);
+            SpriteRenderer sr = gObj.AddComponent<SpriteRenderer>();
+            sr.sprite = ProceduralEffectsGenerator.GetSoftCircleSprite();
+            sr.color = grenadeType switch
+            {
+                GrenadeType.Stun => Color.cyan,
+                GrenadeType.Smoke => Color.gray,
+                _ => new Color(0.2f, 0.6f, 0.2f)
+            };
+            gObj.transform.localScale = Vector3.one * 0.35f;
+        }
 
-        // Set grenade sorting order to -4 when facing right
+        // Ensure Rigidbody2D exists
+        Rigidbody2D rb = gObj.GetComponent<Rigidbody2D>();
+        if (rb == null) rb = gObj.AddComponent<Rigidbody2D>();
+        rb.gravityScale = 0f;
+        rb.drag = 2.5f;
+
+        // Ensure CircleCollider2D exists
+        CircleCollider2D col2d = gObj.GetComponent<CircleCollider2D>();
+        if (col2d == null) col2d = gObj.AddComponent<CircleCollider2D>();
+
+        // Set grenade sorting order
         bool facingRight = playerAiming != null ? (playerAiming.GetAimDirection().x >= 0) : true;
         SpriteRenderer[] srs = gObj.GetComponentsInChildren<SpriteRenderer>(true);
         foreach (var sr in srs)
         {
-            sr.sortingLayerName = "Default";
+            sr.sortingLayerName = "player";
             sr.sortingOrder = facingRight ? -4 : 4;
         }
 
+        // Guarantee a Grenade component is present
         Grenade g = gObj.GetComponent<Grenade>();
-        if (g != null)
+        if (g == null)
         {
-            Collider2D myCollider = GetComponentInParent<Collider2D>();
-            if (myCollider == null) myCollider = GetComponent<Collider2D>();
-            g.Throw(direction, myCollider);
+            g = grenadeType switch
+            {
+                GrenadeType.Stun => gObj.AddComponent<StunGrenade>(),
+                GrenadeType.Smoke => gObj.AddComponent<SmokeGrenade>(),
+                _ => gObj.AddComponent<ExplosiveGrenade>()
+            };
         }
+
+        Collider2D myCollider = GetComponentInParent<Collider2D>();
+        if (myCollider == null) myCollider = GetComponent<Collider2D>();
+        g.Throw(direction, myCollider);
     }
 
 

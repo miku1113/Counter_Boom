@@ -91,9 +91,63 @@ public class BagManager : NetworkBehaviour
             Instance = this;
         }
 
-        // Always start with empty inventory in both Lobby and Game scene (0 guns, 0 grenades, 0 items)
-        ClearInventory();
-        Debug.Log("[BagManager] Initialized empty loadout: 0 Guns, 0 Items, 0 Grenades.");
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName == "GameScene")
+        {
+            ClearInventory();
+            Debug.Log("[BagManager] GameScene initialized: Cleared inventory for match start.");
+        }
+        else
+        {
+            GiveLobbyGrenades();
+            Debug.Log("[BagManager] Lobby initialized: Provided default testing grenades.");
+        }
+
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    public override void OnDestroy()
+    {
+        base.OnDestroy();
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    private void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+    {
+        if (scene.name == "GameScene")
+        {
+            ClearInventory();
+            Debug.Log("[BagManager] Transitioned to GameScene: Cleared inventory & grenades for match start.");
+        }
+        else
+        {
+            GiveLobbyGrenades();
+        }
+    }
+
+    /// <summary>
+    /// Equips testing grenades in the Lobby scene.
+    /// </summary>
+    public void GiveLobbyGrenades()
+    {
+        grenadeInventory[GrenadeType.Explosive] = 3;
+        grenadeInventory[GrenadeType.Stun] = 2;
+        grenadeInventory[GrenadeType.Smoke] = 2;
+        activeGrenadeType = GrenadeType.Explosive;
+
+        OnGrenadeUpdated?.Invoke(GrenadeType.Explosive, 3);
+        OnGrenadeUpdated?.Invoke(GrenadeType.Stun, 2);
+        OnGrenadeUpdated?.Invoke(GrenadeType.Smoke, 2);
+        OnBagUpdated?.Invoke();
+    }
+
+    public void EnsureDefaultGrenades()
+    {
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName != "GameScene")
+        {
+            GiveLobbyGrenades();
+        }
     }
 
     /// <summary>
@@ -269,37 +323,34 @@ public class BagManager : NetworkBehaviour
 
     public GameObject GetActiveGrenadePrefab()
     {
-        Debug.Log($"[BagManager] GetActiveGrenadePrefab called. Active Grenade Type: {activeGrenadeType}");
-        if (allItemData == null || allItemData.Count == 0)
-        {
-            Debug.LogError("[BagManager] allItemData list is empty or null! Please populate it in the Inspector.");
-            return null;
-        }
-
-        var data = allItemData.Find(x => x.itemType == ItemType.Grenade && x.grenadeType == activeGrenadeType);
-        if (data != null)
-        {
-            GameObject result = data.projectilePrefab != null ? data.projectilePrefab : data.prefab;
-            Debug.Log($"[BagManager] Found ItemData '{data.itemName}'. Prefab: {(data.prefab != null ? data.prefab.name : "null")}, ProjectilePrefab: {(data.projectilePrefab != null ? data.projectilePrefab.name : "null")}. Returning: {(result != null ? result.name : "null")}");
-            return result;
-        }
-
-        Debug.LogWarning($"[BagManager] No matching InventoryItemData found for itemType=Grenade and grenadeType={activeGrenadeType} inside allItemData. Current registry contents:");
-        foreach (var item in allItemData)
-        {
-            Debug.Log($" - '{item.itemName}' (Type: {item.itemType}, GrenadeType: {item.grenadeType})");
-        }
-        return null;
+        return GetGrenadePrefabByType(activeGrenadeType);
     }
 
     public GameObject GetGrenadePrefabByType(GrenadeType type)
     {
-        if (allItemData == null) return null;
-        var data = allItemData.Find(x => x.itemType == ItemType.Grenade && x.grenadeType == type);
-        if (data != null)
+        if (allItemData != null && allItemData.Count > 0)
         {
-            return data.projectilePrefab != null ? data.projectilePrefab : data.prefab;
+            var data = allItemData.Find(x => x != null && x.itemType == ItemType.Grenade && x.grenadeType == type);
+            if (data != null)
+            {
+                GameObject result = data.projectilePrefab != null ? data.projectilePrefab : data.prefab;
+                if (result != null) return result;
+            }
         }
+
+        // Fallback: search for prefab by name or load standard grenade prefab
+        string fallbackPrefabName = type switch
+        {
+            GrenadeType.Stun => "stun graned",
+            GrenadeType.Smoke => "smoke graned",
+            _ => "graned"
+        };
+
+        GameObject fallback = Resources.Load<GameObject>($"Weapon/{fallbackPrefabName}");
+        if (fallback == null) fallback = Resources.Load<GameObject>(fallbackPrefabName);
+
+        if (fallback != null) return fallback;
+
         return null;
     }
 

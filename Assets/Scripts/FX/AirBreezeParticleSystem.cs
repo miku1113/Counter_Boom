@@ -65,6 +65,9 @@ public class AirBreezeParticleSystem : MonoBehaviour
             velocity.z = new ParticleSystem.MinMaxCurve(flowDirection.z - 0.1f, flowDirection.z + 0.1f);
         }
 
+        var main = targetParticleSystem.main;
+        main.startSize = startSize;
+
         var emission = targetParticleSystem.emission;
         if (emission.enabled)
         {

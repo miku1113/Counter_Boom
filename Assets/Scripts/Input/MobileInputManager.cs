@@ -48,6 +48,22 @@ public class MobileInputManager : MonoBehaviour
         Debug.Log("[MobileInputManager] Local player references registered successfully.");
     }
 
+    /// <summary>
+    /// Enables or disables mobile joysticks & buttons during story intro cutscene.
+    /// </summary>
+    public void SetControlsActive(bool active)
+    {
+        if (moveJoystick != null) moveJoystick.gameObject.SetActive(active);
+        if (aimJoystick != null) aimJoystick.gameObject.SetActive(active);
+        if (shootButton != null) shootButton.gameObject.SetActive(active);
+        if (reloadButton != null) reloadButton.gameObject.SetActive(active);
+
+        if (playerController != null && !active)
+        {
+            playerController.SetMoveInput(Vector2.zero);
+        }
+    }
+
 
     private void Start()
     {
@@ -190,6 +206,16 @@ public class MobileInputManager : MonoBehaviour
                 );
                 break;
             }
+        }
+
+        // Fallback: Link to singleplayer/local player if IsLocal flag is initializing
+        if (playerController == null && players.Length > 0)
+        {
+            SetLocalPlayer(
+                players[0],
+                players[0].GetComponent<PlayerAiming>(),
+                players[0].GetComponent<WeaponController>()
+            );
         }
     }
 

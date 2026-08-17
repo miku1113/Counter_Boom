@@ -46,9 +46,14 @@ public class CameraController : MonoBehaviour
 
         // Instant snap so there is no lerp from 0,0,0 on first frame
         if (target != null)
+        {
             transform.position = target.position + offset;
-
-        Debug.Log($"[CameraController] Now following: {newTarget.name}");
+            Debug.Log($"[CameraController] Now following: {target.name}");
+        }
+        else
+        {
+            Debug.Log("[CameraController] Target cleared.");
+        }
     }
 
     /// <summary>
@@ -126,6 +131,18 @@ public class CameraController : MonoBehaviour
         }
     }
 
+    private float shakeTimer = 0f;
+    private float shakeMagnitude = 0.2f;
+
+    /// <summary>
+    /// Triggers a screen shake effect for dramatic impact (e.g. explosions, player death).
+    /// </summary>
+    public void TriggerShake(float duration = 0.35f, float magnitude = 0.25f)
+    {
+        shakeTimer = duration;
+        shakeMagnitude = magnitude;
+    }
+
     private void LateUpdate()
     {
         // Auto-find local player target if null (dynamically spawned) and not spectating
@@ -151,7 +168,16 @@ public class CameraController : MonoBehaviour
             smoothedPosition.y = Mathf.Clamp(smoothedPosition.y, minPosition.y, maxPosition.y);
         }
 
-        transform.position = smoothedPosition;
+        // Apply screen shake offset
+        Vector3 shakeOffset = Vector3.zero;
+        if (shakeTimer > 0f)
+        {
+            shakeTimer -= Time.deltaTime;
+            Vector2 randomShake = Random.insideUnitCircle * shakeMagnitude;
+            shakeOffset = new Vector3(randomShake.x, randomShake.y, 0f);
+        }
+
+        transform.position = smoothedPosition + shakeOffset;
     }
 
     private void FindLocalPlayerTarget()

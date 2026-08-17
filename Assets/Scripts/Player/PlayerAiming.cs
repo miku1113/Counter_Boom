@@ -143,7 +143,7 @@ public class PlayerAiming : NetworkBehaviour
             SpriteRenderer[] srs = newWeapon.GetComponentsInChildren<SpriteRenderer>(true);
             foreach (var sr in srs)
             {
-                sr.sortingLayerName = "Default";
+                sr.sortingLayerName = "player";
                 sr.sortingOrder = leftArmSr != null ? leftArmSr.sortingOrder - 1 : 3;
             }
         }
