@@ -91,10 +91,15 @@ public class GameManager : MonoBehaviour
     public GameObject customKeyPrefab;
 
     [Header("Safe Objectives & Manual Placement")]
-    [Tooltip("Manually define a list of Safe objects in the scene/prefabs. Only 1 safe from this list will be chosen & active in game!")]
+    [Tooltip("Drag and drop your Safe Prefab (e.g. safe_fill_0) here in the Inspector!")]
+    public GameObject customSafePrefab;
+    [Tooltip("Alternative alias for Safe Prefab.")]
+    public GameObject safePrefab;
+
+    [Tooltip("Manually define a list of Safe objects in the scene/prefabs.")]
     public List<SafeController> manualSafes = new List<SafeController>();
 
-    [Tooltip("Manually define a list of transform spawn points for the Safe. If manualSafes is empty, 1 safe will be spawned at a random point from this list.")]
+    [Tooltip("Manually define a list of transform spawn points for the Safe. 1 safe prefab will be randomly spawned at one of these points.")]
     public List<Transform> safeSpawnPoints = new List<Transform>();
 
     private void EnsureMatchObjects()
@@ -106,6 +111,10 @@ public class GameManager : MonoBehaviour
 
         if (MatchRoleManager.Instance != null)
         {
+            if (IsServerAuthority())
+            {
+                MatchRoleManager.Instance.ResetMatchState();
+            }
             MatchRoleManager.Instance.debugSingleplayerRole = debugSingleplayerRole;
             if (groundHallTransform != null) MatchRoleManager.Instance.groundHallTransform = groundHallTransform;
             if (mainGateTransform != null) MatchRoleManager.Instance.mainGateTransform = mainGateTransform;
@@ -166,70 +175,166 @@ public class GameManager : MonoBehaviour
             Debug.Log($"[GameManager] Spawned Key 1 at {pos1} and Key 2 at {pos2} in distinct room walk spaces.");
         }
 
-        // ── Safe ("seaf") Selection Logic ───────────────────────────────────────────
-        // Select ONLY 1 Safe from manual list / pre-placed scene safes / spawn points
+        // ── Safe Selection & Spawning Logic ───────────────────────────────────────
+        // Randomly picks 1 Safe Point from safeSpawnPoints or auto-discovered "safe point" GameObjects in scene,
+        // and spawns 1 instance of customSafePrefab (e.g. safe_fill_0) at that safe point.
         if (IsServerAuthority())
         {
-            List<SafeController> candidateSafes = new List<SafeController>();
+            // 0. Destroy any previous match safe clones and reset pre-placed scene safes to Closed
+            SafeController[] existingSceneSafes = FindObjectsOfType<SafeController>(true);
+            foreach (var s in existingSceneSafes)
+            {
+                if (s != null && s.gameObject != null && s.gameObject.scene.name != null)
+                {
+                    if (s.gameObject.name.Contains("Safe_Seaf"))
+                    {
+                        Destroy(s.gameObject);
+                    }
+                    else
+                    {
+                        s.ResetToClosedState();
+                        s.gameObject.SetActive(false);
+                    }
+                }
+            }
 
-            // 1. Check inspector manualSafes list
-            if (manualSafes != null && manualSafes.Count > 0)
+            // 1. Gather all safe spawn points
+            List<Transform> candidateSpawnPoints = new List<Transform>();
+            if (safeSpawnPoints != null && safeSpawnPoints.Count > 0)
+            {
+                foreach (var p in safeSpawnPoints)
+                {
+                    if (p != null && !candidateSpawnPoints.Contains(p)) candidateSpawnPoints.Add(p);
+                }
+            }
+
+            // Auto-discover objects with SafePointMarker or named "safe point" / "safepoint" / tagged "SafePoint"
+            SafePointMarker[] markers = FindObjectsOfType<SafePointMarker>(true);
+            foreach (var m in markers)
+            {
+                if (m != null && m.transform != null && !candidateSpawnPoints.Contains(m.transform))
+                {
+                    candidateSpawnPoints.Add(m.transform);
+                }
+            }
+
+            GameObject[] allGOs = FindObjectsOfType<GameObject>(true);
+            foreach (var go in allGOs)
+            {
+                if (go == null) continue;
+                string lowerName = go.name.ToLower().Trim();
+                if (lowerName == "safe point" || lowerName == "safepoint" || lowerName == "safe_point" || go.CompareTag("SafePoint"))
+                {
+                    if (!candidateSpawnPoints.Contains(go.transform))
+                    {
+                        candidateSpawnPoints.Add(go.transform);
+                    }
+                }
+            }
+
+            // 2. Identify the Safe Prefab to instantiate
+            GameObject prefabToSpawn = customSafePrefab != null ? customSafePrefab : safePrefab;
+            if (prefabToSpawn == null && manualSafes != null && manualSafes.Count > 0)
             {
                 foreach (var s in manualSafes)
                 {
-                    if (s != null && !candidateSafes.Contains(s)) candidateSafes.Add(s);
-                }
-            }
-
-            // 2. Auto-discover all pre-placed SafeController objects in scene (including inactive)
-            SafeController[] sceneSafes = FindObjectsOfType<SafeController>(true);
-            foreach (var s in sceneSafes)
-            {
-                if (s != null && !candidateSafes.Contains(s)) candidateSafes.Add(s);
-            }
-
-            if (candidateSafes.Count > 0)
-            {
-                // Randomly pick ONLY 1 safe to activate and keep in game
-                int chosenIndex = Random.Range(0, candidateSafes.Count);
-                for (int i = 0; i < candidateSafes.Count; i++)
-                {
-                    bool isChosen = (i == chosenIndex);
-                    candidateSafes[i].gameObject.SetActive(isChosen);
-                    if (isChosen)
+                    if (s != null && s.gameObject != null && s.gameObject.scene.name == null)
                     {
-                        Debug.Log($"[GameManager] Picked 1 Safe ('{candidateSafes[i].name}') from list of {candidateSafes.Count} candidate safes in scene.");
+                        prefabToSpawn = s.gameObject;
+                        break;
                     }
                 }
             }
-            else if (safeSpawnPoints != null && safeSpawnPoints.Count > 0)
+            if (prefabToSpawn == null) prefabToSpawn = Resources.Load<GameObject>("safe_fill_0");
+            if (prefabToSpawn == null) prefabToSpawn = Resources.Load<GameObject>("Safe");
+
+            // Deactivate any pre-placed candidate scene safes so only the newly spawned safe is active
+            foreach (var s in existingSceneSafes)
             {
-                List<Transform> validPoints = safeSpawnPoints.FindAll(p => p != null);
-                if (validPoints.Count > 0)
+                if (s != null && s.gameObject != null && s.gameObject.scene.name != null)
                 {
-                    Transform chosenPoint = validPoints[Random.Range(0, validPoints.Count)];
-                    GameObject safeGO = new GameObject("Safe_Seaf", typeof(SafeController));
-                    safeGO.transform.position = chosenPoint.position;
+                    s.gameObject.SetActive(false);
+                }
+            }
+
+            if (candidateSpawnPoints.Count > 0)
+            {
+                // Pick 1 random safe point from the list and force Z depth to 0f
+                Transform chosenPoint = candidateSpawnPoints[Random.Range(0, candidateSpawnPoints.Count)];
+                Vector3 spawnPos = new Vector3(chosenPoint.position.x, chosenPoint.position.y, 0f);
+                GameObject spawnedSafe = null;
+
+                if (prefabToSpawn != null)
+                {
+                    spawnedSafe = Instantiate(prefabToSpawn, spawnPos, chosenPoint.rotation);
+                    spawnedSafe.transform.position = spawnPos;
+                    spawnedSafe.name = "Safe_Seaf";
+                }
+                else
+                {
+                    spawnedSafe = new GameObject("Safe_Seaf", typeof(SafeController));
+                    spawnedSafe.transform.position = spawnPos;
+                }
+
+                if (spawnedSafe != null)
+                {
+                    spawnedSafe.transform.position = spawnPos;
+                    SafeController sc = spawnedSafe.GetComponent<SafeController>();
+                    if (sc == null) sc = spawnedSafe.AddComponent<SafeController>();
+                    sc.ResetToClosedState();
+                    spawnedSafe.SetActive(true);
+
                     if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
                     {
-                        var netObj = safeGO.GetComponent<Unity.Netcode.NetworkObject>();
-                        if (netObj != null) netObj.Spawn(true);
+                        var netObj = spawnedSafe.GetComponent<Unity.Netcode.NetworkObject>();
+                        if (netObj != null && !netObj.IsSpawned) netObj.Spawn(true);
                     }
-                    Debug.Log($"[GameManager] Spawned 1 Safe at manual spawn point '{chosenPoint.name}' ({chosenPoint.position}) from list of {validPoints.Count} points.");
+                    Debug.Log($"[GameManager] Successfully spawned Safe Prefab ('{(prefabToSpawn != null ? prefabToSpawn.name : "Generated")}') at random Safe Point '{chosenPoint.name}' ({chosenPoint.position}) out of {candidateSpawnPoints.Count} points!");
+                }
+            }
+            else if (existingSceneSafes.Length > 0)
+            {
+                // Fallback: Pick 1 random pre-placed safe in scene if no spawn points exist
+                int chosenIndex = Random.Range(0, existingSceneSafes.Length);
+                for (int i = 0; i < existingSceneSafes.Length; i++)
+                {
+                    bool isChosen = (i == chosenIndex);
+                    existingSceneSafes[i].gameObject.SetActive(isChosen);
+                    if (isChosen)
+                    {
+                        Debug.Log($"[GameManager] Fallback: Picked 1 Safe ('{existingSceneSafes[i].name}') from pre-placed scene safes.");
+                    }
                 }
             }
             else
             {
-                // Fallback: spawn 1 safe at a random room position if no manual list or spawn points defined
+                // Fallback: Spawn 1 safe at random room position
                 Vector3 safePos = GetRandomRoomPosition();
-                GameObject safeGO = new GameObject("Safe_Seaf", typeof(SafeController));
-                safeGO.transform.position = safePos;
-                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                GameObject spawnedSafe = null;
+                if (prefabToSpawn != null)
                 {
-                    var netObj = safeGO.GetComponent<Unity.Netcode.NetworkObject>();
-                    if (netObj != null) netObj.Spawn(true);
+                    spawnedSafe = Instantiate(prefabToSpawn, safePos, Quaternion.identity);
+                    spawnedSafe.name = "Safe_Seaf";
                 }
-                Debug.Log($"[GameManager] Fallback: Spawned 1 Safe at random room position {safePos}");
+                else
+                {
+                    spawnedSafe = new GameObject("Safe_Seaf", typeof(SafeController));
+                    spawnedSafe.transform.position = safePos;
+                }
+
+                if (spawnedSafe != null)
+                {
+                    SafeController sc = spawnedSafe.GetComponent<SafeController>();
+                    if (sc == null) sc = spawnedSafe.AddComponent<SafeController>();
+                    spawnedSafe.SetActive(true);
+
+                    if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                    {
+                        var netObj = spawnedSafe.GetComponent<Unity.Netcode.NetworkObject>();
+                        if (netObj != null && !netObj.IsSpawned) netObj.Spawn(true);
+                    }
+                    Debug.Log($"[GameManager] Fallback: Spawned 1 Safe at random room position {safePos}");
+                }
             }
         }
 

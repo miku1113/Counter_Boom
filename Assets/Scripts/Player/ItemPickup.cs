@@ -109,11 +109,20 @@ public class ItemPickup : NetworkBehaviour
             return;
         }
 
-        // Dropped items always require a manual press
+        // Dropped items set NearestPickup for manual UI pickup, and auto-equip weapon if bag has empty slot
         if (wasDropped)
         {
             NearestPickup = this;
-            Debug.Log($"[ItemPickup] '{itemData.itemName}' was dropped — manual pickup required.");
+            if (itemData.itemType == ItemType.Weapon && BagManager.Instance != null && BagManager.Instance.HasEmptyWeaponSlot())
+            {
+                bool autoSuccess = TryAutoPickupWeapon();
+                if (autoSuccess)
+                {
+                    TriggerDespawn();
+                    return;
+                }
+            }
+            Debug.Log($"[ItemPickup] '{itemData.itemName}' was dropped — manual pickup / HUD button available.");
             return;
         }
 

@@ -1157,6 +1157,9 @@ MonoBehaviour:
   playerAiming: {fileID: 5141074792442983171}
   characterAssembler: {fileID: 7424463110344346310}
   grenadePrefab: {fileID: 2575337537052682964, guid: 207734eb0bdf549f5b97b36eacf99e62, type: 3}
+  weaponSlots:
+  - {fileID: 0}
+  - {fileID: 0}
 --- !u!95 &2183239288762129201
 Animator:
   serializedVersion: 5

@@ -18,6 +18,12 @@ public class SafeController : NetworkBehaviour
     public SafeState currentState = SafeState.Closed;
     public bool isUnlocked = false;
 
+    public NetworkVariable<SafeState> netSafeState = new NetworkVariable<SafeState>(
+        SafeState.Closed,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     [Header("Custom Sprites (Drag & Drop in Inspector)")]
     [Tooltip("Sprite for Closed / Locked Safe. If null, procedural sprite is generated.")]
     public Sprite closedSafeSprite;
@@ -50,6 +56,27 @@ public class SafeController : NetworkBehaviour
     private void OnDisable()
     {
         if (Instance == this) Instance = null;
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        netSafeState.OnValueChanged += OnNetSafeStateChanged;
+        if (netSafeState.Value != currentState)
+        {
+            SetSafeState(netSafeState.Value);
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+        netSafeState.OnValueChanged -= OnNetSafeStateChanged;
+    }
+
+    private void OnNetSafeStateChanged(SafeState oldState, SafeState newState)
+    {
+        SetSafeState(newState);
     }
 
     private void Start()
@@ -116,15 +143,79 @@ public class SafeController : NetworkBehaviour
         }
     }
 
+    public void ResetToClosedState()
+    {
+        currentState = SafeState.Closed;
+        isUnlocked = false;
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && IsServer)
+        {
+            if (netSafeState.Value != SafeState.Closed)
+            {
+                netSafeState.Value = SafeState.Closed;
+            }
+        }
+        SetSafeState(SafeState.Closed);
+    }
+
     public void SetSafeState(SafeState newState)
     {
         currentState = newState;
         isUnlocked = (newState != SafeState.Closed);
 
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && IsServer)
+        {
+            if (netSafeState.Value != newState)
+            {
+                netSafeState.Value = newState;
+            }
+        }
+
+        TryAutoLoadSprites();
+
+        Sprite targetSprite = GetSpriteForState(newState);
+
+        // Ensure 2D Z depth position is 0f so it is not clipped behind background geometry
+        if (transform.position.z != 0f)
+        {
+            Vector3 pos = transform.position;
+            pos.z = 0f;
+            transform.position = pos;
+        }
+
         if (safeSpriteRenderer == null) safeSpriteRenderer = GetComponent<SpriteRenderer>();
+        if (safeSpriteRenderer == null) safeSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (safeSpriteRenderer != null)
         {
-            safeSpriteRenderer.sprite = GetSpriteForState(newState);
+            EnsureUnlitMaterial(safeSpriteRenderer);
+            safeSpriteRenderer.sprite = targetSprite;
+            safeSpriteRenderer.enabled = true;
+            safeSpriteRenderer.color = Color.white;
+        }
+
+        SpriteRenderer[] allRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (var sr in allRenderers)
+        {
+            if (sr != null)
+            {
+                EnsureUnlitMaterial(sr);
+                sr.sprite = targetSprite;
+                sr.enabled = true;
+                sr.color = Color.white;
+            }
+        }
+
+        foreach (Transform child in transform)
+        {
+            if (child == null) continue;
+            string cName = child.name.ToLower();
+            if (cName == "safestatuslabel" || cName.Contains("canvas") || cName.Contains("text") || cName.Contains("button")) continue;
+
+            if (cName.Contains("closed") || cName.Contains("lock"))
+                child.gameObject.SetActive(newState == SafeState.Closed);
+            else if (cName.Contains("open_filled") || cName.Contains("filled") || cName.Contains("treasure") || cName.Contains("gold"))
+                child.gameObject.SetActive(newState == SafeState.OpenFilled);
+            else if (cName.Contains("open_empty") || cName.Contains("empty"))
+                child.gameObject.SetActive(newState == SafeState.OpenEmpty);
         }
 
         if (statusLabel != null)
@@ -135,10 +226,10 @@ public class SafeController : NetworkBehaviour
                     statusLabel.text = "<color=gold>🔒 SAFE (LOCKED)\n🔑 NEEDS SAFE KEY</color>";
                     break;
                 case SafeState.OpenFilled:
-                    statusLabel.text = "<color=yellow>🔓 SAFE OPENED!\n💎 TREASURE INSIDE</color>";
+                    statusLabel.text = "<color=yellow>🔓 SAFE OPENED!\n💰 GOLD & TREASURE INSIDE</color>";
                     break;
                 case SafeState.OpenEmpty:
-                    statusLabel.text = "<color=green>🔓 SAFE OPENED (EMPTY)\n💎 TREASURE STOLEN!</color>";
+                    statusLabel.text = "<color=green>🔓 SAFE EMPTY\n💰 GOLD & TREASURE COLLECTED!</color>";
                     break;
             }
         }
@@ -149,8 +240,53 @@ public class SafeController : NetworkBehaviour
         }
     }
 
+    private void EnsureUnlitMaterial(SpriteRenderer sr)
+    {
+        if (sr == null) return;
+        if (sr.sharedMaterial == null || sr.sharedMaterial.name.Contains("Lit") || (sr.sharedMaterial.shader != null && sr.sharedMaterial.shader.name.Contains("Lit")))
+        {
+            Shader unlitShader = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default");
+            if (unlitShader == null) unlitShader = Shader.Find("Sprites/Default");
+            if (unlitShader != null)
+            {
+                sr.material = new Material(unlitShader);
+            }
+        }
+    }
+
+    private void TryAutoLoadSprites()
+    {
+        if (closedSafeSprite != null && openFilledSafeSprite != null && openEmptySafeSprite != null) return;
+
+        Sprite[] allSprites = Resources.LoadAll<Sprite>("safe (1) (1)");
+        if (allSprites == null || allSprites.Length == 0)
+        {
+            allSprites = Resources.LoadAll<Sprite>("Art/map/building/safe (1) (1)");
+        }
+
+        if (allSprites != null && allSprites.Length >= 3)
+        {
+            foreach (var spr in allSprites)
+            {
+                if (spr == null) continue;
+                string sName = spr.name.ToLower();
+                if (closedSafeSprite == null && (sName.EndsWith("_1") || sName.Contains("closed")))
+                    closedSafeSprite = spr;
+                else if (openFilledSafeSprite == null && (sName.EndsWith("_2") || sName.Contains("filled")))
+                    openFilledSafeSprite = spr;
+                else if (openEmptySafeSprite == null && (sName.EndsWith("_0") || sName.Contains("empty")))
+                    openEmptySafeSprite = spr;
+            }
+
+            if (closedSafeSprite == null) closedSafeSprite = allSprites[1];
+            if (openFilledSafeSprite == null) openFilledSafeSprite = allSprites[2];
+            if (openEmptySafeSprite == null) openEmptySafeSprite = allSprites[0];
+        }
+    }
+
     private Sprite GetSpriteForState(SafeState state)
     {
+        TryAutoLoadSprites();
         switch (state)
         {
             case SafeState.Closed:
@@ -167,6 +303,7 @@ public class SafeController : NetworkBehaviour
     private void EnsureSafeComponents()
     {
         safeSpriteRenderer = GetComponent<SpriteRenderer>();
+        if (safeSpriteRenderer == null) safeSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (safeSpriteRenderer == null) safeSpriteRenderer = gameObject.AddComponent<SpriteRenderer>();
         safeSpriteRenderer.sprite = GetSpriteForState(currentState);
         safeSpriteRenderer.sortingOrder = 50;
@@ -376,7 +513,7 @@ public class SafeController : NetworkBehaviour
                 buttonGO.transform.SetAsLastSibling();
                 if (buttonLabel != null)
                 {
-                    buttonLabel.text = (currentState == SafeState.Closed) ? "OPEN SAFE" : "STEAL TREASURE";
+                    buttonLabel.text = (currentState == SafeState.Closed) ? "OPEN SAFE" : "COLLECT GOLD";
                 }
             }
             buttonGO.SetActive(show);
@@ -433,7 +570,7 @@ public class SafeController : NetworkBehaviour
                 return;
             }
 
-            // Step 1: Open the Safe (Closed -> OpenFilled)
+            // Step 1: Open the Safe (Closed -> OpenFilled: Gold & Treasure visible inside!)
             if (MatchRoleManager.Instance != null)
             {
                 if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || IsServer)
@@ -445,24 +582,25 @@ public class SafeController : NetworkBehaviour
             SetSafeState(SafeState.OpenFilled);
 
             if (HUDManager.Instance != null)
-                HUDManager.Instance.ShowNotification("<color=yellow>🔓 SAFE UNLOCKED & OPENED! Press button again to Steal Treasure!</color>");
+                HUDManager.Instance.ShowNotification("<color=yellow>🔓 SAFE OPENED! Press 'COLLECT GOLD' to collect Gold & Treasure!</color>");
 
             SetButtonVisible(true);
         }
         else if (currentState == SafeState.OpenFilled)
         {
-            // Step 2: Steal the Treasure (OpenFilled -> OpenEmpty)
-            StealTreasure(thiefPlayer);
+            // Step 2: Collect Gold & Treasure (OpenFilled -> OpenEmpty: Empty safe!)
+            CollectGoldAndTreasure(thiefPlayer);
         }
     }
 
-    private void StealTreasure(PlayerController thiefPlayer)
+    private void CollectGoldAndTreasure(PlayerController thiefPlayer)
     {
         if (currentState == SafeState.OpenEmpty) return;
 
+        // Transition safe state to empty now that gold is collected
         SetSafeState(SafeState.OpenEmpty);
 
-        Debug.Log($"[SafeController] Safe unlocked and Treasure stolen by Thief '{thiefPlayer.playerName.Value}'!");
+        Debug.Log($"[SafeController] Gold & Treasure collected by Thief '{thiefPlayer.playerName.Value}'! Safe is now empty.");
 
         if (MatchRoleManager.Instance != null)
         {
@@ -476,12 +614,12 @@ public class SafeController : NetworkBehaviour
             }
         }
 
-        // Trigger golden blast FX at Safe position
+        // Trigger golden particle explosion FX at Safe position upon collecting gold
         ProceduralEffectsGenerator.CreateStunBlast(transform.position, 4f);
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowNotification("<color=gold>💎 TREASURE STOLEN! Collect exit keys to unlock Main Gate & Escape!</color>");
+            HUDManager.Instance.ShowNotification("<color=gold>💰 GOLD & TREASURE COLLECTED! Find exit keys to unlock Main Gate & Escape!</color>");
         }
 
         SetButtonVisible(false);

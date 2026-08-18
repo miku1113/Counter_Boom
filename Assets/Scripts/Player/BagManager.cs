@@ -541,6 +541,36 @@ public class BagManager : NetworkBehaviour
     }
 
 
+    public bool HasEmptyWeaponSlot()
+    {
+        var wc = WC;
+        if (wc == null) return false;
+        for (int i = 0; i < 2; i++)
+        {
+            if (GetWeaponInSlot(i) == null) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Drops all equipped weapons onto the ground when the player dies.
+    /// </summary>
+    public void DropAllWeaponsOnDeath()
+    {
+        var wc = WC;
+        if (wc != null && wc.weaponSlots != null)
+        {
+            for (int i = wc.weaponSlots.Length - 1; i >= 0; i--)
+            {
+                HandheldWeapon weapon = wc.weaponSlots[i];
+                if (weapon != null && weapon.itemData != null)
+                {
+                    DropWeapon(i);
+                }
+            }
+        }
+    }
+
     public void DropWeapon(int slotIndex)
     {
         HandheldWeapon weapon = GetWeaponInSlot(slotIndex);

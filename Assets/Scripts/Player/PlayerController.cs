@@ -158,27 +158,33 @@ public class PlayerController : NetworkBehaviour
         {
             GameObject tagGO = new GameObject("OverheadNameTag");
             tagGO.transform.SetParent(transform, false);
-            tagGO.transform.localPosition = new Vector3(0f, 0.55f, 0f);
+            tagTrans = tagGO.transform;
+        }
 
-            nameTagTMP = tagGO.AddComponent<TextMeshPro>();
-            nameTagTMP.fontSize = nameTagFontSize;
-            nameTagTMP.fontStyle = FontStyles.Bold;
-            nameTagTMP.alignment = TextAlignmentOptions.Center;
-            // Bright yellow outline-style: visible against any skin or background
-            nameTagTMP.color = new Color(1f, 0.95f, 0.3f, 1f);
-            nameTagTMP.outlineWidth = 0.15f;
-            nameTagTMP.outlineColor = new Color32(0, 0, 0, 200);
-            nameTagTMP.sortingOrder = 200; // Well above all character sprite renderers
-        }
-        else
+        // Lift position above the player's head and helmet (Y = 1.45f, Z = -0.5f)
+        tagTrans.localPosition = new Vector3(0f, 1.45f, -0.5f);
+        tagTrans.localRotation = Quaternion.identity;
+
+        nameTagTMP = tagTrans.GetComponent<TextMeshPro>();
+        if (nameTagTMP == null)
         {
-            nameTagTMP = tagTrans.GetComponent<TextMeshPro>();
+            nameTagTMP = tagTrans.gameObject.AddComponent<TextMeshPro>();
         }
+
+        float targetFontSize = (nameTagFontSize > 0f) ? nameTagFontSize : 3.5f;
+        nameTagTMP.fontSize = targetFontSize;
+        nameTagTMP.fontStyle = FontStyles.Bold;
+        nameTagTMP.alignment = TextAlignmentOptions.Center;
+        // Bright yellow outline-style: visible above all character sprites and backgrounds
+        nameTagTMP.color = new Color(1f, 0.95f, 0.3f, 1f);
+        nameTagTMP.outlineWidth = 0.2f;
+        nameTagTMP.outlineColor = new Color32(0, 0, 0, 255);
+        nameTagTMP.sortingOrder = 1000; // Well above all character sprite renderers, weapons, and tilemaps
     }
 
     public void UpdateNameTag(string nameText)
     {
-        if (nameTagTMP == null) EnsureNameTag();
+        EnsureNameTag();
         // Skip empty names — keep previous text until real name arrives via OnValueChanged
         if (string.IsNullOrEmpty(nameText)) return;
         if (nameTagTMP != null)

@@ -19076,7 +19076,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93c562974eee540f994db40bf3b191e1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  roomDisplayName: third floor
+  roomDisplayName: second floor
   linkedDoor: {fileID: 200245372}
   exitBoxCollider: {fileID: 337213572}
   exitPromptText: Exit
@@ -53034,6 +53034,8 @@ MonoBehaviour:
   - {fileID: 677984948}
   debugSingleplayerRole: 0
   customKeyPrefab: {fileID: 4419501632113940496, guid: 88cba6ae7792047c0998d145b5255b08, type: 3}
+  customSafePrefab: {fileID: 0}
+  safePrefab: {fileID: 0}
   manualSafes:
   - {fileID: 999695006976259057, guid: a31924023e9704073975a62092589e17, type: 3}
   safeSpawnPoints:
@@ -58471,7 +58473,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93c562974eee540f994db40bf3b191e1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  roomDisplayName: second floor
+  roomDisplayName: first floor
   linkedDoor: {fileID: 677984946}
   exitBoxCollider: {fileID: 971947851}
   exitPromptText: Exit

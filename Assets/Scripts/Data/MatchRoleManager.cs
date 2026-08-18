@@ -115,12 +115,34 @@ public class MatchRoleManager : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// Resets all match quest network variables, keys, safe states, and roles for a new match.
+    /// </summary>
+    public void ResetMatchState()
+    {
+        if (IsServerAuthority())
+        {
+            KeysCollected.Value = 0;
+            SafeKeyHolderClientId.Value = 999999;
+            SafeKeyCollectedByThief.Value = false;
+            IsSafeOpened.Value = false;
+            TreasureStolen.Value = false;
+            assignedRoles.Clear();
+            Debug.Log("[MatchRoleManager] Successfully reset all match quest state and network variables for a new game!");
+        }
+    }
+
+    private bool IsServerAuthority()
+    {
+        return NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || IsServer;
+    }
+
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
         if (IsServer)
         {
-            KeysCollected.Value = 0;
+            ResetMatchState();
             AssignRolesForConnectedPlayers();
         }
     }
@@ -131,6 +153,9 @@ public class MatchRoleManager : NetworkBehaviour
     /// </summary>
     public void AssignRolesForConnectedPlayers()
     {
+        // Reset match quest network variables prior to assigning roles
+        ResetMatchState();
+
         // If Netcode server is running, only server assigns. If offline/singleplayer, allow local assignment!
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && !IsServer)
         {

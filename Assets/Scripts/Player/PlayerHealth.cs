@@ -172,6 +172,42 @@ public class PlayerHealth : NetworkBehaviour
             MatchRoleManager.Instance.HandleSafeKeyHolderDeath(transform.position);
         }
 
+        // Drop all equipped weapons on the ground for other players to pick up!
+        var bagManager = GetComponent<BagManager>();
+        if (bagManager == null) bagManager = GetComponentInChildren<BagManager>();
+        if (bagManager != null)
+        {
+            bagManager.DropAllWeaponsOnDeath();
+        }
+        else
+        {
+            var wc = GetComponent<WeaponController>();
+            if (wc == null) wc = GetComponentInChildren<WeaponController>();
+            if (wc != null && wc.weaponSlots != null)
+            {
+                for (int i = 0; i < wc.weaponSlots.Length; i++)
+                {
+                    var weapon = wc.weaponSlots[i];
+                    if (weapon != null && weapon.itemData != null && weapon.itemData.prefab != null)
+                    {
+                        Vector3 dropPos = transform.position + new Vector3(UnityEngine.Random.Range(-0.6f, 0.6f), UnityEngine.Random.Range(-0.6f, 0.6f), 0f);
+                        GameObject pickupObj = Instantiate(weapon.itemData.prefab, dropPos, Quaternion.identity);
+                        var pickup = pickupObj.GetComponent<ItemPickup>();
+                        if (pickup == null) pickup = pickupObj.AddComponent<ItemPickup>();
+                        pickup.itemData = weapon.itemData;
+                        pickup.amount = 1;
+                        pickup.wasDropped = true;
+
+                        var netObj = pickupObj.GetComponent<Unity.Netcode.NetworkObject>();
+                        if (netObj != null && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                        {
+                            netObj.Spawn(true);
+                        }
+                    }
+                }
+            }
+        }
+
         // 1. Disable combat components (aiming & weapons)
         var playerAim = GetComponent<PlayerAiming>();
         if (playerAim != null) playerAim.enabled = false;

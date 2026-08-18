@@ -17,7 +17,7 @@ public class WeaponController : NetworkBehaviour
     [SerializeField] private GameObject grenadePrefab;
 
     // ─── Runtime state ───────────────────────────────────────────────────────
-    private HandheldWeapon[] weaponSlots = new HandheldWeapon[2];
+    public HandheldWeapon[] weaponSlots = new HandheldWeapon[2];
     private int currentSlot = 0;
 
     private HandheldWeapon CurrentWeapon => weaponSlots[currentSlot];
