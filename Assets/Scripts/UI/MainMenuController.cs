@@ -60,10 +60,16 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private Button hostButton; // Repurposed as "Quick Play" to preserve editor serialization
     [SerializeField] private Button joinButton; // Repurposed as "Manual Join" to preserve editor serialization
     [SerializeField] private Button generateCodeButton; // "Generate Code" button
+    [SerializeField] private Button offlineModeButton; // "Offline Bot Mode" button
     [SerializeField] private TMP_InputField joinCodeInputField; // Repurposed to preserve editor serialization
     [SerializeField] private TextMeshProUGUI generatedCodeText; // Displays code if host
     [SerializeField] private TextMeshProUGUI playStatusText;
     [SerializeField] private Button playBackButton;
+
+    [Header("Audio Settings")]
+    [Tooltip("Sound effect played automatically when any UI button is clicked")]
+    [SerializeField] private AudioClip buttonClickSFX;
+    [SerializeField] private AudioSource audioSource;
 
     // State Variables
     private CharacterSkinData[] skins;
@@ -71,6 +77,7 @@ public class MainMenuController : MonoBehaviour
     private int shopSelectedIndex = 0;
     private int coins = 1000;
     private GameObject previewPlayerInstance;
+    private readonly HashSet<Button> registeredButtons = new HashSet<Button>();
 
     public static MainMenuController Instance { get; private set; }
 
@@ -182,11 +189,17 @@ public class MainMenuController : MonoBehaviour
         }
         if (generateCodeButton != null) generateCodeButton.onClick.AddListener(OnGenerateCodeClicked);
 
+        // Ensure Offline Mode button on Play Panel
+        EnsureOfflineModeButton();
+
         // 5. Initial Display Selection
         cabinetSelectedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
         shopSelectedIndex = 0;
 
-        // 6. Direct to Name Entry or Main Panel based on if player name has been explicitly set
+        // 6. Auto-register button click sound listeners across all UI buttons in scene
+        RegisterButtonClickSounds();
+
+        // 7. Direct to Name Entry or Main Panel based on if player name has been explicitly set
         int nameHasBeenSet = PlayerPrefs.GetInt("PlayerNameHasBeenSet", 0);
         if (nameHasBeenSet == 1 && !string.IsNullOrEmpty(PlayerPrefs.GetString("PlayerName", "")))
         {
@@ -296,6 +309,39 @@ public class MainMenuController : MonoBehaviour
             UpdatePlayStatus("Ready to search or host lobby");
             if (generatedCodeText != null) generatedCodeText.text = "JOIN CODE: -";
             SetPlayInputInteractable(true);
+        }
+
+        // Re-scan for any newly activated or instantiated UI buttons
+        RegisterButtonClickSounds();
+    }
+
+    public void PlayButtonClickSFX()
+    {
+        if (buttonClickSFX == null) return;
+
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+                audioSource.playOnAwake = false;
+            }
+        }
+
+        audioSource.PlayOneShot(buttonClickSFX);
+    }
+
+    public void RegisterButtonClickSounds()
+    {
+        Button[] allButtons = FindObjectsOfType<Button>(true);
+        foreach (Button btn in allButtons)
+        {
+            if (btn != null && !registeredButtons.Contains(btn))
+            {
+                btn.onClick.AddListener(PlayButtonClickSFX);
+                registeredButtons.Add(btn);
+            }
         }
     }
 
@@ -957,6 +1003,77 @@ public class MainMenuController : MonoBehaviour
         UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
     }
 
+    private void OnOfflineModeClicked()
+    {
+        CleanupPreviewPlayer();
+        Debug.Log("[MainMenu] Launching Offline Singleplayer Mode through Loading Scene...");
+        LoadingGameController.TargetMode = LoadingGameController.MatchMode.OfflineMode;
+        UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
+    }
+
+    private void EnsureOfflineModeButton()
+    {
+        if (offlineModeButton == null && playPanel != null)
+        {
+            foreach (var btn in playPanel.GetComponentsInChildren<Button>(true))
+            {
+                string n = btn.gameObject.name.ToLower();
+                if (n.Contains("offline") || n.Contains("single") || n.Contains("bot"))
+                {
+                    offlineModeButton = btn;
+                    break;
+                }
+                var tmp = btn.GetComponentInChildren<TMP_Text>();
+                if (tmp != null && (tmp.text.ToLower().Contains("offline") || tmp.text.ToLower().Contains("single") || tmp.text.ToLower().Contains("bot")))
+                {
+                    offlineModeButton = btn;
+                    break;
+                }
+            }
+
+            if (offlineModeButton == null)
+            {
+                // Auto-create a sleek "OFFLINE BOT MODE" button inside playPanel
+                GameObject btnGO = new GameObject("OfflineModeButton", typeof(RectTransform), typeof(Image), typeof(Button));
+                btnGO.transform.SetParent(playPanel.transform, false);
+
+                RectTransform rt = btnGO.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.5f, 0.5f);
+                rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(340f, 48f);
+                rt.anchoredPosition = new Vector2(0f, -150f);
+
+                Image img = btnGO.GetComponent<Image>();
+                img.color = new Color(0.16f, 0.58f, 0.35f, 1f); // Vibrant Emerald Green
+
+                Outline outline = btnGO.AddComponent<Outline>();
+                outline.effectColor = new Color(0.3f, 0.9f, 0.5f, 0.85f);
+                outline.effectDistance = new Vector2(2f, -2f);
+
+                GameObject txtGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+                txtGO.transform.SetParent(btnGO.transform, false);
+                RectTransform txtRt = txtGO.GetComponent<RectTransform>();
+                txtRt.anchorMin = Vector2.zero; txtRt.anchorMax = Vector2.one; txtRt.sizeDelta = Vector2.zero;
+
+                TextMeshProUGUI tmp = txtGO.GetComponent<TextMeshProUGUI>();
+                tmp.text = "🎮 OFFLINE MODE (VS BOTS)";
+                tmp.fontSize = 18;
+                tmp.fontStyle = FontStyles.Bold;
+                tmp.alignment = TextAlignmentOptions.Center;
+                tmp.color = Color.white;
+
+                offlineModeButton = btnGO.GetComponent<Button>();
+            }
+        }
+
+        if (offlineModeButton != null)
+        {
+            offlineModeButton.onClick.RemoveListener(OnOfflineModeClicked);
+            offlineModeButton.onClick.AddListener(OnOfflineModeClicked);
+        }
+    }
+
     private void UpdatePlayStatus(string message)
     {
         if (playStatusText != null)
@@ -971,6 +1088,7 @@ public class MainMenuController : MonoBehaviour
         if (hostButton != null) hostButton.interactable = state;
         if (joinButton != null) joinButton.interactable = state;
         if (generateCodeButton != null) generateCodeButton.interactable = state;
+        if (offlineModeButton != null) offlineModeButton.interactable = state;
         if (joinCodeInputField != null) joinCodeInputField.interactable = state;
     }
     #endregion

@@ -121,6 +121,8 @@ MonoBehaviour:
   fireEffectLifetime: 0.5
   burstCount: 3
   burstShotInterval: 0.1
+  shootSound: {fileID: 8300000, guid: 2bd636bf7833e4e7bb1a45a8a30c45aa, type: 3}
+  reloadSound: {fileID: 8300000, guid: 17664df6ca10d42c8be0a6578c0149c8, type: 3}
   shakeAmount: 0.05
   shakeDuration: 0.1
   equipDuration: 0.25

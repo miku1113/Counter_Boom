@@ -164,7 +164,9 @@ MonoBehaviour:
   fuseTime: 1.5
   explosionRadius: 5
   throwForce: 10
+  damage: 50
   explosionEffect: {fileID: 0}
+  explosionSound: {fileID: 8300000, guid: 3948ec9844e42463290c08bba3275ce4, type: 3}
   rb: {fileID: 1889726186788058745}
   speedMultiplier: 0.2
   stunDuration: 10

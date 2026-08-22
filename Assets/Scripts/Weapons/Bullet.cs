@@ -94,7 +94,8 @@ public class Bullet : MonoBehaviour
         }
 
         // Secondary check: destroy on environment colliders
-        if (collision.gameObject.layer == LayerMask.NameToLayer("Default"))
+        int layer = collision.gameObject.layer;
+        if (layer == LayerMask.NameToLayer("Default") || layer == LayerMask.NameToLayer("Obstacle") || layer == LayerMask.NameToLayer("Wall"))
         {
             if (!collision.isTrigger)
                 Destroy(gameObject);

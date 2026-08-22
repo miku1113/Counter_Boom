@@ -164,7 +164,9 @@ MonoBehaviour:
   fuseTime: 1.5
   explosionRadius: 5
   throwForce: 10
+  damage: 50
   explosionEffect: {fileID: 0}
+  explosionSound: {fileID: 8300000, guid: 682c46fc236d54918b77beaa0f6b6215, type: 3}
   rb: {fileID: 1889726186788058745}
   smokeCloudPrefab: {fileID: 6477368759466371496, guid: 720a4a3fa9eb54578abef273764a6a70, type: 3}
   smokeLifetime: 10

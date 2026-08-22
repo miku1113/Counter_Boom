@@ -19,7 +19,8 @@ public static class EnsureScenesInBuildSettings
             "Assets/Scenes/MainMenuScene.unity",
             "Assets/Scenes/LoadingGame.unity",
             "Assets/Scenes/CustomLobby.unity",
-            "Assets/Scenes/GameScene.unity"
+            "Assets/Scenes/GameScene.unity",
+            "Assets/Scenes/OfflineMode.unity"
         };
 
         List<EditorBuildSettingsScene> buildScenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);

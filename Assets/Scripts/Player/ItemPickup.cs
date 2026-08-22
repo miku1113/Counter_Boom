@@ -6,6 +6,17 @@ public class ItemPickup : NetworkBehaviour
     public InventoryItemData itemData;
     public int  amount     = 1;
     public bool wasDropped = false;
+    private float dropCooldown = 0.5f;
+    private float spawnTime = 0f;
+
+    private void Awake()
+    {
+        spawnTime = Time.time;
+    }
+
+    [Header("Audio Clips")]
+    public AudioClip pickupSound;
+    public AudioClip dropSound;
 
     private readonly NetworkVariable<int> netAmount = new NetworkVariable<int>(
         1,
@@ -82,24 +93,41 @@ public class ItemPickup : NetworkBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (!other.CompareTag("Player")) return;
+        bool isPlayer = other.CompareTag("Player");
+        bool isBot = other.CompareTag("Bot") || other.GetComponent<AiBotController>() != null;
 
-        // Ghosts & dead players cannot pick up items
-        var playerHealth = other.GetComponent<PlayerHealth>();
-        if (playerHealth == null) playerHealth = other.GetComponentInParent<PlayerHealth>();
+        if (!isPlayer && !isBot) return;
+
+        // Ghosts & dead entities cannot pick up items
+        var playerHealth = other.GetComponent<PlayerHealth>() ?? other.GetComponentInParent<PlayerHealth>();
         if (playerHealth != null && playerHealth.IsDead) return;
 
-        var playerCtrl = other.GetComponent<PlayerController>();
-        if (playerCtrl == null) playerCtrl = other.GetComponentInParent<PlayerController>();
+        var playerCtrl = other.GetComponent<PlayerController>() ?? other.GetComponentInParent<PlayerController>();
         if (playerCtrl != null && playerCtrl.IsGhost) return;
 
-        var netObj = other.GetComponent<NetworkObject>();
-        if (netObj != null && !netObj.IsLocalPlayer) return;
-
-        if (!PickupsInRange.Contains(this))
+        // For Human Player: check isLocal
+        if (isPlayer)
         {
-            PickupsInRange.Add(this);
-            Debug.Log($"[ItemPickup] Player entered range of '{itemData?.itemName}'. Total in range: {PickupsInRange.Count}");
+            bool isLocal = true;
+            if (playerCtrl != null)
+            {
+                isLocal = playerCtrl.IsLocal;
+            }
+            else
+            {
+                var netObj = other.GetComponent<NetworkObject>();
+                if (netObj != null && netObj.IsSpawned && NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+                {
+                    isLocal = netObj.IsLocalPlayer || netObj.IsOwner;
+                }
+            }
+            if (!isLocal) return;
+
+            if (!PickupsInRange.Contains(this))
+            {
+                PickupsInRange.Add(this);
+                Debug.Log($"[ItemPickup] Player entered range of '{itemData?.itemName}'. Total in range: {PickupsInRange.Count}");
+            }
         }
 
         if (itemData == null)
@@ -109,20 +137,14 @@ public class ItemPickup : NetworkBehaviour
             return;
         }
 
-        // Dropped items set NearestPickup for manual UI pickup, and auto-equip weapon if bag has empty slot
-        if (wasDropped)
+        // Retrieve the collecting entity's BagManager and WeaponController
+        BagManager collectorBag = isPlayer ? BagManager.Instance : (other.GetComponent<BagManager>() ?? other.GetComponentInParent<BagManager>());
+        WeaponController collectorWc = isPlayer ? WeaponController.Instance : (other.GetComponent<WeaponController>() ?? other.GetComponentInParent<WeaponController>());
+
+        // If dropped less than 0.5s ago, prevent instant auto-vacuum on the drop frame
+        if (wasDropped && isPlayer && (Time.time - spawnTime < dropCooldown))
         {
             NearestPickup = this;
-            if (itemData.itemType == ItemType.Weapon && BagManager.Instance != null && BagManager.Instance.HasEmptyWeaponSlot())
-            {
-                bool autoSuccess = TryAutoPickupWeapon();
-                if (autoSuccess)
-                {
-                    TriggerDespawn();
-                    return;
-                }
-            }
-            Debug.Log($"[ItemPickup] '{itemData.itemName}' was dropped — manual pickup / HUD button available.");
             return;
         }
 
@@ -130,32 +152,49 @@ public class ItemPickup : NetworkBehaviour
         switch (itemData.itemType)
         {
             case ItemType.Weapon:
-                success = TryAutoPickupWeapon();
+                if (isBot)
+                {
+                    if (collectorWc != null && itemData.prefab != null)
+                    {
+                        int slot = collectorWc.GetWeaponInSlot(0) == null ? 0 : (collectorWc.GetWeaponInSlot(1) == null ? 1 : 0);
+                        collectorWc.EquipWeaponToSlot(slot, itemData.prefab);
+                        collectorWc.SwitchToSlot(slot);
+                        if (collectorBag != null)
+                        {
+                            collectorBag.AddAmmo(itemData.ammoType, 90, 0);
+                        }
+                        success = true;
+                    }
+                }
+                else
+                {
+                    success = TryAutoPickupWeapon(collectorBag);
+                }
                 break;
 
             case ItemType.Ammo:
-                if (BagManager.Instance != null)
-                    success = BagManager.Instance.AddAmmo(itemData.ammoType, amount, itemData.weight * amount);
+                if (collectorBag != null)
+                    success = collectorBag.AddAmmo(itemData.ammoType, amount, itemData.weight * amount);
                 break;
 
             case ItemType.Grenade:
-                if (BagManager.Instance != null)
-                    success = BagManager.Instance.AddGrenade(itemData.grenadeType, amount, itemData.weight * amount);
+                if (collectorBag != null)
+                    success = collectorBag.AddGrenade(itemData.grenadeType, amount, itemData.weight * amount);
                 break;
 
             case ItemType.Medikit:
-                if (BagManager.Instance != null)
-                    success = BagManager.Instance.AddMedikit(amount, itemData.weight * amount);
+                if (collectorBag != null)
+                    success = collectorBag.AddMedikit(amount, itemData.weight * amount);
                 break;
 
             case ItemType.ProteinShake:
-                if (BagManager.Instance != null)
-                    success = BagManager.Instance.AddProteinShake(amount, itemData.weight * amount);
+                if (collectorBag != null)
+                    success = collectorBag.AddProteinShake(amount, itemData.weight * amount);
                 break;
 
             case ItemType.Scope:
-                if (BagManager.Instance != null)
-                    success = BagManager.Instance.AddScope(amount, itemData.weight * amount);
+                if (collectorBag != null)
+                    success = collectorBag.AddScope(amount, itemData.weight * amount);
                 break;
         }
 
@@ -165,7 +204,7 @@ public class ItemPickup : NetworkBehaviour
         }
     }
 
-    private bool TryAutoPickupWeapon()
+    private bool TryAutoPickupWeapon(BagManager targetBag = null)
     {
         Debug.Log($"[ItemPickup] Attempting to auto-pickup weapon: {itemData.itemName}");
 
@@ -176,13 +215,15 @@ public class ItemPickup : NetworkBehaviour
             return false;
         }
 
-        if (BagManager.Instance == null)
+        if (targetBag == null) targetBag = BagManager.Instance;
+
+        if (targetBag == null)
         {
-            Debug.LogError("[ItemPickup] BagManager.Instance is null — cannot pick up weapon.");
+            Debug.LogError("[ItemPickup] BagManager is null — cannot pick up weapon.");
             return false;
         }
 
-        bool added = BagManager.Instance.TryAddWeapon(itemData.prefab, itemData);
+        bool added = targetBag.TryAddWeapon(itemData.prefab, itemData);
         if (added)
         {
             Debug.Log($"[ItemPickup] ✅ Auto-equipped '{itemData.itemName}'.");
@@ -201,8 +242,23 @@ public class ItemPickup : NetworkBehaviour
     {
         if (!other.CompareTag("Player")) return;
 
-        var netObj = other.GetComponent<NetworkObject>();
-        if (netObj != null && !netObj.IsLocalPlayer) return;
+        var playerCtrl = other.GetComponent<PlayerController>();
+        if (playerCtrl == null) playerCtrl = other.GetComponentInParent<PlayerController>();
+
+        bool isLocal = true;
+        if (playerCtrl != null)
+        {
+            isLocal = playerCtrl.IsLocal;
+        }
+        else
+        {
+            var netObj = other.GetComponent<NetworkObject>();
+            if (netObj != null && netObj.IsSpawned && NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            {
+                isLocal = netObj.IsLocalPlayer || netObj.IsOwner;
+            }
+        }
+        if (!isLocal) return;
         
         if (PickupsInRange.Contains(this))
         {
@@ -309,8 +365,19 @@ public class ItemPickup : NetworkBehaviour
         }
     }
 
+    public void PlayPickupAudio()
+    {
+        AudioClip clipToPlay = pickupSound != null ? pickupSound : (itemData != null ? itemData.pickupSound : null);
+        if (PlayerController.LocalPlayer != null)
+        {
+            PlayerController.LocalPlayer.PlayPickupSound(clipToPlay);
+        }
+    }
+
     public void TriggerDespawn()
     {
+        PlayPickupAudio();
+
         if (PickupsInRange.Contains(this))
             PickupsInRange.Remove(this);
         if (NearestPickup == this)

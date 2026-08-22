@@ -14,6 +14,7 @@ public class CameraController : MonoBehaviour
     [SerializeField] private Vector2 maxPosition;
 
     private Transform target;
+    private Rigidbody2D targetRb;
     private Camera cam;                     // Cached — no GetComponent per frame
 
     private float defaultOrthoSize;
@@ -22,9 +23,14 @@ public class CameraController : MonoBehaviour
     private void Awake()
     {
         if (Instance == null)
+        {
             Instance = this;
-        else
-            Destroy(gameObject);
+        }
+        else if (Instance != this)
+        {
+            Destroy(this);
+            return;
+        }
     }
 
     private void Start()
@@ -35,6 +41,12 @@ public class CameraController : MonoBehaviour
             defaultOrthoSize = cam.orthographicSize;
             targetOrthoSize  = defaultOrthoSize;
         }
+
+        // Auto-find player if not already assigned
+        if (target == null)
+        {
+            FindLocalPlayerTarget();
+        }
     }
 
     /// <summary>
@@ -42,13 +54,28 @@ public class CameraController : MonoBehaviour
     /// </summary>
     public void SetTarget(Transform newTarget)
     {
-        target = newTarget;
+        if (newTarget != null && !IsSpectating)
+        {
+            if (newTarget.CompareTag("Bot") || newTarget.GetComponent<AiBotController>() != null || newTarget.name.ToLower().Contains("bot"))
+            {
+                return;
+            }
+        }
 
-        // Instant snap so there is no lerp from 0,0,0 on first frame
+        target = newTarget;
+        targetRb = target != null ? target.GetComponent<Rigidbody2D>() : null;
+
         if (target != null)
         {
-            transform.position = target.position + offset;
-            Debug.Log($"[CameraController] Now following: {target.name}");
+            Vector2 pos = targetRb != null ? targetRb.position : (Vector2)target.position;
+            Vector3 snapPos = new Vector3(pos.x + offset.x, pos.y + offset.y, offset.z);
+            if (useBoundaries && (minPosition != Vector2.zero || maxPosition != Vector2.zero))
+            {
+                snapPos.x = Mathf.Clamp(snapPos.x, minPosition.x, maxPosition.x);
+                snapPos.y = Mathf.Clamp(snapPos.y, minPosition.y, maxPosition.y);
+            }
+            transform.position = snapPos;
+            Debug.Log($"[CameraController] ✅ Now following: {target.name} at {pos}");
         }
         else
         {
@@ -143,6 +170,8 @@ public class CameraController : MonoBehaviour
         shakeMagnitude = magnitude;
     }
 
+    private Vector3 currentVelocity;
+
     private void LateUpdate()
     {
         // Auto-find local player target if null (dynamically spawned) and not spectating
@@ -159,10 +188,14 @@ public class CameraController : MonoBehaviour
 
         if (target == null) return;
 
-        Vector3 desiredPosition  = target.position + offset;
-        Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
+        Vector2 targetPos = (targetRb != null) ? targetRb.position : (Vector2)target.position;
+        Vector3 desiredPosition = new Vector3(targetPos.x + offset.x, targetPos.y + offset.y, offset.z);
 
-        if (useBoundaries)
+        // Robust smooth follow using SmoothDamp (never produces NaN or jitter)
+        Vector3 smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, 0.12f);
+
+        // Only clamp if boundary box is actually defined (not min == max == 0,0)
+        if (useBoundaries && (minPosition != Vector2.zero || maxPosition != Vector2.zero))
         {
             smoothedPosition.x = Mathf.Clamp(smoothedPosition.x, minPosition.x, maxPosition.x);
             smoothedPosition.y = Mathf.Clamp(smoothedPosition.y, minPosition.y, maxPosition.y);
@@ -180,21 +213,35 @@ public class CameraController : MonoBehaviour
         transform.position = smoothedPosition + shakeOffset;
     }
 
-    private void FindLocalPlayerTarget()
+    public void FindLocalPlayerTarget()
     {
         if (IsSpectating) return;
 
+        // 1. Check OfflineManager spawned player
+        if (OfflineManager.Instance != null && OfflineManager.Instance.SpawnedPlayer != null)
+        {
+            SetTarget(OfflineManager.Instance.SpawnedPlayer.transform);
+            return;
+        }
+
+        // 2. Fast check static LocalPlayer reference
+        if (PlayerController.LocalPlayer != null && !PlayerController.LocalPlayer.CompareTag("Bot") && PlayerController.LocalPlayer.GetComponent<AiBotController>() == null)
+        {
+            SetTarget(PlayerController.LocalPlayer.transform);
+            return;
+        }
+
+        // 3. Scan scene for local human PlayerController
         PlayerController[] players = FindObjectsOfType<PlayerController>();
         foreach (var p in players)
         {
-            if (p != null)
+            if (p != null && !p.CompareTag("Bot") && p.GetComponent<AiBotController>() == null && !p.name.ToLower().Contains("bot"))
             {
                 bool isLocalPlayer = p.IsLocal;
-                
                 var netObj = p.GetComponent<Unity.Netcode.NetworkObject>();
                 if (netObj != null && netObj.IsLocalPlayer) isLocalPlayer = true;
                 
-                if (isLocalPlayer)
+                if (isLocalPlayer || players.Length == 1)
                 {
                     SetTarget(p.transform);
                     break;

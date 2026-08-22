@@ -29,6 +29,11 @@ public class GroundHallArea : MonoBehaviour
             GameManager.Instance.groundHallTransform = transform;
         }
 
+        if (OfflineManager.Instance != null)
+        {
+            OfflineManager.Instance.groundHallTransform = transform;
+        }
+
         Debug.Log($"[GroundHallArea] Registered Ground Hall location: '{gameObject.name}' at position {transform.position}");
     }
 }

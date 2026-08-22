@@ -26,6 +26,18 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private Animator animator;
 
+    [Header("Audio Setup")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioSource footstepAudioSource;
+    [SerializeField] private AudioListener audioListener;
+
+    [Header("Player Sound Effects")]
+    [SerializeField] private AudioClip footstepClip;
+    [SerializeField] private float footstepInterval = 0.4f;
+    [SerializeField] private AudioClip grenadeThrowClip;
+    [SerializeField] private AudioClip defaultPickupClip;
+    [SerializeField] private AudioClip defaultDropClip;
+
     [Header("Ghost Settings")]
     [Tooltip("Custom sprite assigned to player when in Ghost Mode")]
     [SerializeField] private Sprite ghostSprite;
@@ -39,6 +51,9 @@ public class PlayerController : NetworkBehaviour
     private Coroutine speedBoostCoroutine;
     private Transform ghostVisualContainer;
     private Vector3 ghostInitialVisualLocalPos;
+    private float nextFootstepTime;
+
+    public static PlayerController LocalPlayer { get; private set; }
 
     public static string GetOrGeneratePlayerName()
     {
@@ -151,6 +166,10 @@ public class PlayerController : NetworkBehaviour
         var anim = GetComponent<Animator>(); if (anim != null) anim.enabled = true;
     }
 
+    [Header("Name Tag Settings")]
+    [Tooltip("Vertical height offset above player origin for the overhead name tag")]
+    public float nameTagHeightOffset = 0.85f;
+
     private void EnsureNameTag()
     {
         Transform tagTrans = transform.Find("OverheadNameTag");
@@ -161,8 +180,9 @@ public class PlayerController : NetworkBehaviour
             tagTrans = tagGO.transform;
         }
 
-        // Lift position above the player's head and helmet (Y = 1.45f, Z = -0.5f)
-        tagTrans.localPosition = new Vector3(0f, 1.45f, -0.5f);
+        // Position on top of the player's head/hair (Y = 0.85f, Z = -0.5f)
+        float targetY = (nameTagHeightOffset > 0f) ? nameTagHeightOffset : 0.85f;
+        tagTrans.localPosition = new Vector3(0f, targetY, -0.5f);
         tagTrans.localRotation = Quaternion.identity;
 
         nameTagTMP = tagTrans.GetComponent<TextMeshPro>();
@@ -171,7 +191,7 @@ public class PlayerController : NetworkBehaviour
             nameTagTMP = tagTrans.gameObject.AddComponent<TextMeshPro>();
         }
 
-        float targetFontSize = (nameTagFontSize > 0f) ? nameTagFontSize : 3.5f;
+        float targetFontSize = (nameTagFontSize > 0f) ? nameTagFontSize : 2.8f;
         nameTagTMP.fontSize = targetFontSize;
         nameTagTMP.fontStyle = FontStyles.Bold;
         nameTagTMP.alignment = TextAlignmentOptions.Center;
@@ -179,7 +199,15 @@ public class PlayerController : NetworkBehaviour
         nameTagTMP.color = new Color(1f, 0.95f, 0.3f, 1f);
         nameTagTMP.outlineWidth = 0.2f;
         nameTagTMP.outlineColor = new Color32(0, 0, 0, 255);
-        nameTagTMP.sortingOrder = 1000; // Well above all character sprite renderers, weapons, and tilemaps
+        nameTagTMP.sortingLayerID = SortingLayer.NameToID("player");
+        nameTagTMP.sortingOrder = 5000; // Well above character sprite renderers (baseOrder 0 to 4)
+
+        var mr = nameTagTMP.GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mr.sortingLayerName = "player";
+            mr.sortingOrder = 5000;
+        }
     }
 
     public void UpdateNameTag(string nameText)
@@ -227,19 +255,19 @@ public class PlayerController : NetworkBehaviour
 
         Debug.Log($"[PlayerController] Initialized on {gameObject.name}");
         defaultMoveSpeed = moveSpeed;
+        SetupAudio();
     }
     
     private bool isLocalCached = false;
+    private bool cachedIsLocal = false;
 
     public bool IsLocal
     {
         get
         {
-            if (isLocalCached) return true;
-            EvaluateIsLocal();
-            return isLocalCached;
+            if (!isLocalCached) EvaluateIsLocal();
+            return cachedIsLocal;
         }
-        private set => isLocalCached = value;
     }
 
     // ─── Local Player Stun/Smoke Events & Triggers ─────────────────────────────
@@ -265,6 +293,14 @@ public class PlayerController : NetworkBehaviour
     private void EvaluateIsLocal()
     {
         if (isLocalCached) return;
+
+        // Bots are NEVER local human players!
+        if (CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot"))
+        {
+            isLocalCached = true;
+            cachedIsLocal = false;
+            return;
+        }
 
         // Prevent unspawned preview objects in MainMenuScene from evaluating as local player
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "MainMenuScene")
@@ -304,9 +340,13 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
+        isLocalCached = true;
+        cachedIsLocal = local;
+
         if (local)
         {
-            isLocalCached = true;
+            LocalPlayer = this;
+            SetupAudio();
             RegisterCameraIfLocal();
         }
     }
@@ -476,11 +516,61 @@ public class PlayerController : NetworkBehaviour
             EvaluateIsLocal();
         }
 
+        if (rb != null && (IsLocal || !isLocalCached || Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening))
+        {
+            transform.position = new Vector3(rb.position.x, rb.position.y, 0f);
+        }
+
+        HandleFootstepSounds();
+
         // Floating air animation when in ghost mode (smooth vertical bobbing)
         if (IsGhost && ghostVisualContainer != null)
         {
             float yOffset = Mathf.Sin(Time.time * floatSpeed) * floatAmplitude;
             ghostVisualContainer.localPosition = ghostInitialVisualLocalPos + new Vector3(0f, yOffset, 0f);
+        }
+    }
+
+    private void LateUpdate()
+    {
+        // Prevent root-level Animator clips from overriding world position to (0, 0)
+        if (rb != null && (IsLocal || !isLocalCached || Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening))
+        {
+            transform.position = new Vector3(rb.position.x, rb.position.y, 0f);
+        }
+
+        if (nameTagTMP != null && nameTagTMP.enabled)
+        {
+            nameTagTMP.transform.rotation = Quaternion.identity;
+            nameTagTMP.transform.localPosition = new Vector3(0f, nameTagHeightOffset > 0f ? nameTagHeightOffset : 0.85f, -1.0f);
+            float signX = transform.lossyScale.x < 0f ? -1f : 1f;
+            nameTagTMP.transform.localScale = new Vector3(signX, 1f, 1f);
+
+            var mr = nameTagTMP.GetComponent<MeshRenderer>();
+            if (mr != null && (mr.sortingLayerName != "player" || mr.sortingOrder != 5000))
+            {
+                mr.sortingLayerName = "player";
+                mr.sortingOrder = 5000;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Teleports the player to a target position, updating Transform, Rigidbody2D, and Camera.
+    /// </summary>
+    public void Teleport(Vector3 newPosition)
+    {
+        transform.position = new Vector3(newPosition.x, newPosition.y, 0f);
+        if (rb != null)
+        {
+            rb.position = (Vector2)newPosition;
+            rb.velocity = Vector2.zero;
+        }
+
+        bool isHumanPlayer = IsLocal && !CompareTag("Bot") && GetComponent<AiBotController>() == null && !gameObject.name.ToLower().Contains("bot");
+        if (CameraController.Instance != null && isHumanPlayer)
+        {
+            CameraController.Instance.SetTarget(transform);
         }
     }
 
@@ -502,8 +592,8 @@ public class PlayerController : NetworkBehaviour
     
     private void FixedUpdate()
     {
-        // Apply movement only when Rigidbody2D is dynamic and simulated
-        if (rb != null && rb.bodyType == RigidbodyType2D.Dynamic && rb.simulated)
+        // Apply movement when Rigidbody2D is present and simulated
+        if (rb != null && rb.simulated)
         {
             if (RelayNetworkManager.IsMigrating)
             {
@@ -512,7 +602,15 @@ public class PlayerController : NetworkBehaviour
             }
 
             Vector2 velocity = moveInput * moveSpeed;
-            rb.velocity = velocity;
+            if (rb.bodyType == RigidbodyType2D.Kinematic)
+            {
+                rb.position += velocity * Time.fixedDeltaTime;
+                transform.position = new Vector3(rb.position.x, rb.position.y, 0f);
+            }
+            else
+            {
+                rb.velocity = velocity;
+            }
         }
     }
     
@@ -809,4 +907,177 @@ public class PlayerController : NetworkBehaviour
         Debug.Log($"[PlayerController] Ghost mode enabled on '{gameObject.name}' (IsLocal: {IsLocal}). Speed: {moveSpeed}.");
     }
 
+    // ─── Audio & Sound System ──────────────────────────────────────────────
+
+    public void SetupAudio()
+    {
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+        audioSource.playOnAwake = false;
+        // 3D Spatial Audio: sounds emit directly from this player's world position
+        audioSource.spatialBlend = 1.0f;
+        audioSource.minDistance = 2.5f;
+        audioSource.maxDistance = 16.0f;
+        audioSource.rolloffMode = AudioRolloffMode.Linear;
+        audioSource.dopplerLevel = 0f;
+
+        if (footstepAudioSource == null)
+        {
+            AudioSource[] sources = GetComponents<AudioSource>();
+            foreach (var s in sources)
+            {
+                if (s != audioSource)
+                {
+                    footstepAudioSource = s;
+                    break;
+                }
+            }
+            if (footstepAudioSource == null)
+            {
+                footstepAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+        footstepAudioSource.playOnAwake = false;
+        footstepAudioSource.spatialBlend = 1.0f;
+        footstepAudioSource.minDistance = 2.5f;
+        footstepAudioSource.maxDistance = 16.0f;
+        footstepAudioSource.rolloffMode = AudioRolloffMode.Linear;
+        footstepAudioSource.dopplerLevel = 0f;
+
+        if (audioListener == null)
+        {
+            audioListener = GetComponent<AudioListener>();
+            if (audioListener == null)
+            {
+                audioListener = GetComponentInChildren<AudioListener>();
+            }
+            if (audioListener == null && (IsLocal || !isLocalCached))
+            {
+                audioListener = gameObject.AddComponent<AudioListener>();
+            }
+        }
+
+        // Enable AudioListener ONLY on the local player and disable camera listeners to prevent dual listener warnings
+        if (audioListener != null)
+        {
+            audioListener.enabled = IsLocal;
+
+            if (IsLocal)
+            {
+                AudioListener[] allListeners = FindObjectsOfType<AudioListener>();
+                foreach (var al in allListeners)
+                {
+                    if (al != audioListener)
+                    {
+                        al.enabled = false;
+                    }
+                }
+            }
+        }
+    }
+
+    public void PlaySound(AudioClip clip, float volume = 1f)
+    {
+        if (clip == null) return;
+        if (audioSource == null) SetupAudio();
+        if (audioSource != null)
+        {
+            audioSource.PlayOneShot(clip, volume);
+        }
+    }
+
+    public void PlayGrenadeThrowSound()
+    {
+        if (grenadeThrowClip != null)
+        {
+            PlaySound(grenadeThrowClip);
+        }
+    }
+
+    public void PlayPickupSound(AudioClip customClip = null)
+    {
+        AudioClip clipToPlay = customClip != null ? customClip : defaultPickupClip;
+        if (clipToPlay != null)
+        {
+            PlaySound(clipToPlay);
+        }
+    }
+
+    public void PlayDropSound(AudioClip customClip = null)
+    {
+        AudioClip clipToPlay = customClip != null ? customClip : defaultDropClip;
+        if (clipToPlay != null)
+        {
+            PlaySound(clipToPlay);
+        }
+    }
+
+    private void HandleFootstepSounds()
+    {
+        if (IsGhost || (PlayerHealth.Instance != null && PlayerHealth.Instance.IsDead))
+        {
+            if (footstepAudioSource != null && footstepAudioSource.isPlaying)
+            {
+                footstepAudioSource.Stop();
+            }
+            return;
+        }
+
+        if (animator == null) animator = GetComponentInChildren<Animator>();
+
+        // Check if walking animation parameter or state is active
+        bool isWalkingAnim = false;
+        if (animator != null && animator.enabled)
+        {
+            bool animParam = false;
+            try
+            {
+                animParam = animator.GetBool("isWalking");
+            }
+            catch { }
+
+            AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+            bool isWalkState = stateInfo.IsName("Walk") || stateInfo.IsName("Walking") || stateInfo.IsName("Player_Walk") || stateInfo.IsName("Run");
+
+            isWalkingAnim = animParam || isWalkState;
+        }
+        else
+        {
+            isWalkingAnim = isMoving;
+        }
+
+        // Must also have actual physics velocity or move input
+        bool isPhysicallyMoving = isMoving || (rb != null && rb.simulated && rb.velocity.magnitude > 0.08f);
+
+        bool isWalkingAnimationPlaying = isWalkingAnim && isPhysicallyMoving;
+
+        if (isWalkingAnimationPlaying && footstepClip != null)
+        {
+            if (footstepAudioSource == null) SetupAudio();
+
+            if (footstepAudioSource != null)
+            {
+                if (!footstepAudioSource.isPlaying || footstepAudioSource.clip != footstepClip)
+                {
+                    footstepAudioSource.clip = footstepClip;
+                    footstepAudioSource.loop = true;
+                    footstepAudioSource.volume = 0.5f;
+                    footstepAudioSource.Play();
+                }
+            }
+        }
+        else
+        {
+            if (footstepAudioSource != null && footstepAudioSource.isPlaying)
+            {
+                footstepAudioSource.Stop();
+            }
+        }
+    }
 }

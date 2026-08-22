@@ -111,7 +111,7 @@ public class GameIntroCutsceneManager : NetworkBehaviour
         // Phase 1: Thieves searching rooms
         if (cutsceneBannerText != null)
         {
-            cutsceneBannerText.text = "🔴 <color=red>THIEVES ARE RAIDING ROOMS FOR LOOT...</color>";
+            cutsceneBannerText.text = "<color=red>THIEVES ARE RAIDING ROOMS FOR LOOT...</color>";
         }
         if (CameraController.Instance != null)
         {
@@ -132,7 +132,7 @@ public class GameIntroCutsceneManager : NetworkBehaviour
         // Phase 2: Hostages gathered on Ground Floor with Guard Thief
         if (cutsceneBannerText != null)
         {
-            cutsceneBannerText.text = "🔵 <color=yellow>HOSTAGES TRAPPED IN GROUND HALL, GUARDED BY THIEF!</color>";
+            cutsceneBannerText.text = "<color=yellow>HOSTAGES TRAPPED IN GROUND HALL, GUARDED BY THIEF!</color>";
         }
         if (mainCam != null)
         {

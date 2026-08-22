@@ -47,7 +47,7 @@ public class DoorController : MonoBehaviour
     private TextMeshProUGUI buttonLabel;
     private PlayerController localPlayer;
 
-    private Button GetEnterButton() => GameManager.Instance != null ? GameManager.Instance.enterButton : null;
+    private Button GetEnterButton() => GameManager.Instance != null ? GameManager.Instance.enterButton : (OfflineManager.Instance != null ? OfflineManager.Instance.enterButton : null);
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -125,6 +125,15 @@ public class DoorController : MonoBehaviour
 
     private void OnEnterPressed()
     {
+        if (localPlayer == null && PlayerController.LocalPlayer != null)
+        {
+            localPlayer = PlayerController.LocalPlayer;
+        }
+        if (localPlayer == null && OfflineManager.Instance != null && OfflineManager.Instance.SpawnedPlayer != null)
+        {
+            localPlayer = OfflineManager.Instance.SpawnedPlayer.GetComponent<PlayerController>();
+        }
+
         if (localPlayer == null || linkedRoom == null) return;
 
         // Key check — only if this door requires a key
@@ -138,14 +147,16 @@ public class DoorController : MonoBehaviour
         }
 
         // Teleport player to a random empty point inside the room's collider bounds
-        localPlayer.transform.position = GetRandomPointInRoom(linkedRoom);
+        Vector3 targetPos = GetRandomPointInRoom(linkedRoom);
+        localPlayer.Teleport(targetPos);
 
         GameManager.Instance?.SetCurrentRoom(linkedRoom);
+        OfflineManager.Instance?.SetCurrentRoom(linkedRoom);
 
         if (HUDManager.Instance != null)
             HUDManager.Instance.ShowNotification($"➡ Entered {linkedRoom.roomDisplayName}");
 
-        Debug.Log($"[DoorController] Local player entered room '{roomId}'.");
+        Debug.Log($"[DoorController] Local player entered room '{roomId}' at {targetPos}.");
         SetButtonVisible(false);
     }
 

@@ -8,4 +8,13 @@ public class ClientNetworkTransform : NetworkTransform
     {
         return false;
     }
+
+    protected override void Update()
+    {
+        if (Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening || !IsSpawned)
+        {
+            return;
+        }
+        base.Update();
+    }
 }

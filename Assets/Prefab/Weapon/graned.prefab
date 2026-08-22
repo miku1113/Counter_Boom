@@ -104,6 +104,7 @@ MonoBehaviour:
   throwForce: 10
   damage: 50
   explosionEffect: {fileID: 4088997058349922941, guid: 21fda5653cf6e41b7a04792ed2c23a4b, type: 3}
+  explosionSound: {fileID: 8300000, guid: 967438b9e47d24e759710872550a5145, type: 3}
   rb: {fileID: 1889726186788058745}
 --- !u!50 &1889726186788058745
 Rigidbody2D:

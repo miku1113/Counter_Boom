@@ -45,22 +45,26 @@ public class InteractiveLobbyController : MonoBehaviour
         {
             menuToggleButton.onClick.RemoveAllListeners();
             menuToggleButton.onClick.AddListener(TogglePlayerListOverlay);
+            menuToggleButton.onClick.AddListener(PlayClickSound);
             menuToggleButton.transform.SetAsLastSibling();
         }
         if (closeMenuButton != null)
         {
             closeMenuButton.onClick.RemoveAllListeners();
             closeMenuButton.onClick.AddListener(() => SetOverlayState(false));
+            closeMenuButton.onClick.AddListener(PlayClickSound);
         }
         if (startGameButton != null)
         {
             startGameButton.onClick.RemoveAllListeners();
             startGameButton.onClick.AddListener(OnStartGameClicked);
+            startGameButton.onClick.AddListener(PlayClickSound);
         }
         if (leaveLobbyButton != null)
         {
             leaveLobbyButton.onClick.RemoveAllListeners();
             leaveLobbyButton.onClick.AddListener(OnLeaveLobbyClicked);
+            leaveLobbyButton.onClick.AddListener(PlayClickSound);
         }
 
         // 2. Hide overlay by default
@@ -573,5 +577,13 @@ public class InteractiveLobbyController : MonoBehaviour
         }
 
         return cachedPingMs;
+    }
+
+    private void PlayClickSound()
+    {
+        if (MainMenuController.Instance != null)
+        {
+            MainMenuController.Instance.PlayButtonClickSFX();
+        }
     }
 }

@@ -13,6 +13,9 @@ public class Grenade : MonoBehaviour
     [Header("Effects")]
     public GameObject explosionEffect;
 
+    [Header("Audio Settings")]
+    public AudioClip explosionSound;
+
     [Header("Physics")]
     [SerializeField] protected Rigidbody2D rb;
 
@@ -88,6 +91,12 @@ public class Grenade : MonoBehaviour
     protected virtual void Explode()
     {
         Vector3 blastPos = transform.position;
+
+        // Play Grenade Explosion Sound at blast position in 3D space
+        if (explosionSound != null)
+        {
+            AudioSource.PlayClipAtPoint(explosionSound, blastPos, 1.0f);
+        }
 
         // 1. Spawns RED explosion blast effect ONLY for normal blast grenade (damage > 0)
         if (damage > 0)

@@ -88,35 +88,21 @@ public class HUDManager : MonoBehaviour
         weaponSlot2?.onClick.AddListener(() => SwitchWeapon(1));
         boomButton?.onClick.AddListener(ThrowGrenade);
         pickupButton?.onClick.AddListener(OnPickupPressed);
-        bagButton?.onClick.AddListener(ToggleBag);
         medikitButton?.onClick.AddListener(() => BagManager.Instance?.UseMedikit());
         shakeButton?.onClick.AddListener(() => BagManager.Instance?.UseProteinShake());
+
+        // Ensure Bag UI is initialized and bagButton is hooked
+        EnsureBagUI();
+
+        // Ensure Tactical Compass UI is initialized
+        EnsureCompassUI();
 
         if (prevSpectateButton != null) prevSpectateButton.onClick.AddListener(OnPrevSpectateClicked);
         if (nextSpectateButton != null) nextSpectateButton.onClick.AddListener(OnNextSpectateClicked);
         if (spectatorPanel != null) spectatorPanel.SetActive(false);
 
-        // Subscribe to BagManager events (replaces per-frame polling)
-        if (BagManager.Instance != null)
-        {
-            BagManager.Instance.OnGrenadeUpdated      += UpdateGrenadeUI;
-            BagManager.Instance.OnMedikitUpdated       += UpdateMedikitUI;
-            BagManager.Instance.OnProteinShakeUpdated  += UpdateShakeUI;
-
-            // Force an initial update from current state
-            UpdateGrenadeUI(BagManager.Instance.activeGrenadeType, BagManager.Instance.GetGrenadeCount(BagManager.Instance.activeGrenadeType));
-            UpdateMedikitUI(BagManager.Instance.medikitCount);
-            UpdateShakeUI(BagManager.Instance.proteinShakeCount);
-        }
-
-        // Subscribe to WeaponController events for ammo display and slot icon updates
-        if (WeaponController.Instance != null)
-        {
-            WeaponController.Instance.OnAmmoChanged      += UpdateAmmoUI;
-            WeaponController.Instance.OnWeaponSlotUpdated += OnWeaponSlotUpdated;
-            // Seed with current ammo
-            UpdateAmmoUI(WeaponController.Instance.GetCurrentAmmo(), WeaponController.Instance.GetMaxAmmo());
-        }
+        // Bind local player events & seed UI (weapons, grenades, consumables)
+        BindLocalPlayer();
 
         // Auto-find Health & Energy UI elements if unassigned
         AutoResolveHealthAndEnergyUI();
@@ -128,6 +114,8 @@ public class HUDManager : MonoBehaviour
         {
             health.OnHealthChanged -= UpdateHealthUI;
             health.OnHealthChanged += UpdateHealthUI;
+            health.OnDeath         -= ShowGameOverModal;
+            health.OnDeath         += ShowGameOverModal;
             UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
         }
 
@@ -225,9 +213,21 @@ public class HUDManager : MonoBehaviour
     private System.Collections.Generic.List<Button> spawnedPickupButtons = new System.Collections.Generic.List<Button>();
     private System.Collections.Generic.List<ItemPickup> lastPickups = new System.Collections.Generic.List<ItemPickup>();
     private bool isPickupUIInitialized = false;
+    private bool isPlayerEventsBound = false;
 
     private void Update()
     {
+        if (!isPlayerEventsBound && (BagManager.Instance != null || WeaponController.Instance != null))
+        {
+            isPlayerEventsBound = true;
+            BindLocalPlayer();
+        }
+
+        if (Input.GetKeyDown(KeyCode.B) || Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.I))
+        {
+            ToggleBag();
+        }
+
         UpdatePickupUI();
     }
 
@@ -326,11 +326,61 @@ public class HUDManager : MonoBehaviour
         }
     }
 
+    public void BindLocalPlayer()
+    {
+        if (BagManager.Instance != null)
+        {
+            BagManager.Instance.OnBagUpdated          -= HandleBagUpdated;
+            BagManager.Instance.OnBagUpdated          += HandleBagUpdated;
+
+            BagManager.Instance.OnGrenadeUpdated      -= UpdateGrenadeUI;
+            BagManager.Instance.OnGrenadeUpdated      += UpdateGrenadeUI;
+
+            BagManager.Instance.OnMedikitUpdated       -= UpdateMedikitUI;
+            BagManager.Instance.OnMedikitUpdated       += UpdateMedikitUI;
+
+            BagManager.Instance.OnProteinShakeUpdated  -= UpdateShakeUI;
+            BagManager.Instance.OnProteinShakeUpdated  += UpdateShakeUI;
+
+            UpdateGrenadeUI(BagManager.Instance.activeGrenadeType, BagManager.Instance.GetGrenadeCount(BagManager.Instance.activeGrenadeType));
+            UpdateMedikitUI(BagManager.Instance.medikitCount);
+            UpdateShakeUI(BagManager.Instance.proteinShakeCount);
+        }
+
+        if (WeaponController.Instance != null)
+        {
+            WeaponController.Instance.OnAmmoChanged       -= UpdateAmmoUI;
+            WeaponController.Instance.OnAmmoChanged       += UpdateAmmoUI;
+
+            WeaponController.Instance.OnWeaponSlotUpdated -= OnWeaponSlotUpdated;
+            WeaponController.Instance.OnWeaponSlotUpdated += OnWeaponSlotUpdated;
+
+            UpdateAmmoUI(WeaponController.Instance.GetCurrentAmmo(), WeaponController.Instance.GetMaxAmmo());
+        }
+
+        RefreshWeaponSlotUI(0);
+        RefreshWeaponSlotUI(1);
+    }
+
+    private void HandleBagUpdated()
+    {
+        RefreshWeaponSlotUI(0);
+        RefreshWeaponSlotUI(1);
+        if (BagManager.Instance != null)
+        {
+            UpdateGrenadeUI(BagManager.Instance.activeGrenadeType, BagManager.Instance.GetGrenadeCount(BagManager.Instance.activeGrenadeType));
+        }
+    }
+
     // ─── Event Handlers ──────────────────────────────────────────────────────
 
     private void UpdateGrenadeUI(GrenadeType type, int count)
     {
-        if (BagManager.Instance == null) return;
+        if (BagManager.Instance == null)
+        {
+            if (boomButton != null) boomButton.gameObject.SetActive(false);
+            return;
+        }
         
         GrenadeType activeType = BagManager.Instance.activeGrenadeType;
 
@@ -348,24 +398,46 @@ public class HUDManager : MonoBehaviour
         }
 
         int activeCount = BagManager.Instance.GetGrenadeCount(activeType);
+        bool hasGrenades = activeCount > 0 && activeType != GrenadeType.None;
 
-        if (boomButton    != null) boomButton.interactable = activeCount > 0;
-        if (boomCountText != null) boomCountText.text      = activeCount.ToString();
-
-        // Update button icon dynamically
         if (boomButton != null)
         {
-            var image = boomButton.GetComponent<Image>();
-            if (image != null)
+            // Only show grenade button if player has a grenade in bag
+            boomButton.gameObject.SetActive(hasGrenades);
+            boomButton.interactable = hasGrenades;
+
+            if (hasGrenades)
             {
-                var data = BagManager.Instance.allItemData?.Find(x => x.itemType == ItemType.Grenade && x.grenadeType == activeType);
-                if (data != null && data.icon != null)
+                // Find icon on button or child image
+                Image targetImg = null;
+                Image[] images = boomButton.GetComponentsInChildren<Image>(true);
+                foreach (var img in images)
                 {
-                    image.sprite = data.icon;
-                    image.preserveAspect = true;
-                    image.color = Color.white;
+                    if (img != null && img.gameObject != boomButton.gameObject)
+                    {
+                        targetImg = img;
+                        break;
+                    }
+                }
+                if (targetImg == null) targetImg = boomButton.GetComponent<Image>();
+
+                if (targetImg != null)
+                {
+                    var data = BagManager.Instance.allItemData?.Find(x => x != null && x.itemType == ItemType.Grenade && x.grenadeType == activeType);
+                    if (data != null && data.icon != null)
+                    {
+                        targetImg.sprite = data.icon;
+                        targetImg.preserveAspect = true;
+                        targetImg.color = Color.white;
+                    }
                 }
             }
+        }
+
+        if (boomCountText != null)
+        {
+            boomCountText.text = activeCount.ToString();
+            boomCountText.gameObject.SetActive(hasGrenades);
         }
     }
 
@@ -466,23 +538,67 @@ public class HUDManager : MonoBehaviour
         var ammoText  = slotIndex == 0 ? weapon1AmmoText : weapon2AmmoText;
         var icon      = slotIndex == 0 ? weapon1Icon     : weapon2Icon;
 
+        // Auto-find slot icon Image if unassigned in inspector
+        if (icon == null)
+        {
+            Button slotBtn = slotIndex == 0 ? weaponSlot1 : weaponSlot2;
+            if (slotBtn != null)
+            {
+                Image[] imgs = slotBtn.GetComponentsInChildren<Image>(true);
+                foreach (var img in imgs)
+                {
+                    if (img != null && img.gameObject != slotBtn.gameObject)
+                    {
+                        icon = img;
+                        if (slotIndex == 0) weapon1Icon = img; else weapon2Icon = img;
+                        break;
+                    }
+                }
+            }
+        }
+
         if (ammoText != null)
+        {
             ammoText.text = weapon != null
                 ? $"{weapon.GetCurrentAmmo()}/{BagManager.Instance?.GetAmmo(weapon.ammoType) ?? 0}"
                 : "-";
+        }
 
         if (icon != null)
         {
-            if (weapon != null && weapon.itemData != null)
+            Sprite targetSprite = null;
+            if (weapon != null)
             {
-                icon.sprite        = weapon.itemData.icon;
+                if (weapon.itemData != null && weapon.itemData.icon != null)
+                {
+                    targetSprite = weapon.itemData.icon;
+                }
+                else if (weapon.weaponSprite != null)
+                {
+                    targetSprite = weapon.weaponSprite;
+                }
+                else if (BagManager.Instance != null && BagManager.Instance.allItemData != null)
+                {
+                    string wName = weapon.weaponName.ToLower();
+                    var matchedData = BagManager.Instance.allItemData.Find(d => d != null && d.itemName.ToLower().Contains(wName));
+                    if (matchedData != null && matchedData.icon != null)
+                    {
+                        targetSprite = matchedData.icon;
+                    }
+                }
+            }
+
+            if (targetSprite != null)
+            {
+                icon.sprite = targetSprite;
                 icon.preserveAspect = true;
-                icon.color         = Color.white;
+                icon.color = Color.white;
+                icon.gameObject.SetActive(true);
             }
             else
             {
                 icon.sprite = null;
-                icon.color  = new Color(0, 0, 0, 0);
+                icon.color = new Color(0, 0, 0, 0);
             }
         }
     }
@@ -506,7 +622,74 @@ public class HUDManager : MonoBehaviour
 
     private void ThrowGrenade()       => WeaponController.Instance?.ThrowGrenade();
     private void OnPickupPressed()    => ItemPickup.NearestPickup?.PickingUpManually();
-    private void ToggleBag()          => BagUI.Instance?.ToggleBag();
+
+    public void EnsureBagUI()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>() ?? GetComponent<Canvas>() ?? FindObjectOfType<Canvas>();
+        if (canvas != null)
+        {
+            BagUI existing = canvas.GetComponentInChildren<BagUI>(true);
+            if (existing == null) existing = FindObjectOfType<BagUI>(true);
+
+            if (existing == null)
+            {
+                GameObject bagUIGO = new GameObject("BagUI", typeof(RectTransform));
+                bagUIGO.transform.SetParent(canvas.transform, false);
+                existing = bagUIGO.AddComponent<BagUI>();
+            }
+            BagUI.Instance = existing;
+            existing.EnsureBagStructure();
+        }
+
+        if (bagButton == null)
+        {
+            foreach (var btn in GetComponentsInChildren<Button>(true))
+            {
+                string n = btn.gameObject.name.ToLower();
+                if (n.Contains("bag") || n.Contains("inventory") || n.Contains("backpack"))
+                {
+                    bagButton = btn;
+                    break;
+                }
+            }
+        }
+
+        if (bagButton != null)
+        {
+            bagButton.onClick.RemoveListener(ToggleBag);
+            bagButton.onClick.AddListener(ToggleBag);
+        }
+    }
+
+    public void EnsureCompassUI()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>() ?? GetComponent<Canvas>() ?? FindObjectOfType<Canvas>();
+        if (canvas != null)
+        {
+            CompassUI existing = canvas.GetComponentInChildren<CompassUI>(true) ?? FindObjectOfType<CompassUI>(true);
+            if (existing == null)
+            {
+                GameObject compassGO = new GameObject("CompassUI", typeof(RectTransform));
+                compassGO.transform.SetParent(canvas.transform, false);
+                existing = compassGO.AddComponent<CompassUI>();
+            }
+            existing.EnsureCompassStructure();
+        }
+    }
+
+    public void ToggleBag()
+    {
+        Debug.Log("[HUDManager] 🎒 ToggleBag triggered!");
+        EnsureBagUI();
+        if (BagUI.Instance != null)
+        {
+            BagUI.Instance.ToggleBag();
+        }
+        else
+        {
+            Debug.LogError("[HUDManager] ❌ BagUI.Instance could not be found or initialized!");
+        }
+    }
 
     // ─── Stun and Smoke Dynamic Visual Effects ─────────────────────────────────
 
@@ -1021,8 +1204,9 @@ public class HUDManager : MonoBehaviour
                 textRt.anchorMin = Vector2.zero; textRt.anchorMax = Vector2.one; textRt.sizeDelta = Vector2.zero;
 
                 TextMeshProUGUI tmp = textGO.GetComponent<TextMeshProUGUI>();
-                tmp.text = "⚙️";
-                tmp.fontSize = 28;
+                tmp.text = "OPT";
+                tmp.fontSize = 15;
+                tmp.fontStyle = FontStyles.Bold;
                 tmp.alignment = TextAlignmentOptions.Center;
                 tmp.color = Color.white;
 
@@ -1241,13 +1425,350 @@ public class HUDManager : MonoBehaviour
         {
             if (localPlayer.playerRole.Value == PlayerRole.Thief)
             {
-                roleBadgeText.text = "ROLE: <color=#FF3333>🔴 THIEF</color>";
+                roleBadgeText.text = "ROLE: <color=#FF3333>THIEF</color>";
             }
             else
             {
-                roleBadgeText.text = "ROLE: <color=#00E5FF>🔵 HOSTAGE</color>";
+                roleBadgeText.text = "ROLE: <color=#00E5FF>HOSTAGE</color>";
             }
         }
+    }
+
+    // ─── Game Over & Restart Modal ───────────────────────────────────────────
+
+    private GameObject gameOverPanel;
+
+    public void ShowGameOverModal()
+    {
+        EnsureGameOverUI();
+        if (gameOverPanel != null)
+        {
+            gameOverPanel.SetActive(true);
+            gameOverPanel.transform.SetAsLastSibling();
+        }
+    }
+
+    private void EnsureGameOverUI()
+    {
+        if (gameOverPanel != null) return;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // Background Modal
+        GameObject panelGO = new GameObject("GameOverPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        panelGO.transform.SetParent(canvas.transform, false);
+
+        RectTransform rt = panelGO.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.sizeDelta = Vector2.zero;
+
+        UnityEngine.UI.Image bgImg = panelGO.GetComponent<UnityEngine.UI.Image>();
+        bgImg.color = new Color(0.04f, 0.05f, 0.08f, 0.88f); // Frosted dark backdrop
+
+        // Center Card
+        GameObject cardGO = new GameObject("GameOverCard", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        cardGO.transform.SetParent(panelGO.transform, false);
+
+        RectTransform cardRt = cardGO.GetComponent<RectTransform>();
+        cardRt.anchorMin = new Vector2(0.5f, 0.5f);
+        cardRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRt.pivot = new Vector2(0.5f, 0.5f);
+        cardRt.sizeDelta = new Vector2(440f, 280f);
+        cardRt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image cardImg = cardGO.GetComponent<UnityEngine.UI.Image>();
+        cardImg.color = new Color(0.12f, 0.14f, 0.2f, 0.98f);
+
+        // Title Text
+        GameObject titleGO = new GameObject("Title", typeof(RectTransform), typeof(TextMeshProUGUI));
+        titleGO.transform.SetParent(cardGO.transform, false);
+        RectTransform titleRt = titleGO.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 1f); titleRt.anchorMax = new Vector2(1f, 1f);
+        titleRt.pivot = new Vector2(0.5f, 1f);
+        titleRt.anchoredPosition = new Vector2(0f, -25f);
+        titleRt.sizeDelta = new Vector2(0f, 45f);
+
+        TextMeshProUGUI titleTmp = titleGO.GetComponent<TextMeshProUGUI>();
+        titleTmp.text = "YOU DIED";
+        titleTmp.fontSize = 34;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.alignment = TextAlignmentOptions.Center;
+        titleTmp.color = new Color(1f, 0.25f, 0.25f, 1f);
+
+        // Subtitle Text
+        GameObject subGO = new GameObject("Subtitle", typeof(RectTransform), typeof(TextMeshProUGUI));
+        subGO.transform.SetParent(cardGO.transform, false);
+        RectTransform subRt = subGO.GetComponent<RectTransform>();
+        subRt.anchorMin = new Vector2(0f, 1f); subRt.anchorMax = new Vector2(1f, 1f);
+        subRt.pivot = new Vector2(0.5f, 1f);
+        subRt.anchoredPosition = new Vector2(0f, -70f);
+        subRt.sizeDelta = new Vector2(0f, 30f);
+
+        TextMeshProUGUI subTmp = subGO.GetComponent<TextMeshProUGUI>();
+        subTmp.text = "Defeated in Combat";
+        subTmp.fontSize = 16;
+        subTmp.alignment = TextAlignmentOptions.Center;
+        subTmp.color = new Color(0.7f, 0.75f, 0.85f, 1f);
+
+        // Restart Button
+        GameObject restartBtnGO = new GameObject("RestartButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        restartBtnGO.transform.SetParent(cardGO.transform, false);
+        RectTransform restRt = restartBtnGO.GetComponent<RectTransform>();
+        restRt.anchorMin = new Vector2(0.5f, 0.5f); restRt.anchorMax = new Vector2(0.5f, 0.5f);
+        restRt.pivot = new Vector2(0.5f, 0.5f);
+        restRt.anchoredPosition = new Vector2(0f, -15f);
+        restRt.sizeDelta = new Vector2(260f, 48f);
+
+        UnityEngine.UI.Image restImg = restartBtnGO.GetComponent<UnityEngine.UI.Image>();
+        restImg.color = new Color(0.18f, 0.65f, 0.35f, 1f); // Vibrant green
+
+        GameObject restTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        restTextGO.transform.SetParent(restartBtnGO.transform, false);
+        RectTransform rTextRt = restTextGO.GetComponent<RectTransform>();
+        rTextRt.anchorMin = Vector2.zero; rTextRt.anchorMax = Vector2.one; rTextRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI restTmp = restTextGO.GetComponent<TextMeshProUGUI>();
+        restTmp.text = "RESTART MATCH";
+        restTmp.fontSize = 20;
+        restTmp.fontStyle = FontStyles.Bold;
+        restTmp.alignment = TextAlignmentOptions.Center;
+        restTmp.color = Color.white;
+
+        Button restBtn = restartBtnGO.GetComponent<Button>();
+        restBtn.onClick.AddListener(RestartMatch);
+
+        // Main Menu Button
+        GameObject menuBtnGO = new GameObject("MainMenuButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        menuBtnGO.transform.SetParent(cardGO.transform, false);
+        RectTransform menuRt = menuBtnGO.GetComponent<RectTransform>();
+        menuRt.anchorMin = new Vector2(0.5f, 0f); menuRt.anchorMax = new Vector2(0.5f, 0f);
+        menuRt.pivot = new Vector2(0.5f, 0f);
+        menuRt.anchoredPosition = new Vector2(0f, 25f);
+        menuRt.sizeDelta = new Vector2(260f, 42f);
+
+        UnityEngine.UI.Image menuImg = menuBtnGO.GetComponent<UnityEngine.UI.Image>();
+        menuImg.color = new Color(0.28f, 0.32f, 0.42f, 1f);
+
+        GameObject menuTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        menuTextGO.transform.SetParent(menuBtnGO.transform, false);
+        RectTransform mTextRt = menuTextGO.GetComponent<RectTransform>();
+        mTextRt.anchorMin = Vector2.zero; mTextRt.anchorMax = Vector2.one; mTextRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI menuTmp = menuTextGO.GetComponent<TextMeshProUGUI>();
+        menuTmp.text = "MAIN MENU";
+        menuTmp.fontSize = 17;
+        menuTmp.fontStyle = FontStyles.Bold;
+        menuTmp.alignment = TextAlignmentOptions.Center;
+        menuTmp.color = Color.white;
+
+        Button menuBtn = menuBtnGO.GetComponent<Button>();
+        menuBtn.onClick.AddListener(ReturnToMainMenu);
+
+        gameOverPanel = panelGO;
+        gameOverPanel.SetActive(false);
+    }
+
+    // ─── Victory & Reward Modal ──────────────────────────────────────────────
+
+    private GameObject victoryPanel;
+    private TextMeshProUGUI victoryCoinsEarnedText;
+    private TextMeshProUGUI victoryTotalCoinsText;
+
+    public void ShowVictoryModal(int coinsEarned = 10, int totalCoins = 1000)
+    {
+        EnsureVictoryUI();
+        if (victoryCoinsEarnedText != null)
+        {
+            victoryCoinsEarnedText.text = $"💰 +{coinsEarned} COINS EARNED!";
+        }
+        if (victoryTotalCoinsText != null)
+        {
+            victoryTotalCoinsText.text = $"Total Balance: {totalCoins} Coins";
+        }
+        if (victoryPanel != null)
+        {
+            victoryPanel.SetActive(true);
+            victoryPanel.transform.SetAsLastSibling();
+        }
+    }
+
+    private void EnsureVictoryUI()
+    {
+        if (victoryPanel != null) return;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // Background Modal
+        GameObject panelGO = new GameObject("VictoryPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        panelGO.transform.SetParent(canvas.transform, false);
+
+        RectTransform rt = panelGO.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.sizeDelta = Vector2.zero;
+
+        UnityEngine.UI.Image bgImg = panelGO.GetComponent<UnityEngine.UI.Image>();
+        bgImg.color = new Color(0.02f, 0.04f, 0.08f, 0.92f); // Deep frosted backdrop
+
+        // Center Card
+        GameObject cardGO = new GameObject("VictoryCard", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        cardGO.transform.SetParent(panelGO.transform, false);
+
+        RectTransform cardRt = cardGO.GetComponent<RectTransform>();
+        cardRt.anchorMin = new Vector2(0.5f, 0.5f);
+        cardRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRt.pivot = new Vector2(0.5f, 0.5f);
+        cardRt.sizeDelta = new Vector2(460f, 320f);
+        cardRt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image cardImg = cardGO.GetComponent<UnityEngine.UI.Image>();
+        cardImg.color = new Color(0.1f, 0.12f, 0.18f, 0.98f);
+
+        // Card Gold Border
+        Outline cardOutline = cardGO.AddComponent<Outline>();
+        cardOutline.effectColor = new Color(1f, 0.82f, 0.2f, 0.85f);
+        cardOutline.effectDistance = new Vector2(2f, -2f);
+
+        // Title Text
+        GameObject titleGO = new GameObject("Title", typeof(RectTransform), typeof(TextMeshProUGUI));
+        titleGO.transform.SetParent(cardGO.transform, false);
+        RectTransform titleRt = titleGO.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 1f); titleRt.anchorMax = new Vector2(1f, 1f);
+        titleRt.pivot = new Vector2(0.5f, 1f);
+        titleRt.anchoredPosition = new Vector2(0f, -22f);
+        titleRt.sizeDelta = new Vector2(0f, 45f);
+
+        TextMeshProUGUI titleTmp = titleGO.GetComponent<TextMeshProUGUI>();
+        titleTmp.text = "🏆 YOU WIN! 🏆";
+        titleTmp.fontSize = 32;
+        titleTmp.fontStyle = FontStyles.Bold;
+        titleTmp.alignment = TextAlignmentOptions.Center;
+        titleTmp.color = new Color(1f, 0.85f, 0.2f, 1f); // Vibrant Gold
+
+        // Subtitle Text
+        GameObject subGO = new GameObject("Subtitle", typeof(RectTransform), typeof(TextMeshProUGUI));
+        subGO.transform.SetParent(cardGO.transform, false);
+        RectTransform subRt = subGO.GetComponent<RectTransform>();
+        subRt.anchorMin = new Vector2(0f, 1f); subRt.anchorMax = new Vector2(1f, 1f);
+        subRt.pivot = new Vector2(0.5f, 1f);
+        subRt.anchoredPosition = new Vector2(0f, -65f);
+        subRt.sizeDelta = new Vector2(0f, 25f);
+
+        TextMeshProUGUI subTmp = subGO.GetComponent<TextMeshProUGUI>();
+        subTmp.text = "Safe Cracked & Treasure Secured!";
+        subTmp.fontSize = 15;
+        subTmp.alignment = TextAlignmentOptions.Center;
+        subTmp.color = new Color(0.85f, 0.9f, 1f, 1f);
+
+        // Coins Earned Text
+        GameObject rewardGO = new GameObject("RewardText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        rewardGO.transform.SetParent(cardGO.transform, false);
+        RectTransform rewardRt = rewardGO.GetComponent<RectTransform>();
+        rewardRt.anchorMin = new Vector2(0f, 1f); rewardRt.anchorMax = new Vector2(1f, 1f);
+        rewardRt.pivot = new Vector2(0.5f, 1f);
+        rewardRt.anchoredPosition = new Vector2(0f, -100f);
+        rewardRt.sizeDelta = new Vector2(0f, 35f);
+
+        victoryCoinsEarnedText = rewardGO.GetComponent<TextMeshProUGUI>();
+        victoryCoinsEarnedText.text = "💰 +10 COINS EARNED!";
+        victoryCoinsEarnedText.fontSize = 22;
+        victoryCoinsEarnedText.fontStyle = FontStyles.Bold;
+        victoryCoinsEarnedText.alignment = TextAlignmentOptions.Center;
+        victoryCoinsEarnedText.color = new Color(0.2f, 1f, 0.4f, 1f); // Neon Green
+
+        // Total Balance Text
+        GameObject totalGO = new GameObject("TotalText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        totalGO.transform.SetParent(cardGO.transform, false);
+        RectTransform totalRt = totalGO.GetComponent<RectTransform>();
+        totalRt.anchorMin = new Vector2(0f, 1f); totalRt.anchorMax = new Vector2(1f, 1f);
+        totalRt.pivot = new Vector2(0.5f, 1f);
+        totalRt.anchoredPosition = new Vector2(0f, -135f);
+        totalRt.sizeDelta = new Vector2(0f, 25f);
+
+        victoryTotalCoinsText = totalGO.GetComponent<TextMeshProUGUI>();
+        victoryTotalCoinsText.text = "Total Balance: 1010 Coins";
+        victoryTotalCoinsText.fontSize = 14;
+        victoryTotalCoinsText.alignment = TextAlignmentOptions.Center;
+        victoryTotalCoinsText.color = new Color(0.7f, 0.8f, 0.95f, 1f);
+
+        // Restart Match Button
+        GameObject restartBtnGO = new GameObject("VictoryRestartButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        restartBtnGO.transform.SetParent(cardGO.transform, false);
+        RectTransform restRt = restartBtnGO.GetComponent<RectTransform>();
+        restRt.anchorMin = new Vector2(0.5f, 0f); restRt.anchorMax = new Vector2(0.5f, 0f);
+        restRt.pivot = new Vector2(0.5f, 0f);
+        restRt.anchoredPosition = new Vector2(0f, 75f);
+        restRt.sizeDelta = new Vector2(280f, 45f);
+
+        UnityEngine.UI.Image restImg = restartBtnGO.GetComponent<UnityEngine.UI.Image>();
+        restImg.color = new Color(0.16f, 0.68f, 0.38f, 1f); // Rich Green
+
+        GameObject restTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        restTextGO.transform.SetParent(restartBtnGO.transform, false);
+        RectTransform rTextRt = restTextGO.GetComponent<RectTransform>();
+        rTextRt.anchorMin = Vector2.zero; rTextRt.anchorMax = Vector2.one; rTextRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI restTmp = restTextGO.GetComponent<TextMeshProUGUI>();
+        restTmp.text = "PLAY AGAIN";
+        restTmp.fontSize = 19;
+        restTmp.fontStyle = FontStyles.Bold;
+        restTmp.alignment = TextAlignmentOptions.Center;
+        restTmp.color = Color.white;
+
+        Button restBtn = restartBtnGO.GetComponent<Button>();
+        restBtn.onClick.AddListener(RestartMatch);
+
+        // Main Menu Button
+        GameObject menuBtnGO = new GameObject("VictoryMainMenuButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        menuBtnGO.transform.SetParent(cardGO.transform, false);
+        RectTransform menuRt = menuBtnGO.GetComponent<RectTransform>();
+        menuRt.anchorMin = new Vector2(0.5f, 0f); menuRt.anchorMax = new Vector2(0.5f, 0f);
+        menuRt.pivot = new Vector2(0.5f, 0f);
+        menuRt.anchoredPosition = new Vector2(0f, 22f);
+        menuRt.sizeDelta = new Vector2(280f, 40f);
+
+        UnityEngine.UI.Image menuImg = menuBtnGO.GetComponent<UnityEngine.UI.Image>();
+        menuImg.color = new Color(0.25f, 0.3f, 0.42f, 1f);
+
+        GameObject menuTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        menuTextGO.transform.SetParent(menuBtnGO.transform, false);
+        RectTransform mTextRt = menuTextGO.GetComponent<RectTransform>();
+        mTextRt.anchorMin = Vector2.zero; mTextRt.anchorMax = Vector2.one; mTextRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI menuTmp = menuTextGO.GetComponent<TextMeshProUGUI>();
+        menuTmp.text = "MAIN MENU";
+        menuTmp.fontSize = 16;
+        menuTmp.fontStyle = FontStyles.Bold;
+        menuTmp.alignment = TextAlignmentOptions.Center;
+        menuTmp.color = Color.white;
+
+        Button menuBtn = menuBtnGO.GetComponent<Button>();
+        menuBtn.onClick.AddListener(ReturnToMainMenu);
+
+        victoryPanel = panelGO;
+        victoryPanel.SetActive(false);
+    }
+
+    public void RestartMatch()
+    {
+        string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        UnityEngine.SceneManagement.SceneManager.LoadScene(currentScene);
+    }
+
+    public void ReturnToMainMenu()
+    {
+        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            Unity.Netcode.NetworkManager.Singleton.Shutdown();
+        }
+        UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenuScene");
     }
 }
 

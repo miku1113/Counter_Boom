@@ -14,6 +14,9 @@ public class KeyItemPickup : NetworkBehaviour
     [Tooltip("Drag and drop any Key Sprite here in Inspector!")]
     public Sprite customKeySprite;
 
+    [Header("Audio Clips")]
+    public AudioClip pickupSound;
+
     private Vector3 initialPos;
     private SpriteRenderer spriteRenderer;
     private bool isCollected = false;
@@ -28,10 +31,12 @@ public class KeyItemPickup : NetworkBehaviour
         rb.bodyType = RigidbodyType2D.Kinematic;
         rb.simulated = true;
 
+        transform.localScale = new Vector3(0.2f, 0.2f, 1f);
+
         // Ensure CircleCollider2D trigger
         CircleCollider2D circle = GetComponent<CircleCollider2D>();
         if (circle == null) circle = gameObject.AddComponent<CircleCollider2D>();
-        circle.radius = 0.85f;
+        circle.radius = 3.5f; // in local scale, gives ~0.7m pickup radius
         circle.isTrigger = true;
 
         // Setup SpriteRenderer & Sprite
@@ -112,7 +117,7 @@ public class KeyItemPickup : NetworkBehaviour
         }
 
         tex.Apply();
-        return Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 16f);
+        return Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
     private void EnsureLabel()
@@ -122,11 +127,11 @@ public class KeyItemPickup : NetworkBehaviour
         {
             GameObject txtGO = new GameObject("KeyLabel");
             txtGO.transform.SetParent(transform, false);
-            txtGO.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+            txtGO.transform.localPosition = new Vector3(0f, 1.8f, 0f);
 
             TextMeshPro tmp = txtGO.AddComponent<TextMeshPro>();
             tmp.text = $"🔑 KEY #{keyIndex}";
-            tmp.fontSize = 1.8f;
+            tmp.fontSize = 4.0f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = keyGlowColor;
@@ -185,9 +190,12 @@ public class KeyItemPickup : NetworkBehaviour
     private bool CanPlayerPickupKey(PlayerController player)
     {
         if (player == null) return false;
+        if (player.CompareTag("Bot") || player.GetComponent<AiBotController>() != null) return false;
+
+        // In offline mode / local play, human player can always collect Keys
+        if (player.IsLocal || OfflineManager.Instance != null) return true;
         if (player.playerRole.Value == PlayerRole.Hostage) return true;
 
-        // Thief can pick up Exit Keys ONLY AFTER stealing the Treasure!
         bool treasureStolen = MatchRoleManager.Instance != null && MatchRoleManager.Instance.TreasureStolen.Value;
         return player.playerRole.Value == PlayerRole.Thief && treasureStolen;
     }
@@ -239,6 +247,11 @@ public class KeyItemPickup : NetworkBehaviour
         if (isCollected) return;
         isCollected = true;
         Debug.Log($"[KeyItemPickup] Key #{keyIndex} collected by player '{player.playerName.Value}'!");
+
+        if (PlayerController.LocalPlayer != null)
+        {
+            PlayerController.LocalPlayer.PlayPickupSound(pickupSound);
+        }
 
         if (MatchRoleManager.Instance != null)
         {

@@ -68,21 +68,29 @@ public class BagManager : NetworkBehaviour
     {
         // Only set the static Instance if this is the local player!
         bool isLocal = false;
-        var netObj = GetComponent<Unity.Netcode.NetworkObject>();
-        if (netObj != null)
+        var playerCtrl = GetComponent<PlayerController>();
+        if (playerCtrl != null)
         {
-            if (netObj.IsLocalPlayer) isLocal = true;
+            isLocal = playerCtrl.IsLocal;
         }
         else
         {
-            var photonView = GetComponent<Photon.Pun.PhotonView>();
-            if (photonView != null)
+            var netObj = GetComponent<Unity.Netcode.NetworkObject>();
+            if (netObj != null && netObj.IsSpawned && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
             {
-                if (photonView.IsMine) isLocal = true;
+                if (netObj.IsLocalPlayer || netObj.IsOwner) isLocal = true;
             }
             else
             {
-                isLocal = true; // Offline fallback
+                var photonView = GetComponent<Photon.Pun.PhotonView>();
+                if (photonView != null && Photon.Pun.PhotonNetwork.IsConnected)
+                {
+                    if (photonView.IsMine) isLocal = true;
+                }
+                else
+                {
+                    isLocal = true; // Offline fallback
+                }
             }
         }
 
@@ -258,12 +266,15 @@ public class BagManager : NetworkBehaviour
 
     public void DropAmmo(AmmoType type, InventoryItemData data, int amount)
     {
-        if (!ammoInventory.ContainsKey(type) || ammoInventory[type] < amount) return;
-        ammoInventory[type] -= amount;
-        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight * amount);
-        SpawnPickup(data, amount);
+        if (!ammoInventory.ContainsKey(type) || ammoInventory[type] <= 0) return;
+        int dropAmount = (amount > 0) ? Mathf.Min(amount, ammoInventory[type]) : ammoInventory[type];
+        ammoInventory[type] -= dropAmount;
+        int itemWeight = (data != null && data.weight > 0) ? data.weight : 1;
+        currentWeight = Mathf.Max(0, currentWeight - (itemWeight * dropAmount));
+        SpawnPickup(data, dropAmount);
         OnAmmoUpdated?.Invoke(type, ammoInventory[type]);
         OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 📦 Dropped {type} Ammo x{dropAmount}. Remaining: {ammoInventory[type]}");
     }
 
     public int GetAmmo(AmmoType type) => ammoInventory.ContainsKey(type) ? ammoInventory[type] : 0;
@@ -302,10 +313,12 @@ public class BagManager : NetworkBehaviour
     {
         if (!grenadeInventory.ContainsKey(type) || grenadeInventory[type] <= 0) return;
         grenadeInventory[type]--;
-        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        int itemWeight = (data != null && data.weight > 0) ? data.weight : 5;
+        currentWeight = Mathf.Max(0, currentWeight - itemWeight);
         SpawnPickup(data, 1);
         OnGrenadeUpdated?.Invoke(type, grenadeInventory[type]);
         OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 📦 Dropped {type} Grenade. Remaining: {grenadeInventory[type]}");
     }
 
     public int GetGrenadeCount(GrenadeType type)
@@ -358,30 +371,36 @@ public class BagManager : NetworkBehaviour
     {
         if (medikitCount <= 0) return;
         medikitCount--;
-        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        int itemWeight = (data != null && data.weight > 0) ? data.weight : 10;
+        currentWeight = Mathf.Max(0, currentWeight - itemWeight);
         SpawnPickup(data, 1);
         OnMedikitUpdated?.Invoke(medikitCount);
         OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 📦 Dropped Medikit. Remaining: {medikitCount}");
     }
 
     public void DropProteinShake(InventoryItemData data)
     {
         if (proteinShakeCount <= 0) return;
         proteinShakeCount--;
-        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        int itemWeight = (data != null && data.weight > 0) ? data.weight : 5;
+        currentWeight = Mathf.Max(0, currentWeight - itemWeight);
         SpawnPickup(data, 1);
         OnProteinShakeUpdated?.Invoke(proteinShakeCount);
         OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 📦 Dropped Protein Shake. Remaining: {proteinShakeCount}");
     }
 
     public void DropScope(InventoryItemData data)
     {
         if (scopeCount <= 0) return;
         scopeCount--;
-        if (data != null) currentWeight = Mathf.Max(0, currentWeight - data.weight);
+        int itemWeight = (data != null && data.weight > 0) ? data.weight : 5;
+        currentWeight = Mathf.Max(0, currentWeight - itemWeight);
         SpawnPickup(data, 1);
         OnScopeUpdated?.Invoke(scopeCount);
         OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 📦 Dropped Scope. Remaining: {scopeCount}");
     }
 
     // ─── Scopes ──────────────────────────────────────────────────────────────
@@ -573,19 +592,32 @@ public class BagManager : NetworkBehaviour
 
     public void DropWeapon(int slotIndex)
     {
+        var wc = WC;
         HandheldWeapon weapon = GetWeaponInSlot(slotIndex);
+        if (weapon == null && wc != null)
+        {
+            if (slotIndex != -1) weapon = wc.GetWeaponInSlot(1 - slotIndex);
+            if (weapon == null) weapon = wc.CurrentWeapon;
+        }
         if (weapon == null) return;
 
         InventoryItemData data = weapon.itemData;
-        int weaponWeight = data?.weight ?? 0;
-        if (data != null) SpawnPickup(data, 1);
+        int weaponWeight = data?.weight ?? 15;
 
-        // Deduct weight before clearing the slot
+        // Deduct weight before clearing slot
         currentWeight = Mathf.Max(0, currentWeight - weaponWeight);
 
-        // ClearWeaponSlot properly destroys the GameObject and frees the slot
-        WC?.ClearWeaponSlot(slotIndex);
+        // Spawn pickup in world
+        if (data != null)
+        {
+            SpawnPickup(data, 1);
+        }
+
+        // Clear Weapon Slot
+        int targetSlot = (slotIndex != -1) ? slotIndex : (wc != null ? wc.GetCurrentSlot() : 0);
+        wc?.ClearWeaponSlot(targetSlot);
         OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 📦 Dropped Weapon from slot {targetSlot}");
     }
 
     // ─── Data Lookups ─────────────────────────────────────────────────────────
@@ -613,13 +645,13 @@ public class BagManager : NetworkBehaviour
     {
         if (data == null)
         {
-            Debug.LogError("[BagManager] Cannot spawn pickup: InventoryItemData is null.");
+            Debug.LogError("[BagManager] Cannot spawn pickup: data is null.");
             return;
         }
-        if (data.prefab == null)
+
+        if (PlayerController.LocalPlayer != null)
         {
-            Debug.LogError($"[BagManager] Cannot spawn pickup for '{data.itemName}': Prefab is not assigned.");
-            return;
+            PlayerController.LocalPlayer.PlayDropSound(data.dropSound);
         }
 
         Vector3 spawnPos;
@@ -630,20 +662,61 @@ public class BagManager : NetworkBehaviour
         }
         else
         {
-            Debug.LogWarning("[BagManager] DropPoint not assigned! Using fallback position.");
             float randomX = Random.Range(-dropRadius, dropRadius);
             spawnPos   = transform.position + new Vector3(randomX, -0.5f, 0f);
             spawnPos.z = 0f;
         }
 
-        if (IsSpawned)
+        // 1. Try to find prefab on data or from allItemData
+        GameObject prefabToSpawn = data.prefab;
+        if (prefabToSpawn == null && allItemData != null)
         {
-            RequestSpawnPickupServerRpc(data.itemName, amount, spawnPos);
+            var match = allItemData.Find(x => x != null && (x.itemName == data.itemName || (x.itemType == data.itemType && (data.itemType != ItemType.Ammo || x.ammoType == data.ammoType))));
+            if (match != null)
+            {
+                prefabToSpawn = match.prefab;
+                if (data.icon == null) data.icon = match.icon;
+            }
+        }
+
+        GameObject pickupObj = null;
+        if (prefabToSpawn != null)
+        {
+            pickupObj = Instantiate(prefabToSpawn, spawnPos, Quaternion.identity);
         }
         else
         {
-            SpawnPickupLocalOnly(data, amount, spawnPos);
+            // Procedural visual pickup
+            pickupObj = new GameObject($"Pickup_{data.itemName}", typeof(SpriteRenderer), typeof(CircleCollider2D));
+            pickupObj.transform.position = spawnPos;
+            SpriteRenderer sr = pickupObj.GetComponent<SpriteRenderer>();
+            sr.sprite = data.icon;
+            sr.sortingLayerName = "player";
+            sr.sortingOrder = 10;
         }
+
+        CircleCollider2D col = pickupObj.GetComponent<CircleCollider2D>();
+        if (col == null) col = pickupObj.AddComponent<CircleCollider2D>();
+        col.isTrigger = true;
+        col.radius = 0.5f;
+
+        ItemPickup pickup = pickupObj.GetComponent<ItemPickup>();
+        if (pickup == null) pickup = pickupObj.AddComponent<ItemPickup>();
+        pickup.itemData = data;
+        pickup.amount = amount;
+        pickup.wasDropped = true;
+
+        if (IsSpawned && NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && IsServer)
+        {
+            pickup.SetNetworkState(amount, true, data.itemName);
+            var netObj = pickupObj.GetComponent<NetworkObject>();
+            if (netObj != null && !netObj.IsSpawned)
+            {
+                netObj.Spawn(true);
+            }
+        }
+
+        Debug.Log($"[BagManager] 📦 Successfully spawned dropped pickup: '{data.itemName}' x{amount} at {spawnPos}");
     }
 
     [ServerRpc(RequireOwnership = false)]

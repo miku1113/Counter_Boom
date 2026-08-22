@@ -45,6 +45,7 @@ public class MobileInputManager : MonoBehaviour
         playerController = controller;
         playerAiming = aiming;
         weaponController = weapon;
+        HUDManager.Instance?.BindLocalPlayer();
         Debug.Log("[MobileInputManager] Local player references registered successfully.");
     }
 

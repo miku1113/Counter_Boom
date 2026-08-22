@@ -16,6 +16,12 @@ public class SmokeGrenade : Grenade
     {
         damage = 0; // Explicitly ensure 0 damage
 
+        // Play smoke grenade pop/hiss explosion sound at blast position in 3D space
+        if (explosionSound != null)
+        {
+            AudioSource.PlayClipAtPoint(explosionSound, transform.position, 1.0f);
+        }
+
         GameObject smoke = null;
 
         if (smokeCloudPrefab != null)

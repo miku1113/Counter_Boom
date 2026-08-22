@@ -33,6 +33,11 @@ public class MatchRoleManager : NetworkBehaviour
         999999, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
     );
 
+    // Network variable tracking the Main Gate Key Holder (Thief / Tagger)
+    public NetworkVariable<ulong> GateKeyHolderClientId = new NetworkVariable<ulong>(
+        999999, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
     public NetworkVariable<bool> SafeKeyCollectedByThief = new NetworkVariable<bool>(
         false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
     );
@@ -102,7 +107,7 @@ public class MatchRoleManager : NetworkBehaviour
                 Vector3 newPos = GetSpawnPositionForRole(newRole);
                 p.transform.position = newPos;
 
-                string roleStr = (newRole == PlayerRole.Thief) ? "<color=red>🔴 THIEF</color>" : "<color=cyan>🔵 HOSTAGE</color>";
+                string roleStr = (newRole == PlayerRole.Thief) ? "<color=red>[THIEF]</color>" : "<color=cyan>[HOSTAGE]</color>";
                 Debug.Log($"[MatchRoleManager] Toggled local player role to: {newRole}");
 
                 if (HUDManager.Instance != null)
@@ -124,6 +129,7 @@ public class MatchRoleManager : NetworkBehaviour
         {
             KeysCollected.Value = 0;
             SafeKeyHolderClientId.Value = 999999;
+            GateKeyHolderClientId.Value = 999999;
             SafeKeyCollectedByThief.Value = false;
             IsSafeOpened.Value = false;
             TreasureStolen.Value = false;
@@ -193,22 +199,38 @@ public class MatchRoleManager : NetworkBehaviour
             }
         }
 
-        // Randomly assign 1 Hostage to be the Safe Key Holder
+        // Collect all Hostage and Thief ClientIds
         List<ulong> hostageClientIds = new List<ulong>();
+        List<ulong> thiefClientIds   = new List<ulong>();
+
         foreach (var pair in assignedRoles)
         {
             if (pair.Value == PlayerRole.Hostage) hostageClientIds.Add(pair.Key);
+            else if (pair.Value == PlayerRole.Thief) thiefClientIds.Add(pair.Key);
         }
 
+        // 1. Exactly 1 Hostage gets the Safe Key (which Thieves want to take to open the safe)
         if (hostageClientIds.Count > 0)
         {
-            ulong chosenKeyHolder = hostageClientIds[Random.Range(0, hostageClientIds.Count)];
-            SafeKeyHolderClientId.Value = chosenKeyHolder;
-            Debug.Log($"[MatchRoleManager] Assigned Safe Key to Hostage ClientId: {chosenKeyHolder}");
+            ulong chosenSafeKeyHolder = hostageClientIds[Random.Range(0, hostageClientIds.Count)];
+            SafeKeyHolderClientId.Value = chosenSafeKeyHolder;
+            Debug.Log($"[MatchRoleManager] 🔑 Assigned Safe Key to Hostage ClientId: {chosenSafeKeyHolder} (out of {hostageClientIds.Count} hostages)");
         }
         else
         {
-            SafeKeyHolderClientId.Value = 999999; // Singleplayer / Fallback
+            SafeKeyHolderClientId.Value = 999999;
+        }
+
+        // 2. Exactly 1 Thief (Tagger) gets the Main Gate Key (which Hostages want to take to escape)
+        if (thiefClientIds.Count > 0)
+        {
+            ulong chosenGateKeyHolder = thiefClientIds[Random.Range(0, thiefClientIds.Count)];
+            GateKeyHolderClientId.Value = chosenGateKeyHolder;
+            Debug.Log($"[MatchRoleManager] 🔑 Assigned Main Gate Key to Thief (Tagger) ClientId: {chosenGateKeyHolder} (out of {thiefClientIds.Count} thieves)");
+        }
+        else
+        {
+            GateKeyHolderClientId.Value = 999999;
         }
     }
 
@@ -217,16 +239,34 @@ public class MatchRoleManager : NetworkBehaviour
         return SafeKeyHolderClientId.Value == clientId;
     }
 
+    public bool IsGateKeyHolder(ulong clientId)
+    {
+        return GateKeyHolderClientId.Value == clientId;
+    }
+
     public void HandleSafeKeyHolderDeath(Vector3 dropPosition)
     {
-        Debug.Log($"[MatchRoleManager] Safe Key Holder died at {dropPosition}! Spawning SafeKeyItemPickup...");
+        Debug.Log($"[MatchRoleManager] Safe Key Holder (Hostage) died at {dropPosition}! Spawning SafeKeyItemPickup for Thieves...");
 
         GameObject keyGO = new GameObject("Dropped_SafeKey", typeof(SafeKeyItemPickup));
         keyGO.transform.position = dropPosition;
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowNotification("<color=yellow>🔑 SAFE KEY DROPPED! Hostage holding Safe Key was killed!</color>");
+            HUDManager.Instance.ShowNotification("<color=yellow>🔑 SAFE KEY DROPPED! Hostage holding Safe Key was eliminated!</color>");
+        }
+    }
+
+    public void HandleGateKeyHolderDeath(Vector3 dropPosition)
+    {
+        Debug.Log($"[MatchRoleManager] Main Gate Key Holder (Thief/Tagger) died at {dropPosition}! Spawning KeyItemPickup for Hostages...");
+
+        GameObject keyGO = new GameObject("Dropped_GateKey", typeof(KeyItemPickup));
+        keyGO.transform.position = dropPosition;
+
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowNotification("<color=yellow>🔑 MAIN GATE KEY DROPPED! Tagger holding Main Gate Key was eliminated!</color>");
         }
     }
 

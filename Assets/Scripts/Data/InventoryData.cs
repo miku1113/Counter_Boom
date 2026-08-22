@@ -15,4 +15,8 @@ public class InventoryItemData : ScriptableObject
     public GameObject prefab;       // The world pickup prefab / drop visual
     public GameObject projectilePrefab; // The projectile prefab to instantiate when throwing (only if Grenade)
     public Sprite icon;
+
+    [Header("Audio Clips")]
+    public AudioClip pickupSound;
+    public AudioClip dropSound;
 }

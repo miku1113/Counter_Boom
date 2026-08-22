@@ -43,7 +43,7 @@ public class RoomController : MonoBehaviour
     private PlayerController localPlayer;
     private bool            isButtonCurrentlyShowing = false;
 
-    private Button GetExitButton() => GameManager.Instance != null ? GameManager.Instance.exitButton : null;
+    private Button GetExitButton() => GameManager.Instance != null ? GameManager.Instance.exitButton : (OfflineManager.Instance != null ? OfflineManager.Instance.exitButton : null);
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -216,17 +216,28 @@ public class RoomController : MonoBehaviour
 
     private void OnExitPressed()
     {
+        if (localPlayer == null && PlayerController.LocalPlayer != null)
+        {
+            localPlayer = PlayerController.LocalPlayer;
+        }
+        if (localPlayer == null && OfflineManager.Instance != null && OfflineManager.Instance.SpawnedPlayer != null)
+        {
+            localPlayer = OfflineManager.Instance.SpawnedPlayer.GetComponent<PlayerController>();
+        }
+
         if (localPlayer == null || linkedDoor == null) return;
 
         // Teleport player back to the DoorController's position (= outside in the world)
-        localPlayer.transform.position = linkedDoor.transform.position;
+        Vector3 targetPos = linkedDoor.transform.position;
+        localPlayer.Teleport(targetPos);
 
         GameManager.Instance?.SetCurrentRoom(null);
+        OfflineManager.Instance?.SetCurrentRoom(null);
 
         if (HUDManager.Instance != null)
             HUDManager.Instance.ShowNotification($"⬅ Left {roomDisplayName}");
 
-        Debug.Log($"[RoomController] Local player exited room '{roomId}'.");
+        Debug.Log($"[RoomController] Local player exited room '{roomId}' to {targetPos}.");
         SetButtonVisible(false);
 
         // Tell the door to clean up its state

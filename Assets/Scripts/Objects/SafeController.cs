@@ -600,7 +600,12 @@ public class SafeController : NetworkBehaviour
         // Transition safe state to empty now that gold is collected
         SetSafeState(SafeState.OpenEmpty);
 
-        Debug.Log($"[SafeController] Gold & Treasure collected by Thief '{thiefPlayer.playerName.Value}'! Safe is now empty.");
+        // Award +10 coins to player's persistent balance
+        int currentCoins = PlayerPrefs.GetInt("Coins", 1000);
+        currentCoins += 10;
+        PlayerPrefs.SetInt("Coins", currentCoins);
+        PlayerPrefs.Save();
+        Debug.Log($"[SafeController] 💰 Added +10 Coins! New coin balance: {currentCoins}");
 
         if (MatchRoleManager.Instance != null)
         {
@@ -619,7 +624,7 @@ public class SafeController : NetworkBehaviour
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowNotification("<color=gold>💰 GOLD & TREASURE COLLECTED! Find exit keys to unlock Main Gate & Escape!</color>");
+            HUDManager.Instance.ShowVictoryModal(10, currentCoins);
         }
 
         SetButtonVisible(false);

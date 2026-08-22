@@ -6,7 +6,7 @@ using Unity.Netcode;
 
 public class LoadingGameController : MonoBehaviour
 {
-    public enum MatchMode { QuickPlay, JoinCode, PrivateHost, InGameLoading }
+    public enum MatchMode { QuickPlay, JoinCode, PrivateHost, InGameLoading, OfflineMode }
     public static MatchMode TargetMode = MatchMode.QuickPlay;
     public static string JoinCodeToUse = "";
 
@@ -42,7 +42,7 @@ public class LoadingGameController : MonoBehaviour
 
     private void Awake()
     {
-        if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
+        if (TargetMode != MatchMode.OfflineMode && NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
         {
             TargetMode = MatchMode.InGameLoading;
         }
@@ -73,9 +73,23 @@ public class LoadingGameController : MonoBehaviour
 
     private async void ExecuteMatchmaking()
     {
-        if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
+        if (TargetMode != MatchMode.OfflineMode && NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
         {
             TargetMode = MatchMode.InGameLoading;
+        }
+
+        if (TargetMode == MatchMode.OfflineMode)
+        {
+            UpdateStatus("Initializing Offline Singleplayer Mode...");
+            await Task.Delay(400);
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            {
+                NetworkManager.Singleton.Shutdown();
+            }
+            UpdateStatus("Loading Offline Mode Scene, AI Bots & Rooms...");
+            await Task.Delay(600);
+            UnityEngine.SceneManagement.SceneManager.LoadScene("OfflineMode");
+            return;
         }
 
         UpdateStatus("Connecting to Relay & Unity Services...");
@@ -85,11 +99,6 @@ public class LoadingGameController : MonoBehaviour
         {
             UpdateStatus("<color=red>Error: RelayNetworkManager missing!</color>");
             return;
-        }
-
-        if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
-        {
-            TargetMode = MatchMode.InGameLoading;
         }
 
         bool success = false;

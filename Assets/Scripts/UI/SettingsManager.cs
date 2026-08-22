@@ -204,18 +204,37 @@ public class SettingsManager : MonoBehaviour
         {
             saveNameButton.onClick.RemoveAllListeners();
             saveNameButton.onClick.AddListener(OnSaveNameClicked);
+            saveNameButton.onClick.AddListener(PlayClickSound);
         }
 
         if (backButton != null)
         {
             backButton.onClick.RemoveAllListeners();
             backButton.onClick.AddListener(OnBack);
+            backButton.onClick.AddListener(PlayClickSound);
         }
 
         if (resetButton != null)
         {
             resetButton.onClick.RemoveAllListeners();
             resetButton.onClick.AddListener(OnResetDefaults);
+            resetButton.onClick.AddListener(PlayClickSound);
+        }
+
+        foreach (var btn in GetComponentsInChildren<Button>(true))
+        {
+            if (btn != null && btn != saveNameButton && btn != backButton && btn != resetButton)
+            {
+                btn.onClick.AddListener(PlayClickSound);
+            }
+        }
+    }
+
+    private void PlayClickSound()
+    {
+        if (MainMenuController.Instance != null)
+        {
+            MainMenuController.Instance.PlayButtonClickSFX();
         }
     }
 

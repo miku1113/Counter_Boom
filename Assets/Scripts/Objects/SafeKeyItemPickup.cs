@@ -8,6 +8,9 @@ public class SafeKeyItemPickup : NetworkBehaviour
     [SerializeField] private float bobbingHeight = 0.15f;
     [SerializeField] private Color keyGlowColor = new Color(1f, 0.2f, 0.15f, 1f); // Vibrant Red-Gold Glow
 
+    [Header("Audio Clips")]
+    public AudioClip pickupSound;
+
     private Vector3 initialPos;
     private SpriteRenderer spriteRenderer;
     private bool isCollected = false;
@@ -21,9 +24,11 @@ public class SafeKeyItemPickup : NetworkBehaviour
         rb.bodyType = RigidbodyType2D.Kinematic;
         rb.simulated = true;
 
+        transform.localScale = new Vector3(0.2f, 0.2f, 1f);
+
         CircleCollider2D circle = GetComponent<CircleCollider2D>();
         if (circle == null) circle = gameObject.AddComponent<CircleCollider2D>();
-        circle.radius = 0.85f;
+        circle.radius = 3.5f; // in local scale, gives ~0.7m pickup radius
         circle.isTrigger = true;
 
         spriteRenderer = GetComponent<SpriteRenderer>();
@@ -90,7 +95,7 @@ public class SafeKeyItemPickup : NetworkBehaviour
         }
 
         tex.Apply();
-        return Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 16f);
+        return Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f), 32f);
     }
 
     private void EnsureLabel()
@@ -100,11 +105,11 @@ public class SafeKeyItemPickup : NetworkBehaviour
         {
             GameObject txtGO = new GameObject("SafeKeyLabel");
             txtGO.transform.SetParent(transform, false);
-            txtGO.transform.localPosition = new Vector3(0f, 0.75f, 0f);
+            txtGO.transform.localPosition = new Vector3(0f, 1.8f, 0f);
 
             TextMeshPro tmp = txtGO.AddComponent<TextMeshPro>();
             tmp.text = "🔑 SAFE KEY";
-            tmp.fontSize = 2.0f;
+            tmp.fontSize = 4.0f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = keyGlowColor;
@@ -194,8 +199,8 @@ public class SafeKeyItemPickup : NetworkBehaviour
         PlayerController player = other.GetComponentInParent<PlayerController>();
         if (player == null) player = other.GetComponent<PlayerController>();
 
-        // Only Thief players can collect the Safe Key!
-        if (player != null && player.playerRole.Value == PlayerRole.Thief)
+        // Human players / Thieves can collect the Safe Key!
+        if (player != null && !player.CompareTag("Bot") && player.GetComponent<AiBotController>() == null)
         {
             CollectSafeKey(player);
         }
@@ -205,6 +210,11 @@ public class SafeKeyItemPickup : NetworkBehaviour
     {
         if (isCollected) return;
         isCollected = true;
+
+        if (PlayerController.LocalPlayer != null)
+        {
+            PlayerController.LocalPlayer.PlayPickupSound(pickupSound);
+        }
 
         Debug.Log($"[SafeKeyItemPickup] Safe Key collected by Thief '{player.playerName.Value}'!");
 

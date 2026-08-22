@@ -43,6 +43,10 @@ public class HandheldWeapon : MonoBehaviour
     public int burstCount = 3;
     public float burstShotInterval = 0.1f;
 
+    [Header("Audio Clips")]
+    public AudioClip shootSound;
+    public AudioClip reloadSound;
+
     [Header("Visual Feedback")]
     public float shakeAmount = 0.05f;
     public float shakeDuration = 0.1f;
@@ -120,11 +124,7 @@ public class HandheldWeapon : MonoBehaviour
     {
         if (!isReloading && ammoInMag < maxAmmo)
         {
-            // Check if we have ammo in bag
-            if (BagManager.Instance != null && BagManager.Instance.GetAmmo(ammoType) > 0)
-            {
-                StartCoroutine(ReloadRoutine());
-            }
+            StartCoroutine(ReloadRoutine());
         }
     }
 
@@ -166,14 +166,24 @@ public class HandheldWeapon : MonoBehaviour
 
         ammoInMag--;
 
+        Vector2 fireDir = (firePoint != null) ? (Vector2)firePoint.right : (Vector2)transform.right;
+        PlayerAiming aiming = GetComponentInParent<PlayerAiming>();
+        if (aiming != null)
+        {
+            fireDir = aiming.GetAimDirection();
+        }
+
+        Vector3 firePos = (firePoint != null) ? firePoint.position : transform.position;
+        Quaternion fireRot = Quaternion.Euler(0, 0, Mathf.Atan2(fireDir.y, fireDir.x) * Mathf.Rad2Deg);
+
         WeaponController parentController = GetComponentInParent<WeaponController>();
         if (parentController != null)
         {
-            parentController.NotifyFired(firePoint.position, firePoint.rotation, firePoint.right, bulletSpeed, damage);
+            parentController.NotifyFired(firePos, fireRot, fireDir, bulletSpeed, damage);
         }
         else
         {
-            SpawnBulletLocal(firePoint.position, firePoint.rotation, firePoint.right, bulletSpeed, damage, transform.root.gameObject);
+            SpawnBulletLocal(firePos, fireRot, fireDir, bulletSpeed, damage, transform.root.gameObject);
         }
 
         // Shake Effect
@@ -202,6 +212,12 @@ public class HandheldWeapon : MonoBehaviour
              {
                  GameObject effect = Instantiate(fireEffectPrefab, position, rotation, firePoint);
                  Destroy(effect, fireEffectLifetime);
+             }
+
+             // Play Weapon Shoot Sound at fire position in 3D space
+             if (shootSound != null)
+             {
+                 AudioSource.PlayClipAtPoint(shootSound, position, 1.0f);
              }
         }
     }
@@ -252,17 +268,26 @@ public class HandheldWeapon : MonoBehaviour
     {
         isReloading = true;
         OnReloadStart?.Invoke();
+
+        if (reloadSound != null)
+        {
+            AudioSource.PlayClipAtPoint(reloadSound, transform.position, 0.8f);
+        }
         
         yield return new WaitForSeconds(reloadTime);
         
-        if (BagManager.Instance != null)
+        BagManager bag = GetComponentInParent<BagManager>() ?? BagManager.Instance;
+        if (bag != null)
         {
             int needed = maxAmmo - ammoInMag;
-            int available = BagManager.Instance.GetAmmo(ammoType);
-            int toLoad = Mathf.Min(needed, available);
-            
+            int available = bag.GetAmmo(ammoType);
+            int toLoad = needed;
+            if (available > 0)
+            {
+                toLoad = Mathf.Min(needed, available);
+                bag.ConsumeAmmo(ammoType, toLoad);
+            }
             ammoInMag += toLoad;
-            BagManager.Instance.ConsumeAmmo(ammoType, toLoad);
         }
         else
         {

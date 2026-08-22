@@ -20,7 +20,7 @@ public class WeaponController : NetworkBehaviour
     public HandheldWeapon[] weaponSlots = new HandheldWeapon[2];
     private int currentSlot = 0;
 
-    private HandheldWeapon CurrentWeapon => weaponSlots[currentSlot];
+    public HandheldWeapon CurrentWeapon => (currentSlot >= 0 && currentSlot < weaponSlots.Length) ? weaponSlots[currentSlot] : null;
 
     // ─── Events ──────────────────────────────────────────────────────────────
     public System.Action<int, int> OnAmmoChanged;
@@ -42,7 +42,11 @@ public class WeaponController : NetworkBehaviour
     private void Start()
     {
         bool isLocal = false;
-        if (IsSpawned)
+        if (CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot"))
+        {
+            isLocal = false;
+        }
+        else if (IsSpawned)
         {
             if (IsOwner) isLocal = true;
         }
@@ -436,6 +440,11 @@ public class WeaponController : NetworkBehaviour
         if (BagManager.Instance != null)
         {
             BagManager.Instance.ConsumeGrenade(activeType);
+        }
+
+        if (PlayerController.LocalPlayer != null)
+        {
+            PlayerController.LocalPlayer.PlayGrenadeThrowSound();
         }
 
         if (IsSpawned)

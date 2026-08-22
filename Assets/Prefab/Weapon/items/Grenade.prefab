@@ -11,8 +11,8 @@ GameObject:
   - component: {fileID: 4020332360878709098}
   - component: {fileID: 7663665268891131394}
   - component: {fileID: 2509249976484810038}
-  - component: {fileID: 2421112530755497531}
   - component: {fileID: 6514043600253544456}
+  - component: {fileID: 2421112530755497531}
   m_Layer: 0
   m_Name: Grenade
   m_TagString: Untagged
@@ -132,6 +132,29 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 16.14599, y: 17.129543}
   m_EdgeRadius: 0
+--- !u!114 &6514043600253544456
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7338846437426498013}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 2890326363
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!114 &2421112530755497531
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -147,26 +170,5 @@ MonoBehaviour:
   itemData: {fileID: 11400000, guid: b6918e77c3a344dcaa567055ced77995, type: 2}
   amount: 1
   wasDropped: 0
---- !u!114 &6514043600253544456
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7338846437426498013}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 0
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
-  SyncOwnerTransformWhenParented: 1
-  AllowOwnerToParent: 0
+  pickupSound: {fileID: 0}
+  dropSound: {fileID: 0}

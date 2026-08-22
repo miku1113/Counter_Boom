@@ -57,6 +57,11 @@ public class PlayerHealth : NetworkBehaviour
 
     private void EvaluateIsLocal()
     {
+        if (CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot"))
+        {
+            return; // Do not override human player instance
+        }
+
         bool isLocal = false;
         if (IsSpawned)
         {
@@ -87,7 +92,7 @@ public class PlayerHealth : NetworkBehaviour
     {
         // Invincibility check: Ignore all damage in lobby scenes or non-gameplay scenes!
         string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-        if (activeScene != "GameScene") return;
+        if (activeScene != "GameScene" && activeScene != "OfflineMode") return;
 
         if (IsSpawned)
         {
@@ -166,10 +171,28 @@ public class PlayerHealth : NetworkBehaviour
         Debug.Log($"[PlayerHealth] Player '{gameObject.name}' died! Starting death animation...");
         OnDeath?.Invoke();
 
-        // Drop Safe Key if this player was assigned as the Safe Key Holder Hostage
-        if (MatchRoleManager.Instance != null && MatchRoleManager.Instance.IsSafeKeyHolder(OwnerClientId))
+        // Drop Safe Key & Room Keys when a Bot dies (or when the Safe/Gate Key Holder dies in Online match)
+        bool isBot = CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot");
+        if (isBot)
         {
-            MatchRoleManager.Instance.HandleSafeKeyHolderDeath(transform.position);
+            GameObject safeKeyGO = new GameObject("Dropped_SafeKey", typeof(SafeKeyItemPickup));
+            safeKeyGO.transform.position = transform.position;
+
+            GameObject roomKeyGO = new GameObject("Dropped_Key", typeof(KeyItemPickup));
+            roomKeyGO.transform.position = transform.position + new Vector3(0.5f, 0.2f, 0f);
+            
+            Debug.Log($"[PlayerHealth] 🔑 Bot '{gameObject.name}' dropped Safe Key and Room Key at {transform.position}!");
+        }
+        else if (MatchRoleManager.Instance != null)
+        {
+            if (MatchRoleManager.Instance.IsSafeKeyHolder(OwnerClientId))
+            {
+                MatchRoleManager.Instance.HandleSafeKeyHolderDeath(transform.position);
+            }
+            else if (MatchRoleManager.Instance.IsGateKeyHolder(OwnerClientId))
+            {
+                MatchRoleManager.Instance.HandleGateKeyHolderDeath(transform.position);
+            }
         }
 
         // Drop all equipped weapons on the ground for other players to pick up!
@@ -230,7 +253,11 @@ public class PlayerHealth : NetworkBehaviour
         }
 
         bool isLocalPlayer = false;
-        if (IsSpawned)
+        if (CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot"))
+        {
+            isLocalPlayer = false;
+        }
+        else if (IsSpawned)
         {
             if (IsOwner) isLocalPlayer = true;
         }
@@ -256,7 +283,7 @@ public class PlayerHealth : NetworkBehaviour
             playerCtrl.EnableGhostMode();
         }
 
-        // 7. Update UI controls ONLY if the local player died: Disable Aim Joystick & combat buttons, KEEP Move Joystick active!
+        // 7. Update UI controls ONLY if the local player died & show Game Over Restart modal!
         if (isLocalPlayer)
         {
             if (MobileInputManager.Instance != null)
@@ -266,6 +293,7 @@ public class PlayerHealth : NetworkBehaviour
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.SetGhostUI(true);
+                HUDManager.Instance.ShowGameOverModal();
             }
         }
     }
