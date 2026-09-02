@@ -91,36 +91,35 @@ public class CompassUI : MonoBehaviour
             if (existing != null)
             {
                 compassBarRoot = existing.GetComponent<RectTransform>();
-                compassBarRoot.sizeDelta = new Vector2(compassWidth, 38f);
+                compassBarRoot.sizeDelta = new Vector2(compassWidth, 42f);
+                compassBarRoot.anchoredPosition = new Vector2(0f, -40f);
+
+                Image existingBg = compassBarRoot.GetComponent<Image>();
+                if (existingBg != null) existingBg.enabled = false;
+
+                Outline existingOutline = compassBarRoot.GetComponent<Outline>();
+                if (existingOutline != null) Destroy(existingOutline);
             }
             else
             {
-                // Create Modern Tactical Compass Bar Container
-                GameObject barGO = new GameObject("TacticalCompassBar", typeof(RectTransform), typeof(Image));
+                // Create Modern Transparent Tactical Compass Bar Container
+                GameObject barGO = new GameObject("TacticalCompassBar", typeof(RectTransform));
                 barGO.transform.SetParent(canvas.transform, false);
 
                 compassBarRoot = barGO.GetComponent<RectTransform>();
                 compassBarRoot.anchorMin = new Vector2(0.5f, 1f);
                 compassBarRoot.anchorMax = new Vector2(0.5f, 1f);
                 compassBarRoot.pivot = new Vector2(0.5f, 1f);
-                compassBarRoot.sizeDelta = new Vector2(compassWidth, 38f);
-                compassBarRoot.anchoredPosition = new Vector2(0f, -8f);
+                compassBarRoot.sizeDelta = new Vector2(compassWidth, 42f);
+                compassBarRoot.anchoredPosition = new Vector2(0f, -40f);
 
-                // Dark glassmorphic background
-                Image bg = barGO.GetComponent<Image>();
-                bg.color = new Color(0.06f, 0.08f, 0.12f, 0.88f);
-
-                Outline outline = barGO.AddComponent<Outline>();
-                outline.effectColor = new Color(0.2f, 0.4f, 0.6f, 0.6f);
-                outline.effectDistance = new Vector2(1f, -1f);
-
-                // Top Heading Readout (e.g. "345° NW")
+                // Top Heading Readout Badge (e.g. "345° NW")
                 GameObject headGO = new GameObject("HeadingText", typeof(RectTransform), typeof(TextMeshProUGUI));
                 headGO.transform.SetParent(barGO.transform, false);
                 RectTransform headRt = headGO.GetComponent<RectTransform>();
                 headRt.anchorMin = new Vector2(0.5f, 1f); headRt.anchorMax = new Vector2(0.5f, 1f);
                 headRt.pivot = new Vector2(0.5f, 0f);
-                headRt.sizeDelta = new Vector2(120f, 18f);
+                headRt.sizeDelta = new Vector2(120f, 22f);
                 headRt.anchoredPosition = new Vector2(0f, 2f);
 
                 headingText = headGO.GetComponent<TextMeshProUGUI>();
@@ -129,6 +128,8 @@ public class CompassUI : MonoBehaviour
                 headingText.fontStyle = FontStyles.Bold;
                 headingText.alignment = TextAlignmentOptions.Center;
                 headingText.color = new Color(1f, 0.88f, 0.2f, 1f);
+                headingText.enableWordWrapping = false;
+                headingText.overflowMode = TextOverflowModes.Overflow;
 
                 // Center Pointer Needle (Yellow Caret ▼)
                 GameObject pointerGO = new GameObject("CenterPointer", typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -136,7 +137,7 @@ public class CompassUI : MonoBehaviour
                 RectTransform pRt = pointerGO.GetComponent<RectTransform>();
                 pRt.anchorMin = new Vector2(0.5f, 1f); pRt.anchorMax = new Vector2(0.5f, 1f);
                 pRt.pivot = new Vector2(0.5f, 1f);
-                pRt.sizeDelta = new Vector2(16f, 12f);
+                pRt.sizeDelta = new Vector2(18f, 14f);
                 pRt.anchoredPosition = new Vector2(0f, 1f);
 
                 TextMeshProUGUI pTmp = pointerGO.GetComponent<TextMeshProUGUI>();
@@ -144,13 +145,15 @@ public class CompassUI : MonoBehaviour
                 pTmp.fontSize = 11;
                 pTmp.alignment = TextAlignmentOptions.Center;
                 pTmp.color = new Color(1f, 0.85f, 0.2f, 1f);
+                pTmp.enableWordWrapping = false;
+                pTmp.overflowMode = TextOverflowModes.Overflow;
 
                 // Masked Viewport for scrolling tape
                 GameObject viewportGO = new GameObject("CompassViewport", typeof(RectTransform), typeof(RectMask2D));
                 viewportGO.transform.SetParent(barGO.transform, false);
                 RectTransform vRt = viewportGO.GetComponent<RectTransform>();
                 vRt.anchorMin = Vector2.zero; vRt.anchorMax = Vector2.one;
-                vRt.offsetMin = new Vector2(4f, 2f); vRt.offsetMax = new Vector2(-4f, -2f);
+                vRt.offsetMin = new Vector2(6f, 2f); vRt.offsetMax = new Vector2(-6f, -4f);
 
                 // Scrolling Tape Content Container
                 GameObject tapeGO = new GameObject("TapeContent", typeof(RectTransform));
@@ -162,6 +165,11 @@ public class CompassUI : MonoBehaviour
                 compassTapeContent.sizeDelta = new Vector2(360f * pixelsPerDegree * 3f, 0f);
                 compassTapeContent.anchoredPosition = Vector2.zero;
             }
+        }
+        else
+        {
+            compassBarRoot.sizeDelta = new Vector2(compassWidth, 42f);
+            compassBarRoot.anchoredPosition = new Vector2(0f, -40f);
         }
 
         if (headingText == null && compassBarRoot != null)
@@ -197,11 +205,14 @@ public class CompassUI : MonoBehaviour
                 rt.anchorMin = new Vector2(0.5f, 0f);
                 rt.anchorMax = new Vector2(0.5f, 1f);
                 rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(36f, 0f);
+                rt.sizeDelta = new Vector2(48f, 0f);
                 rt.anchoredPosition = new Vector2(xPos, 0f);
 
                 TextMeshProUGUI tmp = tickGO.GetComponent<TextMeshProUGUI>();
                 tmp.alignment = TextAlignmentOptions.Center;
+                tmp.enableWordWrapping = false;
+                tmp.overflowMode = TextOverflowModes.Overflow;
+                tmp.margin = Vector4.zero;
 
                 string label = GetHeadingLabel(deg);
                 if (deg % 90 == 0)

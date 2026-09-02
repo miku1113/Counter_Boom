@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "940362803620",
+    "firebase_url": "https://gold-heist-ac8d6-default-rtdb.firebaseio.com",
+    "project_id": "gold-heist-ac8d6",
+    "storage_bucket": "gold-heist-ac8d6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:940362803620:android:08e7f4641f50467e7e3931",
+        "android_client_info": {
+          "package_name": "com.counterboom.game"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "940362803620-os0fbphfgb710i63jstubdrgem2haoi3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDm_ivWI58BhmcNGp5ePbF9QmbNi8OKePo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "940362803620-os0fbphfgb710i63jstubdrgem2haoi3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "940362803620-d4aj59uj03hhtea5f18elk854logl8jb.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.counterboom.game"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

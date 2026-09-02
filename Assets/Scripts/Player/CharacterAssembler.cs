@@ -91,6 +91,13 @@ public class CharacterAssembler : NetworkBehaviour
     /// </summary>
     public void LoadEquippedSkin()
     {
+        if (availableSkins == null || availableSkins.Length == 0)
+        {
+            if (MainMenuController.Instance != null && MainMenuController.Instance.skins != null)
+            {
+                availableSkins = MainMenuController.Instance.skins;
+            }
+        }
         if (availableSkins == null || availableSkins.Length == 0) return;
 
         int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
@@ -108,6 +115,11 @@ public class CharacterAssembler : NetworkBehaviour
             targetSkin = availableSkins[equippedIndex];
         }
 
+        if (targetSkin == null && availableSkins.Length > 0)
+        {
+            targetSkin = availableSkins[0];
+        }
+
         if (targetSkin != null)
         {
             SetCharacterSkin(targetSkin);
@@ -116,6 +128,14 @@ public class CharacterAssembler : NetworkBehaviour
 
     public void ApplySkinByIndex(int index)
     {
+        if (availableSkins == null || availableSkins.Length == 0)
+        {
+            if (MainMenuController.Instance != null && MainMenuController.Instance.skins != null)
+            {
+                availableSkins = MainMenuController.Instance.skins;
+            }
+        }
+
         if (availableSkins != null && index >= 0 && index < availableSkins.Length && availableSkins[index] != null)
         {
             SetCharacterSkin(availableSkins[index]);

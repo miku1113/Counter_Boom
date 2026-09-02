@@ -42,10 +42,6 @@ public class LoadingGameController : MonoBehaviour
 
     private void Awake()
     {
-        if (TargetMode != MatchMode.OfflineMode && NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
-        {
-            TargetMode = MatchMode.InGameLoading;
-        }
         EnsureUI();
     }
 
@@ -73,9 +69,14 @@ public class LoadingGameController : MonoBehaviour
 
     private async void ExecuteMatchmaking()
     {
-        if (TargetMode != MatchMode.OfflineMode && NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsHost))
+        if (TargetMode == MatchMode.QuickPlay || TargetMode == MatchMode.JoinCode || TargetMode == MatchMode.PrivateHost)
         {
-            TargetMode = MatchMode.InGameLoading;
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            {
+                Debug.Log("[LoadingGameController] Shutting down stale network connection before launching matchmaking...");
+                NetworkManager.Singleton.Shutdown();
+                await Task.Delay(200);
+            }
         }
 
         if (TargetMode == MatchMode.OfflineMode)
@@ -149,6 +150,8 @@ public class LoadingGameController : MonoBehaviour
         if (success)
         {
             UpdateStatus("<color=green>Connected! Spawning player and loading lobby...</color>");
+            await Task.Delay(500);
+            UnityEngine.SceneManagement.SceneManager.LoadScene("CustomLobby");
         }
         else
         {

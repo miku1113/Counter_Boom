@@ -18,7 +18,7 @@ public class WeaponController : NetworkBehaviour
 
     // ─── Runtime state ───────────────────────────────────────────────────────
     public HandheldWeapon[] weaponSlots = new HandheldWeapon[2];
-    private int currentSlot = 0;
+    private int currentSlot = -1;
 
     public HandheldWeapon CurrentWeapon => (currentSlot >= 0 && currentSlot < weaponSlots.Length) ? weaponSlots[currentSlot] : null;
 
@@ -71,7 +71,7 @@ public class WeaponController : NetworkBehaviour
             weaponSlots[i] = null;
             OnWeaponSlotUpdated?.Invoke(i);
         }
-        currentSlot = 0;
+        currentSlot = -1;
     }
 
     /// <summary>
@@ -88,6 +88,7 @@ public class WeaponController : NetworkBehaviour
         }
         weaponSlots[0] = null;
         weaponSlots[1] = null;
+        currentSlot = -1;
         if (playerAiming == null) playerAiming = GetComponent<PlayerAiming>();
         playerAiming?.SetWeapon(null);
     }
@@ -213,8 +214,11 @@ public class WeaponController : NetworkBehaviour
         weaponSlots[slotIndex] = newWeapon;
         SubscribeToWeapon(newWeapon);
 
-        if (slotIndex == currentSlot)
+        bool shouldSelect = (slotIndex == currentSlot) || (currentSlot == -1);
+
+        if (shouldSelect)
         {
+            currentSlot = slotIndex;
             newWeapon.gameObject.SetActive(true);
 
             if (playerAiming == null)
@@ -225,7 +229,7 @@ public class WeaponController : NetworkBehaviour
             HandleAmmoChanged(newWeapon.GetCurrentAmmo(), newWeapon.maxAmmo);
             CheckZoom();
 
-            Debug.Log($"[WeaponController] ✅ Equipped '{newWeapon.weaponName}' to active slot {slotIndex}.");
+            Debug.Log($"[WeaponController] ✅ Equipped and auto-selected '{newWeapon.weaponName}' to active slot {slotIndex}.");
         }
         else
         {
@@ -234,12 +238,13 @@ public class WeaponController : NetworkBehaviour
             Debug.Log($"[WeaponController] Equipped '{newWeapon.weaponName}' to inactive slot {slotIndex}.");
         }
 
-        // Notify HUD so the slot icon/ammo text refreshes immediately
+        // Notify HUD so slot icons, ammo text, and background sprites refresh immediately
         OnWeaponSlotUpdated?.Invoke(slotIndex);
+        OnWeaponSlotUpdated?.Invoke(1 - slotIndex);
     }
 
     /// <summary>
-    /// Destroys and clears a slot. If it was the active slot, switches to the other.
+    /// Destroys and clears a slot. If it was the active slot, switches to the other or deselects into punch mode.
     /// Used by BagManager when dropping a weapon.
     /// </summary>
     public void ClearWeaponSlot(int slotIndex)
@@ -251,7 +256,7 @@ public class WeaponController : NetworkBehaviour
         Destroy(weaponSlots[slotIndex].gameObject);
         weaponSlots[slotIndex] = null;
 
-        // If the cleared slot was active, switch to the other
+        // If the cleared slot was active, switch to the other if available, or deselect into punch mode
         if (slotIndex == currentSlot)
         {
             int other = 1 - slotIndex;
@@ -270,19 +275,81 @@ public class WeaponController : NetworkBehaviour
             }
             else
             {
-                playerAiming?.SetWeapon(null);
-                Debug.Log($"[WeaponController] Slot {slotIndex} cleared — no other weapon available.");
+                DeselectWeaponInternal();
+                Debug.Log($"[WeaponController] Slot {slotIndex} cleared — no other weapon available. Switched to Punch mode.");
             }
         }
 
         // Notify HUD so the slot icon clears immediately
         OnWeaponSlotUpdated?.Invoke(slotIndex);
+        OnWeaponSlotUpdated?.Invoke(1 - slotIndex);
+    }
+
+    public void DeselectWeapon()
+    {
+        DeselectWeaponInternal();
+
+        if (IsSpawned && IsOwner)
+        {
+            DeselectWeaponServerRpc();
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void DeselectWeaponServerRpc()
+    {
+        DeselectWeaponClientRpc();
+    }
+
+    [ClientRpc]
+    private void DeselectWeaponClientRpc()
+    {
+        if (IsOwner) return;
+        DeselectWeaponInternal();
+    }
+
+    private void DeselectWeaponInternal()
+    {
+        if (currentSlot >= 0 && currentSlot < weaponSlots.Length && weaponSlots[currentSlot] != null)
+        {
+            weaponSlots[currentSlot].StopFiring();
+            weaponSlots[currentSlot].gameObject.SetActive(false);
+        }
+
+        currentSlot = -1;
+
+        if (playerAiming == null)
+            playerAiming = GetComponent<PlayerAiming>();
+
+        playerAiming?.SetWeapon(null);
+        playerAiming?.PlayWeaponDeselectAnimation();
+        HandleAmmoChanged(0, 0);
+        CheckZoom();
+
+        OnWeaponSlotUpdated?.Invoke(0);
+        OnWeaponSlotUpdated?.Invoke(1);
+
+        Debug.Log("[WeaponController] Deselected active weapon. Player is now in Punch/Melee mode.");
     }
 
     public void SwitchToSlot(int slotIndex)
     {
-        if (slotIndex < 0 || slotIndex >= 2 || weaponSlots[slotIndex] == null) return;
-        if (slotIndex == currentSlot && weaponSlots[currentSlot].gameObject.activeSelf) return;
+        if (slotIndex == -1)
+        {
+            DeselectWeapon();
+            return;
+        }
+
+        if (slotIndex < 0 || slotIndex >= 2) return;
+
+        // If clicking the weapon slot that is ALREADY selected -> DESELECT it to switch to Punch mode!
+        if (slotIndex == currentSlot && weaponSlots[currentSlot] != null && weaponSlots[currentSlot].gameObject.activeSelf)
+        {
+            DeselectWeapon();
+            return;
+        }
+
+        if (weaponSlots[slotIndex] == null) return;
 
         SwitchToSlotInternal(slotIndex);
 
@@ -309,8 +376,8 @@ public class WeaponController : NetworkBehaviour
     {
         if (slotIndex < 0 || slotIndex >= 2 || weaponSlots[slotIndex] == null) return;
 
-        // Deactivate current
-        if (weaponSlots[currentSlot] != null)
+        // Deactivate current active weapon if any
+        if (currentSlot >= 0 && currentSlot < weaponSlots.Length && weaponSlots[currentSlot] != null)
         {
             weaponSlots[currentSlot].StopFiring();
             weaponSlots[currentSlot].gameObject.SetActive(false);

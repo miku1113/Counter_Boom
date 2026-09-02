@@ -17,13 +17,29 @@ public class HUDManager : MonoBehaviour
     public TextMeshProUGUI    weapon2AmmoText;
     [SerializeField] private Image weapon1Icon;
     [SerializeField] private Image weapon2Icon;
+    [Header("Slot Background Sprites")]
+    public Sprite selectedSlotSprite;   // Blue / selected slot sprite
+    public Sprite unselectedSlotSprite; // Gray / unselected slot sprite
+
+    [Header("Fire Buttons")]
+    public Button fireButton;     // Primary / Right Fire Button
+    public Button leftFireButton; // Secondary / Left Fire Button
 
     [Header("Grenade")]
     public Button          boomButton;
     public TextMeshProUGUI boomCountText;
 
-    [Header("Pickup")]
-    public Button pickupButton;
+    [Header("Grenade Selection Bar (Bottom List)")]
+    public GameObject grenadeBarPanel;
+    public Button     grenadeSlotExplosive;
+    public Button     grenadeSlotStun;
+    public Button     grenadeSlotSmoke;
+
+    [Header("Pickup Scroll View Panel")]
+    public Button        pickupButton;
+    public ScrollRect    pickupScrollView;
+    public RectTransform pickupContentContainer; // Content container inside Viewport
+    public GameObject    pickupItemPrefab;
 
     [Header("Health & Energy")]
     public Slider          healthSlider;
@@ -43,6 +59,18 @@ public class HUDManager : MonoBehaviour
     [Header("Multiplayer")]
     [SerializeField] private TextMeshProUGUI joinCodeHUDText;
 
+    [Header("Custom Lobby & Player List Panel")]
+    public GameObject customLobbyPanel;
+    public Button     toggleLobbyPanelButton;   // ThreeDotsButton / Open panel button on HUD
+    public Button     closeLobbyPanelButton;    // Close button inside panel
+    public Button     copyRoomCodeButton;       // CopyIDButton
+    public Button     startMatchButton;         // Start button (Host)
+    public Button     leaveLobbyButton;         // LeaveButton
+    public TextMeshProUGUI roomIDText;          // RoomIDText / JoinCode text
+    public TextMeshProUGUI playerCountText;     // PLayerCount text
+    public Transform  playerListContainer;      // PlayerListPanel container for player card entries
+    public GameObject playerListCardPrefab;     // Player card prefab (white entry card)
+
     [Header("Host Migration")]
     [SerializeField] private GameObject migrationOverlayPanel;
     [SerializeField] private TextMeshProUGUI migrationStatusText;
@@ -56,6 +84,7 @@ public class HUDManager : MonoBehaviour
     [Header("Settings Menu")]
     [SerializeField] private Button settingsButton;
     [SerializeField] private GameObject settingsPanel;
+    [SerializeField] public TextMeshProUGUI settingsInfoText;
     [SerializeField] private Button leaveGameButton;
     [SerializeField] private Button closeSettingsButton;
     private GameObject leaveConfirmationModal;
@@ -96,6 +125,10 @@ public class HUDManager : MonoBehaviour
 
         // Ensure Tactical Compass UI is initialized
         EnsureCompassUI();
+
+        // Ensure Custom Lobby & Player List Panel UI is initialized & hidden by default
+        EnsureCustomLobbyPanelUI();
+        if (customLobbyPanel != null) customLobbyPanel.SetActive(false);
 
         if (prevSpectateButton != null) prevSpectateButton.onClick.AddListener(OnPrevSpectateClicked);
         if (nextSpectateButton != null) nextSpectateButton.onClick.AddListener(OnNextSpectateClicked);
@@ -165,7 +198,8 @@ public class HUDManager : MonoBehaviour
 
         if (BagManager.Instance != null)
         {
-            BagManager.Instance.OnGrenadeUpdated     -= UpdateGrenadeUI;
+            BagManager.Instance.OnBagUpdated          -= HandleBagUpdated;
+            BagManager.Instance.OnGrenadeUpdated      -= UpdateGrenadeUI;
             BagManager.Instance.OnMedikitUpdated      -= UpdateMedikitUI;
             BagManager.Instance.OnProteinShakeUpdated -= UpdateShakeUI;
         }
@@ -217,7 +251,7 @@ public class HUDManager : MonoBehaviour
 
     private void Update()
     {
-        if (!isPlayerEventsBound && (BagManager.Instance != null || WeaponController.Instance != null))
+        if (!isPlayerEventsBound && (BagManager.Instance != null || WeaponController.Instance != null || PlayerHealth.Instance != null || PlayerEnergy.Instance != null))
         {
             isPlayerEventsBound = true;
             BindLocalPlayer();
@@ -229,11 +263,177 @@ public class HUDManager : MonoBehaviour
         }
 
         UpdatePickupUI();
+        UpdateHealthAndEnergyUIContinuous();
+    }
+
+    private void UpdateHealthAndEnergyUIContinuous()
+    {
+        if (healthSlider == null || energySlider == null)
+        {
+            AutoResolveHealthAndEnergyUI();
+        }
+
+        var health = PlayerHealth.Instance != null ? PlayerHealth.Instance : FindObjectOfType<PlayerHealth>();
+        if (health != null)
+        {
+            UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
+        }
+
+        var energy = PlayerEnergy.Instance != null ? PlayerEnergy.Instance : FindObjectOfType<PlayerEnergy>();
+        if (energy != null)
+        {
+            UpdateEnergyUI(energy.GetCurrentEnergy(), energy.GetMaxEnergy());
+        }
+    }
+
+    private void EnsurePickupScrollView()
+    {
+        if (pickupScrollView != null && pickupItemPrefab != null) return;
+
+        Canvas canvas = GetComponentInParent<Canvas>() ?? GetComponent<Canvas>() ?? FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // Auto-find existing ScrollRect in Canvas if named containing "pickup"
+        if (pickupScrollView == null)
+        {
+            ScrollRect[] srs = canvas.GetComponentsInChildren<ScrollRect>(true);
+            foreach (var sr in srs)
+            {
+                if (sr != null && sr.gameObject.name.ToLower().Contains("pickup"))
+                {
+                    pickupScrollView = sr;
+                    break;
+                }
+            }
+        }
+
+        // Dynamically create Pickup Scroll View on HUD canvas if unassigned
+        if (pickupScrollView == null)
+        {
+            GameObject scrollGO = new GameObject("PickupScrollView", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
+            scrollGO.transform.SetParent(canvas.transform, false);
+
+            RectTransform scrollRt = scrollGO.GetComponent<RectTransform>();
+            scrollRt.anchorMin = new Vector2(1f, 0.5f);
+            scrollRt.anchorMax = new Vector2(1f, 0.5f);
+            scrollRt.pivot = new Vector2(1f, 0.5f);
+            scrollRt.anchoredPosition = new Vector2(-60f, 0f); // Positioned on the right side
+            scrollRt.sizeDelta = new Vector2(240f, 220f);
+
+            Image scrollBg = scrollGO.GetComponent<Image>();
+            scrollBg.color = new Color(0.08f, 0.12f, 0.18f, 0.85f); // Sleek dark panel
+
+            // Viewport
+            GameObject vpGO = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(Mask));
+            vpGO.transform.SetParent(scrollGO.transform, false);
+            RectTransform vpRt = vpGO.GetComponent<RectTransform>();
+            vpRt.anchorMin = Vector2.zero; vpRt.anchorMax = Vector2.one; vpRt.sizeDelta = Vector2.zero;
+
+            Image vpImg = vpGO.GetComponent<Image>();
+            vpImg.color = new Color(1f, 1f, 1f, 0.05f);
+            vpGO.GetComponent<Mask>().showMaskGraphic = false;
+
+            // Content
+            GameObject contentGO = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            contentGO.transform.SetParent(vpGO.transform, false);
+            RectTransform contentRt = contentGO.GetComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.sizeDelta = new Vector2(0f, 0f);
+
+            VerticalLayoutGroup vlg = contentGO.GetComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(6, 6, 6, 6);
+            vlg.spacing = 6f;
+            vlg.childControlWidth = true;
+            vlg.childControlHeight = false;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+
+            ContentSizeFitter csf = contentGO.GetComponent<ContentSizeFitter>();
+            csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            pickupScrollView = scrollGO.GetComponent<ScrollRect>();
+            pickupScrollView.content = contentRt;
+            pickupScrollView.viewport = vpRt;
+            pickupScrollView.horizontal = false;
+            pickupScrollView.vertical = true;
+            pickupScrollView.movementType = ScrollRect.MovementType.Elastic;
+        }
+
+        if (pickupContentContainer == null && pickupScrollView != null && pickupScrollView.content != null)
+        {
+            pickupContentContainer = pickupScrollView.content;
+        }
+
+        // Dynamically create Pickup Item Prefab template if unassigned
+        if (pickupItemPrefab == null && pickupScrollView != null)
+        {
+            Transform parent = pickupContentContainer != null ? (Transform)pickupContentContainer : (pickupScrollView.content != null ? (Transform)pickupScrollView.content : pickupScrollView.transform);
+
+            GameObject itemGO = new GameObject("PickupItemTemplate", typeof(RectTransform), typeof(Image), typeof(Button), typeof(PickupItemEntryUI));
+            itemGO.transform.SetParent(parent, false);
+
+            RectTransform itemRt = itemGO.GetComponent<RectTransform>();
+            itemRt.sizeDelta = new Vector2(0f, 50f);
+
+            Image itemBg = itemGO.GetComponent<Image>();
+            itemBg.color = new Color(0.18f, 0.24f, 0.32f, 0.95f); // Sleek item entry button background
+
+            // Image Icon Child
+            GameObject iconGO = new GameObject("ItemIcon", typeof(RectTransform), typeof(Image));
+            iconGO.transform.SetParent(itemGO.transform, false);
+            RectTransform iconRt = iconGO.GetComponent<RectTransform>();
+            iconRt.anchorMin = new Vector2(0f, 0.5f);
+            iconRt.anchorMax = new Vector2(0f, 0.5f);
+            iconRt.pivot = new Vector2(0f, 0.5f);
+            iconRt.anchoredPosition = new Vector2(8f, 0f);
+            iconRt.sizeDelta = new Vector2(38f, 38f);
+
+            Image iconImg = iconGO.GetComponent<Image>();
+            iconImg.preserveAspect = true;
+
+            // Name Text Child
+            GameObject nameGO = new GameObject("ItemNameText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            nameGO.transform.SetParent(itemGO.transform, false);
+            RectTransform nameRt = nameGO.GetComponent<RectTransform>();
+            nameRt.anchorMin = new Vector2(0f, 0f);
+            nameRt.anchorMax = new Vector2(1f, 1f);
+            nameRt.offsetMin = new Vector2(52f, 2f);
+            nameRt.offsetMax = new Vector2(-6f, -2f);
+
+            TextMeshProUGUI tmp = nameGO.GetComponent<TextMeshProUGUI>();
+            tmp.text = "Item Name";
+            tmp.fontSize = 15;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            tmp.color = Color.white;
+
+            // Wire PickupItemEntryUI component references
+            PickupItemEntryUI entryUI = itemGO.GetComponent<PickupItemEntryUI>();
+            if (entryUI != null)
+            {
+                entryUI.itemIcon = iconImg;
+                entryUI.itemName = tmp;
+                entryUI.pickButton = itemGO.GetComponent<Button>();
+            }
+
+            itemGO.SetActive(false); // Template stays inactive until instantiated
+            pickupItemPrefab = itemGO;
+        }
+
+        // Scroll View is hidden by default until player is standing near an item
+        if (pickupScrollView != null && !isPickupUIInitialized)
+        {
+            pickupScrollView.gameObject.SetActive(false);
+        }
     }
 
     private void UpdatePickupUI()
     {
-        if (pickupButton == null) return;
+        EnsurePickupScrollView();
+
+        if (pickupScrollView == null) return;
 
         // Safely remove any destroyed items from list
         ItemPickup.PickupsInRange.RemoveAll(item => item == null);
@@ -261,52 +461,111 @@ public class HUDManager : MonoBehaviour
         lastPickups.Clear();
         lastPickups.AddRange(currentPickups);
 
-        // Destroy previous clones
+        // Clear previous spawned item entries in ScrollView
         foreach (var btn in spawnedPickupButtons)
         {
             if (btn != null) Destroy(btn.gameObject);
         }
         spawnedPickupButtons.Clear();
 
+        // Hide Scroll View when no items are in range (player is not standing near any item)
         if (currentPickups.Count == 0)
         {
-            pickupButton.gameObject.SetActive(false);
+            pickupScrollView.gameObject.SetActive(false);
+            if (pickupButton != null) pickupButton.gameObject.SetActive(false);
             return;
         }
 
-        if (currentPickups.Count == 1)
+        // Show Scroll View ONLY when player is standing near items
+        pickupScrollView.gameObject.SetActive(true);
+        if (pickupButton != null) pickupButton.gameObject.SetActive(false);
+
+        // Parent item entries directly under Content (inside Viewport)
+        Transform contentParent = pickupContentContainer != null ? (Transform)pickupContentContainer : (pickupScrollView.content != null ? (Transform)pickupScrollView.content : pickupScrollView.transform);
+
+        // 1. Manage item spacing and height expansion from code
+        var vlg = contentParent.GetComponent<VerticalLayoutGroup>();
+        if (vlg == null) vlg = contentParent.gameObject.AddComponent<VerticalLayoutGroup>();
+        vlg.spacing = 4f;                   // Compact 4px spacing between items
+        vlg.childForceExpandHeight = false; // Prevent items from stretching apart vertically!
+        vlg.childControlHeight = true;      // Control item row heights cleanly
+        vlg.childControlWidth = true;
+        vlg.childForceExpandWidth = true;
+
+        var csf = contentParent.GetComponent<ContentSizeFitter>();
+        if (csf == null) csf = contentParent.gameObject.AddComponent<ContentSizeFitter>();
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // 2. Hide scrollbar if there are less than 4 items
+        bool showScrollbar = currentPickups.Count >= 4;
+        pickupScrollView.vertical = showScrollbar;
+
+        if (pickupScrollView.verticalScrollbar != null)
         {
-            pickupButton.gameObject.SetActive(true);
-            var pickup = currentPickups[0];
-            SetButtonText(pickupButton, $"Pick {pickup.itemData.itemName}");
-            pickupButton.onClick.RemoveAllListeners();
-            pickupButton.onClick.AddListener(() => pickup.PickingUpManually());
+            pickupScrollView.verticalScrollbar.gameObject.SetActive(showScrollbar);
         }
-        else
+
+        Scrollbar[] scrollbars = pickupScrollView.GetComponentsInChildren<Scrollbar>(true);
+        foreach (var sb in scrollbars)
         {
-            // Hide the template button, spawn custom buttons stacked vertically
-            pickupButton.gameObject.SetActive(false);
-
-            RectTransform templateRt = pickupButton.GetComponent<RectTransform>();
-            float buttonHeight = templateRt.rect.height;
-            float spacing = 10f;
-
-            for (int i = 0; i < currentPickups.Count; i++)
+            if (sb != null)
             {
-                var pickup = currentPickups[i];
-                GameObject cloneObj = Instantiate(pickupButton.gameObject, pickupButton.transform.parent);
-                cloneObj.SetActive(true);
+                sb.gameObject.SetActive(showScrollbar);
+            }
+        }
 
-                Button cloneBtn = cloneObj.GetComponent<Button>();
-                SetButtonText(cloneBtn, $"Pick {pickup.itemData.itemName}");
+        for (int i = 0; i < currentPickups.Count; i++)
+        {
+            var pickup = currentPickups[i];
+            if (pickup == null || pickup.itemData == null) continue;
 
-                cloneBtn.onClick.RemoveAllListeners();
-                cloneBtn.onClick.AddListener(() => pickup.PickingUpManually());
+            GameObject entryGO;
+            if (pickupItemPrefab != null)
+            {
+                entryGO = Instantiate(pickupItemPrefab, contentParent, false);
+            }
+            else
+            {
+                entryGO = new GameObject($"PickupItem_{i}", typeof(RectTransform), typeof(Image), typeof(Button), typeof(PickupItemEntryUI));
+                entryGO.transform.SetParent(contentParent, false);
+            }
 
-                RectTransform cloneRt = cloneObj.GetComponent<RectTransform>();
-                cloneRt.anchoredPosition = templateRt.anchoredPosition + new Vector2(0, i * (buttonHeight + spacing));
+            entryGO.SetActive(true);
 
-                spawnedPickupButtons.Add(cloneBtn);
+            // Ensure compact LayoutElement height on item entry
+            var le = entryGO.GetComponent<LayoutElement>();
+            if (le == null) le = entryGO.AddComponent<LayoutElement>();
+            le.minHeight = 45f;
+            le.preferredHeight = 45f;
+            le.flexibleHeight = 0f;
+
+            // Get or add PickupItemEntryUI component
+            PickupItemEntryUI entryUI = entryGO.GetComponent<PickupItemEntryUI>();
+            if (entryUI == null) entryUI = entryGO.AddComponent<PickupItemEntryUI>();
+
+            // Auto-resolve components if unassigned on entryUI
+            if (entryUI.itemName == null) entryUI.itemName = entryGO.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (entryUI.itemIcon == null)
+            {
+                Image[] imgs = entryGO.GetComponentsInChildren<Image>(true);
+                foreach (var img in imgs)
+                {
+                    if (img != null && img.gameObject != entryGO && img.gameObject.name.ToLower().Contains("icon"))
+                    {
+                        entryUI.itemIcon = img;
+                        break;
+                    }
+                }
+                if (entryUI.itemIcon == null && imgs.Length > 1) entryUI.itemIcon = imgs[1];
+            }
+            if (entryUI.pickButton == null) entryUI.pickButton = entryGO.GetComponent<Button>();
+
+            // Configure Item Icon Image, Name Text, and Pick Button Callback
+            entryUI.Setup(pickup.itemData, () => pickup.PickingUpManually());
+
+            if (entryUI.pickButton != null)
+            {
+                spawnedPickupButtons.Add(entryUI.pickButton);
             }
         }
     }
@@ -358,12 +617,33 @@ public class HUDManager : MonoBehaviour
             UpdateAmmoUI(WeaponController.Instance.GetCurrentAmmo(), WeaponController.Instance.GetMaxAmmo());
         }
 
+        AutoResolveHealthAndEnergyUI();
+
+        var health = PlayerHealth.Instance != null ? PlayerHealth.Instance : FindObjectOfType<PlayerHealth>();
+        if (health != null)
+        {
+            health.OnHealthChanged -= UpdateHealthUI;
+            health.OnHealthChanged += UpdateHealthUI;
+            health.OnDeath         -= ShowGameOverModal;
+            health.OnDeath         += ShowGameOverModal;
+            UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
+        }
+
+        var energy = PlayerEnergy.Instance != null ? PlayerEnergy.Instance : FindObjectOfType<PlayerEnergy>();
+        if (energy != null)
+        {
+            energy.OnEnergyChanged -= UpdateEnergyUI;
+            energy.OnEnergyChanged += UpdateEnergyUI;
+            UpdateEnergyUI(energy.GetCurrentEnergy(), energy.GetMaxEnergy());
+        }
+
         RefreshWeaponSlotUI(0);
         RefreshWeaponSlotUI(1);
     }
 
     private void HandleBagUpdated()
     {
+        if (this == null || transform == null || !gameObject.activeInHierarchy) return;
         RefreshWeaponSlotUI(0);
         RefreshWeaponSlotUI(1);
         if (BagManager.Instance != null)
@@ -372,19 +652,187 @@ public class HUDManager : MonoBehaviour
         }
     }
 
+    public Sprite GetGrenadeIconSprite(GrenadeType type)
+    {
+        if (BagManager.Instance != null && BagManager.Instance.allItemData != null)
+        {
+            var data = BagManager.Instance.allItemData.Find(x => x != null && x.itemType == ItemType.Grenade && x.grenadeType == type);
+            if (data != null && data.icon != null) return data.icon;
+        }
+        return null;
+    }
+
+    private void EnsureGrenadeSelectionBar()
+    {
+        if (this == null || transform == null || !gameObject.activeInHierarchy) return;
+        if (grenadeBarPanel != null && grenadeSlotExplosive != null && grenadeSlotStun != null && grenadeSlotSmoke != null)
+        {
+            WireGrenadeSlotListeners();
+            return;
+        }
+
+        Canvas canvas = GetComponentInParent<Canvas>() ?? GetComponent<Canvas>() ?? FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // 1. Auto-find existing grenade slot buttons in Canvas if unassigned
+        if (grenadeSlotExplosive == null || grenadeSlotStun == null || grenadeSlotSmoke == null)
+        {
+            Button[] buttons = canvas.GetComponentsInChildren<Button>(true);
+            foreach (var btn in buttons)
+            {
+                if (btn == null) continue;
+                string n = btn.gameObject.name.ToLower();
+                if (grenadeSlotExplosive == null && (n.Contains("explosive") || (n.Contains("boom") && n.Contains("slot")))) grenadeSlotExplosive = btn;
+                if (grenadeSlotStun == null && n.Contains("stun")) grenadeSlotStun = btn;
+                if (grenadeSlotSmoke == null && n.Contains("smoke")) grenadeSlotSmoke = btn;
+            }
+        }
+
+        // 2. Dynamically Create Grenade Selection Bar container at bottom after guns if missing
+        if (grenadeBarPanel == null)
+        {
+            GameObject barGO = new GameObject("GrenadeSelectionBar", typeof(RectTransform));
+            barGO.transform.SetParent(canvas.transform, false);
+
+            RectTransform barRt = barGO.GetComponent<RectTransform>();
+            barRt.anchorMin = new Vector2(0.5f, 0f);
+            barRt.anchorMax = new Vector2(0.5f, 0f);
+            barRt.pivot = new Vector2(0.5f, 0f);
+            barRt.anchoredPosition = new Vector2(275f, 67.2f); // Placed at bottom bar after GunSlot2
+            barRt.sizeDelta = new Vector2(230f, 75f);
+
+            grenadeBarPanel = barGO;
+        }
+
+        // 3. Create missing slots inside grenadeBarPanel
+        if (grenadeSlotExplosive == null && grenadeBarPanel != null)
+        {
+            grenadeSlotExplosive = CreateGrenadeSlotButton(grenadeBarPanel.transform, "Slot_Explosive", GrenadeType.Explosive, new Vector2(-75f, 0f));
+        }
+        if (grenadeSlotStun == null && grenadeBarPanel != null)
+        {
+            grenadeSlotStun = CreateGrenadeSlotButton(grenadeBarPanel.transform, "Slot_Stun", GrenadeType.Stun, new Vector2(0f, 0f));
+        }
+        if (grenadeSlotSmoke == null && grenadeBarPanel != null)
+        {
+            grenadeSlotSmoke = CreateGrenadeSlotButton(grenadeBarPanel.transform, "Slot_Smoke", GrenadeType.Smoke, new Vector2(75f, 0f));
+        }
+
+        WireGrenadeSlotListeners();
+    }
+
+    private void WireGrenadeSlotListeners()
+    {
+        if (grenadeSlotExplosive != null)
+        {
+            grenadeSlotExplosive.onClick.RemoveAllListeners();
+            grenadeSlotExplosive.onClick.AddListener(() => OnSelectGrenadeClicked(GrenadeType.Explosive));
+        }
+        if (grenadeSlotStun != null)
+        {
+            grenadeSlotStun.onClick.RemoveAllListeners();
+            grenadeSlotStun.onClick.AddListener(() => OnSelectGrenadeClicked(GrenadeType.Stun));
+        }
+        if (grenadeSlotSmoke != null)
+        {
+            grenadeSlotSmoke.onClick.RemoveAllListeners();
+            grenadeSlotSmoke.onClick.AddListener(() => OnSelectGrenadeClicked(GrenadeType.Smoke));
+        }
+    }
+
+    private Button CreateGrenadeSlotButton(Transform parent, string name, GrenadeType type, Vector2 anchoredPos)
+    {
+        GameObject btnGO = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(parent, false);
+
+        RectTransform rt = btnGO.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = anchoredPos;
+        rt.sizeDelta = new Vector2(65f, 65f);
+
+        Image bgImg = btnGO.GetComponent<Image>();
+        if (unselectedSlotSprite != null)
+        {
+            bgImg.sprite = unselectedSlotSprite;
+            bgImg.color = Color.white;
+        }
+        else
+        {
+            bgImg.color = new Color(0.25f, 0.25f, 0.25f, 0.9f);
+        }
+
+        // Icon Image Child
+        GameObject iconGO = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+        iconGO.transform.SetParent(btnGO.transform, false);
+        RectTransform iconRt = iconGO.GetComponent<RectTransform>();
+        iconRt.anchorMin = new Vector2(0.15f, 0.15f);
+        iconRt.anchorMax = new Vector2(0.85f, 0.85f);
+        iconRt.sizeDelta = Vector2.zero;
+
+        Image iconImg = iconGO.GetComponent<Image>();
+        Sprite iconSprite = GetGrenadeIconSprite(type);
+        if (iconSprite != null)
+        {
+            iconImg.sprite = iconSprite;
+            iconImg.preserveAspect = true;
+            iconImg.color = Color.white;
+        }
+        else
+        {
+            iconImg.color = new Color(0, 0, 0, 0);
+        }
+
+        // Count Text Child
+        GameObject textGO = new GameObject("CountText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        textGO.transform.SetParent(btnGO.transform, false);
+        RectTransform textRt = textGO.GetComponent<RectTransform>();
+        textRt.anchorMin = new Vector2(0f, 0f);
+        textRt.anchorMax = new Vector2(1f, 0.35f);
+        textRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI tmp = textGO.GetComponent<TextMeshProUGUI>();
+        tmp.fontSize = 14;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.BottomRight;
+        tmp.color = Color.yellow;
+        tmp.text = "0";
+
+        return btnGO.GetComponent<Button>();
+    }
+
+    private void OnSelectGrenadeClicked(GrenadeType type)
+    {
+        if (BagManager.Instance == null) return;
+        int count = BagManager.Instance.GetGrenadeCount(type);
+        if (count > 0 || BagManager.Instance.activeGrenadeType == type)
+        {
+            BagManager.Instance.EquipGrenade(type);
+            UpdateGrenadeUI(type, count);
+        }
+        else
+        {
+            ShowNotification($"⚠️ No {type} Grenades in inventory!");
+        }
+    }
+
     // ─── Event Handlers ──────────────────────────────────────────────────────
 
     private void UpdateGrenadeUI(GrenadeType type, int count)
     {
+        EnsureGrenadeSelectionBar();
+
         if (BagManager.Instance == null)
         {
             if (boomButton != null) boomButton.gameObject.SetActive(false);
+            if (grenadeBarPanel != null) grenadeBarPanel.SetActive(false);
             return;
         }
-        
+
         GrenadeType activeType = BagManager.Instance.activeGrenadeType;
 
-        // Auto-switch to another available grenade type if the active one runs out
+        // Auto-switch to another available grenade type if active runs out
         if (activeType == type && count <= 0)
         {
             foreach (GrenadeType gType in System.Enum.GetValues(typeof(GrenadeType)))
@@ -402,34 +850,30 @@ public class HUDManager : MonoBehaviour
 
         if (boomButton != null)
         {
-            // Only show grenade button if player has a grenade in bag
-            boomButton.gameObject.SetActive(hasGrenades);
+            boomButton.gameObject.SetActive(true);
             boomButton.interactable = hasGrenades;
 
-            if (hasGrenades)
+            // Find child icon Image or target Image on boomButton
+            Image targetImg = null;
+            Image[] images = boomButton.GetComponentsInChildren<Image>(true);
+            foreach (var img in images)
             {
-                // Find icon on button or child image
-                Image targetImg = null;
-                Image[] images = boomButton.GetComponentsInChildren<Image>(true);
-                foreach (var img in images)
+                if (img != null && img.gameObject != boomButton.gameObject)
                 {
-                    if (img != null && img.gameObject != boomButton.gameObject)
-                    {
-                        targetImg = img;
-                        break;
-                    }
+                    targetImg = img;
+                    break;
                 }
-                if (targetImg == null) targetImg = boomButton.GetComponent<Image>();
+            }
+            if (targetImg == null) targetImg = boomButton.GetComponent<Image>();
 
-                if (targetImg != null)
+            if (targetImg != null)
+            {
+                Sprite activeIcon = GetGrenadeIconSprite(activeType);
+                if (activeIcon != null)
                 {
-                    var data = BagManager.Instance.allItemData?.Find(x => x != null && x.itemType == ItemType.Grenade && x.grenadeType == activeType);
-                    if (data != null && data.icon != null)
-                    {
-                        targetImg.sprite = data.icon;
-                        targetImg.preserveAspect = true;
-                        targetImg.color = Color.white;
-                    }
+                    targetImg.sprite = activeIcon;
+                    targetImg.preserveAspect = true;
+                    targetImg.color = hasGrenades ? Color.white : new Color(1f, 1f, 1f, 0.4f);
                 }
             }
         }
@@ -437,7 +881,81 @@ public class HUDManager : MonoBehaviour
         if (boomCountText != null)
         {
             boomCountText.text = activeCount.ToString();
-            boomCountText.gameObject.SetActive(hasGrenades);
+            boomCountText.gameObject.SetActive(true);
+        }
+
+        // Update Bottom Grenade Selection List Slots (Explosive, Stun, Smoke)
+        UpdateSingleGrenadeSlotUI(grenadeSlotExplosive, GrenadeType.Explosive, activeType);
+        UpdateSingleGrenadeSlotUI(grenadeSlotStun,      GrenadeType.Stun,      activeType);
+        UpdateSingleGrenadeSlotUI(grenadeSlotSmoke,     GrenadeType.Smoke,     activeType);
+    }
+
+    private void UpdateSingleGrenadeSlotUI(Button slotBtn, GrenadeType slotType, GrenadeType activeType)
+    {
+        if (slotBtn == null || BagManager.Instance == null) return;
+
+        int count = BagManager.Instance.GetGrenadeCount(slotType);
+        bool isSelected = (slotType == activeType);
+
+        // Update Background Frame (Blue for selected, Gray for unselected)
+        Image bgImg = slotBtn.GetComponent<Image>();
+        if (bgImg != null)
+        {
+            if (isSelected)
+            {
+                if (selectedSlotSprite != null)
+                {
+                    bgImg.sprite = selectedSlotSprite;
+                    bgImg.color = Color.white;
+                }
+                else
+                {
+                    bgImg.color = new Color(0.15f, 0.55f, 0.95f, 1f);
+                }
+            }
+            else
+            {
+                if (unselectedSlotSprite != null)
+                {
+                    bgImg.sprite = unselectedSlotSprite;
+                    bgImg.color = Color.white;
+                }
+                else
+                {
+                    bgImg.color = new Color(0.35f, 0.35f, 0.35f, 0.85f);
+                }
+            }
+        }
+
+        // Update Icon Sprite
+        Image iconImg = null;
+        Image[] imgs = slotBtn.GetComponentsInChildren<Image>(true);
+        foreach (var img in imgs)
+        {
+            if (img != null && img.gameObject != slotBtn.gameObject)
+            {
+                iconImg = img;
+                break;
+            }
+        }
+        if (iconImg != null)
+        {
+            Sprite iconSprite = GetGrenadeIconSprite(slotType);
+            if (iconSprite != null)
+            {
+                iconImg.sprite = iconSprite;
+                iconImg.preserveAspect = true;
+                iconImg.color = count > 0 ? Color.white : new Color(1f, 1f, 1f, 0.35f);
+                iconImg.gameObject.SetActive(true);
+            }
+        }
+
+        // Update Count Text
+        TextMeshProUGUI tmpText = slotBtn.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (tmpText != null)
+        {
+            tmpText.text = count.ToString();
+            tmpText.color = count > 0 ? Color.white : new Color(0.7f, 0.7f, 0.7f, 0.6f);
         }
     }
 
@@ -468,6 +986,58 @@ public class HUDManager : MonoBehaviour
         }
     }
 
+    private struct FillRectState
+    {
+        public bool isCached;
+        public Vector2 offsetMin;
+        public Vector2 offsetMax;
+        public Vector3 localScale;
+    }
+
+    private FillRectState healthFillState;
+    private FillRectState energyFillState;
+
+    private void CacheSliderFillBounds()
+    {
+        if (!healthFillState.isCached && healthSlider != null && healthSlider.fillRect != null)
+        {
+            healthFillState.isCached = true;
+            healthFillState.offsetMin = healthSlider.fillRect.offsetMin;
+            healthFillState.offsetMax = healthSlider.fillRect.offsetMax;
+            healthFillState.localScale = healthSlider.fillRect.localScale;
+        }
+        if (!energyFillState.isCached && energySlider != null && energySlider.fillRect != null)
+        {
+            energyFillState.isCached = true;
+            energyFillState.offsetMin = energySlider.fillRect.offsetMin;
+            energyFillState.offsetMax = energySlider.fillRect.offsetMax;
+            energyFillState.localScale = energySlider.fillRect.localScale;
+        }
+    }
+
+    private void RestoreSliderFillBounds(Slider slider, ref FillRectState state)
+    {
+        if (!state.isCached || slider == null || slider.fillRect == null) return;
+
+        RectTransform fillRt = slider.fillRect;
+        float norm = Mathf.Clamp01(slider.maxValue > 0 ? (slider.value / slider.maxValue) : 0f);
+
+        Vector2 min = fillRt.offsetMin;
+        Vector2 max = fillRt.offsetMax;
+
+        // Restore Left (min.x) and Right (max.x) padding set in Inspector
+        min.x = state.offsetMin.x;
+        max.x = Mathf.Lerp(0f, state.offsetMax.x, norm);
+
+        // Restore Bottom (min.y) and Top (max.y) padding set in Inspector
+        min.y = state.offsetMin.y;
+        max.y = state.offsetMax.y;
+
+        fillRt.offsetMin = min;
+        fillRt.offsetMax = max;
+        fillRt.localScale = state.localScale;
+    }
+
     private void AutoResolveHealthAndEnergyUI()
     {
         Canvas canvas = GetComponentInParent<Canvas>();
@@ -480,11 +1050,15 @@ public class HUDManager : MonoBehaviour
         {
             if (s == null) continue;
             string sName = s.gameObject.name.ToLower();
-            if (healthSlider == null && (sName.Contains("health") || sName.Contains("hp") || sName.Contains("life")))
+            string pName = s.transform.parent != null ? s.transform.parent.gameObject.name.ToLower() : "";
+            string grandPName = (s.transform.parent != null && s.transform.parent.parent != null) ? s.transform.parent.parent.gameObject.name.ToLower() : "";
+            string fullName = $"{grandPName}_{pName}_{sName}";
+
+            if (healthSlider == null && (fullName.Contains("health") || fullName.Contains("hp") || fullName.Contains("life")))
             {
                 healthSlider = s;
             }
-            else if (energySlider == null && (sName.Contains("energy") || sName.Contains("stamina") || sName.Contains("boost") || sName.Contains("mana") || sName.Contains("power")))
+            else if (energySlider == null && (fullName.Contains("energy") || fullName.Contains("stamina") || fullName.Contains("boost") || fullName.Contains("mana") || fullName.Contains("power")))
             {
                 energySlider = s;
             }
@@ -495,23 +1069,34 @@ public class HUDManager : MonoBehaviour
         {
             if (t == null) continue;
             string tName = t.gameObject.name.ToLower();
-            if (healthText == null && (tName.Contains("health") || tName.Contains("hp")))
+            string pName = t.transform.parent != null ? t.transform.parent.gameObject.name.ToLower() : "";
+            string grandPName = (t.transform.parent != null && t.transform.parent.parent != null) ? t.transform.parent.parent.gameObject.name.ToLower() : "";
+            string fullName = $"{grandPName}_{pName}_{tName}";
+
+            if (healthText == null && (fullName.Contains("health") || fullName.Contains("hp")))
             {
                 healthText = t;
             }
-            else if (energyText == null && (tName.Contains("energy") || tName.Contains("stamina") || tName.Contains("boost")))
+            else if (energyText == null && (fullName.Contains("energy") || fullName.Contains("stamina") || fullName.Contains("boost")))
             {
                 energyText = t;
             }
         }
+
+        CacheSliderFillBounds();
     }
 
     private void UpdateHealthUI(int current, int max)
     {
+        CacheSliderFillBounds();
+
         if (healthSlider != null)
         {
             healthSlider.maxValue = max;
             healthSlider.value    = current;
+
+            // Restore fill bounds (left, right, top, bottom) and localScale so right edge NEVER goes out
+            RestoreSliderFillBounds(healthSlider, ref healthFillState);
         }
         if (healthText != null)
             healthText.text = $"{current}/{max}";
@@ -519,40 +1104,117 @@ public class HUDManager : MonoBehaviour
 
     private void UpdateEnergyUI(float current, float max)
     {
+        CacheSliderFillBounds();
+
         if (energySlider != null)
         {
             energySlider.maxValue = max;
             energySlider.value    = current;
+
+            // Restore fill bounds (left, right, top, bottom) and localScale so right edge NEVER goes out
+            RestoreSliderFillBounds(energySlider, ref energyFillState);
         }
         if (energyText != null)
             energyText.text = $"{Mathf.RoundToInt(current)}/{Mathf.RoundToInt(max)}";
     }
 
+    private void EnsureSlotSprites()
+    {
+        if (selectedSlotSprite != null && unselectedSlotSprite != null) return;
+
+        Image img1 = weaponSlot1 != null ? weaponSlot1.GetComponent<Image>() : null;
+        Image img2 = weaponSlot2 != null ? weaponSlot2.GetComponent<Image>() : null;
+
+        if (img1 != null && img1.sprite != null)
+        {
+            string sName = img1.sprite.name;
+            if (sName.EndsWith("_5") || sName.ToLower().Contains("blue") || sName.ToLower().Contains("selected"))
+            {
+                if (selectedSlotSprite == null) selectedSlotSprite = img1.sprite;
+            }
+            else if (sName.EndsWith("_4") || sName.ToLower().Contains("gray") || sName.ToLower().Contains("unselected"))
+            {
+                if (unselectedSlotSprite == null) unselectedSlotSprite = img1.sprite;
+            }
+        }
+
+        if (img2 != null && img2.sprite != null)
+        {
+            string sName = img2.sprite.name;
+            if (sName.EndsWith("_5") || sName.ToLower().Contains("blue") || sName.ToLower().Contains("selected"))
+            {
+                if (selectedSlotSprite == null) selectedSlotSprite = img2.sprite;
+            }
+            else if (sName.EndsWith("_4") || sName.ToLower().Contains("gray") || sName.ToLower().Contains("unselected"))
+            {
+                if (unselectedSlotSprite == null) unselectedSlotSprite = img2.sprite;
+            }
+        }
+
+        if (selectedSlotSprite == null && img1 != null) selectedSlotSprite = img1.sprite;
+        if (unselectedSlotSprite == null && img2 != null) unselectedSlotSprite = img2.sprite;
+    }
+
     /// <summary>
     /// Called once on Start and whenever the weapon slot contents change,
-    /// to refresh icon and static ammo display for a slot.
+    /// to refresh icon, background frame sprite, and static ammo display for a slot.
     /// </summary>
     private void RefreshWeaponSlotUI(int slotIndex)
     {
+        EnsureSlotSprites();
+
         var weapon    = BagManager.Instance?.GetWeaponInSlot(slotIndex);
         var ammoText  = slotIndex == 0 ? weapon1AmmoText : weapon2AmmoText;
         var icon      = slotIndex == 0 ? weapon1Icon     : weapon2Icon;
+        Button slotBtn = slotIndex == 0 ? weaponSlot1 : weaponSlot2;
+
+        // Dynamic background frame selection (Selected sprite vs Unselected sprite)
+        if (slotBtn != null)
+        {
+            Image bgImg = slotBtn.GetComponent<Image>();
+            if (bgImg != null)
+            {
+                int activeSlot = WeaponController.Instance != null ? WeaponController.Instance.GetCurrentSlot() : -1;
+                bool isSelected = (activeSlot == slotIndex) && (weapon != null);
+
+                if (isSelected)
+                {
+                    if (selectedSlotSprite != null)
+                    {
+                        bgImg.sprite = selectedSlotSprite;
+                        bgImg.color = Color.white;
+                    }
+                    else
+                    {
+                        bgImg.color = new Color(0.15f, 0.55f, 0.95f, 1f); // Fallback blue
+                    }
+                }
+                else
+                {
+                    if (unselectedSlotSprite != null)
+                    {
+                        bgImg.sprite = unselectedSlotSprite;
+                        bgImg.color = Color.white;
+                    }
+                    else
+                    {
+                        bgImg.color = new Color(0.45f, 0.45f, 0.45f, 1f); // Fallback gray
+                    }
+                }
+            }
+        }
 
         // Auto-find slot icon Image if unassigned in inspector
-        if (icon == null)
+        if (icon == null && slotBtn != null)
         {
-            Button slotBtn = slotIndex == 0 ? weaponSlot1 : weaponSlot2;
-            if (slotBtn != null)
+            Image[] imgs = slotBtn.GetComponentsInChildren<Image>(true);
+            foreach (var img in imgs)
             {
-                Image[] imgs = slotBtn.GetComponentsInChildren<Image>(true);
-                foreach (var img in imgs)
+                if (img != null && img.gameObject != slotBtn.gameObject)
                 {
-                    if (img != null && img.gameObject != slotBtn.gameObject)
-                    {
-                        icon = img;
-                        if (slotIndex == 0) weapon1Icon = img; else weapon2Icon = img;
-                        break;
-                    }
+                    icon = img;
+                    if (slotIndex == 0) weapon1Icon = img; else weapon2Icon = img;
+                    break;
                 }
             }
         }
@@ -842,6 +1504,673 @@ public class HUDManager : MonoBehaviour
         }
     }
 
+    // ─── Custom Lobby & Player List Panel Management ─────────────────────────
+
+    private System.Collections.Generic.List<GameObject> spawnedPlayerCards = new System.Collections.Generic.List<GameObject>();
+
+    public void EnsureCustomLobbyPanelUI()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>() ?? GetComponent<Canvas>() ?? FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // 1. Auto-find customLobbyPanel if unassigned
+        if (customLobbyPanel == null)
+        {
+            Transform[] transforms = canvas.GetComponentsInChildren<Transform>(true);
+            foreach (var t in transforms)
+            {
+                if (t == null) continue;
+                string tName = t.gameObject.name.ToLower();
+                if (tName.Contains("customlobbypanel") || tName == "lobbypanel" || tName.Contains("playerlistpanel"))
+                {
+                    customLobbyPanel = t.gameObject;
+                    break;
+                }
+            }
+        }
+
+        // 2. Auto-find toggleLobbyPanelButton (ThreeDotsButton)
+        if (toggleLobbyPanelButton == null)
+        {
+            Button[] buttons = canvas.GetComponentsInChildren<Button>(true);
+            foreach (var b in buttons)
+            {
+                if (b == null) continue;
+                string bName = b.gameObject.name.ToLower();
+                if (bName.Contains("threedots") || bName.Contains("togglelobby") || bName == "dotsbutton")
+                {
+                    toggleLobbyPanelButton = b;
+                    break;
+                }
+            }
+        }
+
+        // 3. Auto-find buttons, texts, and playerListContainer inside customLobbyPanel
+        if (customLobbyPanel != null)
+        {
+            Button[] panelButtons = customLobbyPanel.GetComponentsInChildren<Button>(true);
+            foreach (var b in panelButtons)
+            {
+                if (b == null) continue;
+                string bName = b.gameObject.name.ToLower();
+                if (closeLobbyPanelButton == null && (bName == "close" || bName.Contains("close"))) closeLobbyPanelButton = b;
+                if (copyRoomCodeButton == null && (bName.Contains("copy") || bName.Contains("code"))) copyRoomCodeButton = b;
+                if (startMatchButton == null && (bName == "start" || bName.Contains("start"))) startMatchButton = b;
+                if (leaveLobbyButton == null && (bName.Contains("leave") || bName == "exit")) leaveLobbyButton = b;
+            }
+
+            TextMeshProUGUI[] panelTexts = customLobbyPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var txt in panelTexts)
+            {
+                if (txt == null) continue;
+                string tName = txt.gameObject.name.ToLower();
+                if (roomIDText == null && (tName.Contains("roomid") || tName.Contains("joincode") || tName.Contains("code"))) roomIDText = txt;
+                if (playerCountText == null && (tName.Contains("playercount") || tName.Contains("count"))) playerCountText = txt;
+            }
+
+            if (playerListContainer == null)
+            {
+                Transform[] childTransforms = customLobbyPanel.GetComponentsInChildren<Transform>(true);
+                foreach (var ct in childTransforms)
+                {
+                    if (ct == null || ct.gameObject == customLobbyPanel) continue;
+                    string ctName = ct.gameObject.name.ToLower();
+                    if (ctName.Contains("playerlistpanel") || ctName.Contains("content") || ctName.Contains("playerlist"))
+                    {
+                        playerListContainer = ct;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Configure playerListContainer layout (tight spacing, no vertical expansion stretching)
+        if (playerListContainer != null)
+        {
+            VerticalLayoutGroup vlg = playerListContainer.GetComponent<VerticalLayoutGroup>();
+            if (vlg == null) vlg = playerListContainer.gameObject.AddComponent<VerticalLayoutGroup>();
+
+            vlg.spacing = 6f; // Compact 6px gap between player cards
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false; // Prevent items from stretching apart vertically
+            vlg.childControlWidth = true;
+            vlg.childControlHeight = false;
+
+            ContentSizeFitter csf = playerListContainer.GetComponent<ContentSizeFitter>();
+            if (csf == null) csf = playerListContainer.gameObject.AddComponent<ContentSizeFitter>();
+            csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        }
+
+        // Wire button listeners
+        if (toggleLobbyPanelButton != null)
+        {
+            toggleLobbyPanelButton.onClick.RemoveAllListeners();
+            toggleLobbyPanelButton.onClick.AddListener(ToggleCustomLobbyPanel);
+        }
+
+        if (closeLobbyPanelButton != null)
+        {
+            closeLobbyPanelButton.onClick.RemoveAllListeners();
+            closeLobbyPanelButton.onClick.AddListener(CloseCustomLobbyPanel);
+        }
+
+        if (copyRoomCodeButton != null)
+        {
+            copyRoomCodeButton.onClick.RemoveAllListeners();
+            copyRoomCodeButton.onClick.AddListener(CopyRoomCodeToClipboard);
+        }
+
+        if (startMatchButton != null)
+        {
+            startMatchButton.onClick.RemoveAllListeners();
+            startMatchButton.onClick.AddListener(OnStartMatchFromLobbyClicked);
+        }
+
+        if (leaveLobbyButton != null)
+        {
+            leaveLobbyButton.onClick.RemoveAllListeners();
+            leaveLobbyButton.onClick.AddListener(OnLeaveLobbyFromPanelClicked);
+        }
+    }
+
+    public void ToggleCustomLobbyPanel()
+    {
+        if (customLobbyPanel != null)
+        {
+            bool active = !customLobbyPanel.activeSelf;
+            SetCustomLobbyPanelVisible(active);
+        }
+        else
+        {
+            EnsureCustomLobbyPanelUI();
+            if (customLobbyPanel != null)
+            {
+                customLobbyPanel.SetActive(true);
+                RefreshLobbyPanelUI();
+            }
+        }
+    }
+
+    public void SetCustomLobbyPanelVisible(bool visible)
+    {
+        EnsureCustomLobbyPanelUI();
+        if (customLobbyPanel != null)
+        {
+            customLobbyPanel.SetActive(visible);
+            if (visible)
+            {
+                RefreshLobbyPanelUI();
+            }
+        }
+    }
+
+    public void OpenCustomLobbyPanel() => SetCustomLobbyPanelVisible(true);
+    public void CloseCustomLobbyPanel() => SetCustomLobbyPanelVisible(false);
+
+    public void RefreshLobbyPanelUI()
+    {
+        EnsureCustomLobbyPanelUI();
+
+        // 1. Update Join / Room Code Text (format: "CODE: T67GTO", no "Room Code:")
+        string joinCode = "";
+        if (RelayNetworkManager.Instance != null && !string.IsNullOrEmpty(RelayNetworkManager.Instance.CurrentJoinCode))
+        {
+            joinCode = RelayNetworkManager.Instance.CurrentJoinCode;
+        }
+
+        if (roomIDText != null)
+        {
+            roomIDText.text = !string.IsNullOrEmpty(joinCode) ? $"CODE: {joinCode}" : "CODE: ---";
+        }
+
+        // 2. Populate / Refresh Player List
+        RefreshLobbyPlayerList();
+    }
+
+    public void RefreshLobbyPlayerList()
+    {
+        if (playerListContainer == null) return;
+
+        // Clear existing spawned player cards
+        foreach (var card in spawnedPlayerCards)
+        {
+            if (card != null) Destroy(card);
+        }
+        spawnedPlayerCards.Clear();
+
+        var playerList = GetConnectedPlayerList();
+        int playerCount = playerList.Count;
+        bool localIsHost = false;
+
+        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            localIsHost = Unity.Netcode.NetworkManager.Singleton.IsHost || Unity.Netcode.NetworkManager.Singleton.IsServer;
+        }
+        else
+        {
+            localIsHost = true;
+        }
+
+        for (int i = 0; i < playerList.Count; i++)
+        {
+            var pData = playerList[i];
+            bool isFriend = pData.isHost || (i == 0);
+            if (CounterBoom.Networking.FirebaseManager.Instance != null)
+            {
+                isFriend = isFriend || CounterBoom.Networking.FirebaseManager.Instance.IsFriend(pData.name);
+            }
+            Sprite headSprite = GetPlayerHeadSprite(pData.playerObj);
+
+            CreatePlayerCardEntry(pData.name, pData.isHost, isFriend, headSprite);
+        }
+
+        // Update Player Count Text
+        if (playerCountText != null)
+        {
+            playerCountText.text = $"Players: {playerCount}";
+        }
+
+        // Show Start Match button ONLY for Host
+        if (startMatchButton != null)
+        {
+            startMatchButton.gameObject.SetActive(localIsHost);
+        }
+    }
+
+    private System.Collections.Generic.List<(string name, bool isHost, GameObject playerObj)> GetConnectedPlayerList()
+    {
+        var list = new System.Collections.Generic.List<(string name, bool isHost, GameObject playerObj)>();
+
+        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            var nm = Unity.Netcode.NetworkManager.Singleton;
+            PlayerController[] players = FindObjectsOfType<PlayerController>();
+
+            if (nm.IsServer)
+            {
+                var clients = nm.ConnectedClientsList;
+                for (int i = 0; i < clients.Count; i++)
+                {
+                    var client = clients[i];
+                    ulong clientId = client.ClientId;
+                    GameObject pObj = client.PlayerObject != null ? client.PlayerObject.gameObject : null;
+
+                    PlayerController matchingPC = null;
+                    if (pObj != null) matchingPC = pObj.GetComponent<PlayerController>();
+                    if (matchingPC == null && players != null)
+                    {
+                        foreach (var pc in players)
+                        {
+                            if (pc != null && (pc.OwnerClientId == clientId || (pc.IsLocal && clientId == 0)))
+                            {
+                                matchingPC = pc;
+                                if (pObj == null) pObj = pc.gameObject;
+                                break;
+                            }
+                        }
+                    }
+
+                    bool clientIsHost = (matchingPC != null && matchingPC.lobbySlotIndex.Value == 0) || (clientId == Unity.Netcode.NetworkManager.ServerClientId);
+                    string pName = GetActualPlayerName(clientId, matchingPC, pObj);
+
+                    list.Add((pName, clientIsHost, pObj));
+                }
+            }
+            else
+            {
+                if (players != null && players.Length > 0)
+                {
+                    for (int i = 0; i < players.Length; i++)
+                    {
+                        var pc = players[i];
+                        bool clientIsHost = (pc.lobbySlotIndex.Value == 0) || pc.IsHost || pc.IsServer || (pc.OwnerClientId == Unity.Netcode.NetworkManager.ServerClientId);
+                        string pName = GetActualPlayerName(pc.OwnerClientId, pc, pc.gameObject);
+
+                        list.Add((pName, clientIsHost, pc.gameObject));
+                    }
+                }
+                else
+                {
+                    var local = PlayerController.LocalPlayer ?? FindObjectOfType<PlayerController>();
+                    GameObject pObj = local != null ? local.gameObject : null;
+                    string pName = GetActualPlayerName(0, local, pObj);
+                    list.Add((pName, true, pObj));
+                }
+            }
+        }
+        else
+        {
+            // Offline Mode
+            var local = PlayerController.LocalPlayer ?? FindObjectOfType<PlayerController>();
+            GameObject pObj = local != null ? local.gameObject : null;
+            string pName = GetActualPlayerName(0, local, pObj);
+            list.Add((pName, true, pObj));
+        }
+
+        return list;
+    }
+
+    private string GetActualPlayerName(ulong clientId, PlayerController pc = null, GameObject pObj = null)
+    {
+        if (pc != null)
+        {
+            string n = pc.playerName.Value.ToString();
+            if (!string.IsNullOrEmpty(n) && !n.StartsWith("Player(Clone)")) return n;
+        }
+
+        if (pObj != null)
+        {
+            var pController = pObj.GetComponent<PlayerController>() ?? pObj.GetComponentInChildren<PlayerController>();
+            if (pController != null)
+            {
+                string n = pController.playerName.Value.ToString();
+                if (!string.IsNullOrEmpty(n) && !n.StartsWith("Player(Clone)")) return n;
+            }
+        }
+
+        foreach (var p in FindObjectsOfType<PlayerController>())
+        {
+            if (p != null && (p.OwnerClientId == clientId || (p.IsLocal && clientId == 0)))
+            {
+                string n = p.playerName.Value.ToString();
+                if (!string.IsNullOrEmpty(n) && !n.StartsWith("Player(Clone)")) return n;
+            }
+        }
+
+        string localName = PlayerPrefs.GetString("PlayerName", "");
+        if (!string.IsNullOrEmpty(localName) && (Unity.Netcode.NetworkManager.Singleton == null || clientId == Unity.Netcode.NetworkManager.Singleton.LocalClientId))
+        {
+            return localName;
+        }
+
+        return $"Player #{clientId + 1}";
+    }
+
+    private Sprite GetPlayerHeadSprite(GameObject playerObj = null)
+    {
+        // 1. Try from playerObj's CharacterAssembler
+        if (playerObj != null)
+        {
+            var assembler = playerObj.GetComponent<CharacterAssembler>() ?? playerObj.GetComponentInChildren<CharacterAssembler>();
+            if (assembler != null)
+            {
+                Transform headTr = assembler.GetHeadTransform();
+                if (headTr != null)
+                {
+                    var sr = headTr.GetComponent<SpriteRenderer>();
+                    if (sr != null && sr.sprite != null) return sr.sprite;
+                }
+                var skins = assembler.GetAvailableSkins();
+                if (skins != null && skins.Length > 0 && skins[0] != null && skins[0].head != null)
+                {
+                    return skins[0].head;
+                }
+            }
+        }
+
+        // 2. Try from local player
+        var localPlayer = PlayerController.LocalPlayer ?? FindObjectOfType<PlayerController>();
+        if (localPlayer != null)
+        {
+            var assembler = localPlayer.GetComponent<CharacterAssembler>() ?? localPlayer.GetComponentInChildren<CharacterAssembler>();
+            if (assembler != null)
+            {
+                Transform headTr = assembler.GetHeadTransform();
+                if (headTr != null)
+                {
+                    var sr = headTr.GetComponent<SpriteRenderer>();
+                    if (sr != null && sr.sprite != null) return sr.sprite;
+                }
+                var skins = assembler.GetAvailableSkins();
+                if (skins != null && skins.Length > 0 && skins[0] != null && skins[0].head != null)
+                {
+                    return skins[0].head;
+                }
+            }
+        }
+
+        // 3. Fallback: try any CharacterAssembler in scene
+        var anyAssembler = FindObjectOfType<CharacterAssembler>();
+        if (anyAssembler != null)
+        {
+            Transform headTr = anyAssembler.GetHeadTransform();
+            if (headTr != null)
+            {
+                var sr = headTr.GetComponent<SpriteRenderer>();
+                if (sr != null && sr.sprite != null) return sr.sprite;
+            }
+            var skins = anyAssembler.GetAvailableSkins();
+            if (skins != null && skins.Length > 0 && skins[0] != null && skins[0].head != null)
+            {
+                return skins[0].head;
+            }
+        }
+
+        return null;
+    }
+
+    private void CreatePlayerCardEntry(string playerName, bool isHost, bool isFriend = false, Sprite profileAvatar = null)
+    {
+        if (playerListContainer == null) return;
+
+        GameObject cardGO;
+        if (playerListCardPrefab != null)
+        {
+            cardGO = Instantiate(playerListCardPrefab, playerListContainer, false);
+        }
+        else
+        {
+            // Fallback dynamic card entry if prefab unassigned
+            cardGO = new GameObject("PlayerCard", typeof(RectTransform), typeof(Image));
+            cardGO.transform.SetParent(playerListContainer, false);
+
+            RectTransform rt = cardGO.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(0f, 55f);
+
+            Image img = cardGO.GetComponent<Image>();
+            img.color = new Color(0.95f, 0.95f, 0.98f, 0.95f);
+
+            // Profile Avatar Child
+            GameObject avatarGO = new GameObject("ProfileAvatar", typeof(RectTransform), typeof(Image));
+            avatarGO.transform.SetParent(cardGO.transform, false);
+            RectTransform avRt = avatarGO.GetComponent<RectTransform>();
+            avRt.anchorMin = new Vector2(0f, 0.5f);
+            avRt.anchorMax = new Vector2(0f, 0.5f);
+            avRt.pivot = new Vector2(0f, 0.5f);
+            avRt.anchoredPosition = new Vector2(10f, 0f);
+            avRt.sizeDelta = new Vector2(40f, 40f);
+
+            Image avImg = avatarGO.GetComponent<Image>();
+            avImg.color = new Color(0.8f, 0.85f, 0.95f, 1f);
+
+            // Name Text Child
+            GameObject textGO = new GameObject("PlayerNameText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            textGO.transform.SetParent(cardGO.transform, false);
+
+            RectTransform tRt = textGO.GetComponent<RectTransform>();
+            tRt.anchorMin = new Vector2(0f, 0f);
+            tRt.anchorMax = new Vector2(1f, 1f);
+            tRt.offsetMin = new Vector2(58f, 0f);
+            tRt.offsetMax = new Vector2(-125f, 0f);
+
+            TextMeshProUGUI tmp = textGO.GetComponent<TextMeshProUGUI>();
+            tmp.fontSize = 15;
+            tmp.fontStyle = FontStyles.Bold;
+            tmp.alignment = TextAlignmentOptions.MidlineLeft;
+            tmp.color = Color.black;
+        }
+
+        cardGO.SetActive(true);
+
+        // Ensure LayoutElement height constraint so VerticalLayoutGroup doesn't stretch cards apart
+        LayoutElement le = cardGO.GetComponent<LayoutElement>();
+        if (le == null) le = cardGO.AddComponent<LayoutElement>();
+        le.preferredHeight = 50f;
+        le.flexibleHeight = 0f;
+
+        // Check if prefab has dedicated PlayerCardUI component attached
+        var cardUI = cardGO.GetComponent<CounterBoom.UI.PlayerCardUI>();
+        if (cardUI != null)
+        {
+            cardUI.SetupCard(playerName, isHost, isFriend, profileAvatar, () =>
+            {
+                ShowNotification($"📩 Invite sent to {playerName}!");
+            });
+        }
+        else
+        {
+            // 1. Bind Player Profile Avatar Image
+            Image avatarImg = cardGO.transform.Find("ProfileAvatar")?.GetComponent<Image>();
+            if (avatarImg == null)
+            {
+                Image[] imgs = cardGO.GetComponentsInChildren<Image>(true);
+                foreach (var img in imgs)
+                {
+                    if (img != null && img.gameObject != cardGO && (img.gameObject.name.ToLower().Contains("profile") || img.gameObject.name.ToLower().Contains("avatar")))
+                    {
+                        avatarImg = img;
+                        break;
+                    }
+                }
+            }
+            if (avatarImg != null && profileAvatar != null)
+            {
+                avatarImg.sprite = profileAvatar;
+                avatarImg.preserveAspect = true;
+                avatarImg.color = Color.white;
+            }
+
+            // 2. Bind Player Name
+            TextMeshProUGUI nameText = cardGO.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (nameText != null)
+            {
+                nameText.text = playerName;
+            }
+
+            // 3. Host Indicator inside card
+            Transform hostIndicator = cardGO.transform.Find("HostIndicator");
+            if (hostIndicator != null)
+            {
+                hostIndicator.gameObject.SetActive(isHost);
+            }
+
+            // 4. Friend Status & Invite Button / Friend Icon from Code
+            SetupFriendAndInviteUI(cardGO, playerName, isFriend);
+        }
+
+        spawnedPlayerCards.Add(cardGO);
+    }
+
+    private void SetupFriendAndInviteUI(GameObject cardGO, string playerName, bool isFriend)
+    {
+        if (cardGO == null) return;
+
+        // Auto-find existing Invite Button or create dynamically
+        Button inviteBtn = cardGO.transform.Find("InviteButton")?.GetComponent<Button>() ??
+                           cardGO.transform.Find("Invite")?.GetComponent<Button>();
+
+        if (inviteBtn == null)
+        {
+            Button[] btns = cardGO.GetComponentsInChildren<Button>(true);
+            foreach (var b in btns)
+            {
+                if (b != null && (b.gameObject.name.ToLower().Contains("invite") || b.gameObject.name.ToLower().Contains("add")))
+                {
+                    inviteBtn = b;
+                    break;
+                }
+            }
+        }
+
+        // Dynamically create Invite Button if missing on card
+        if (inviteBtn == null)
+        {
+            GameObject inviteGO = new GameObject("InviteButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            inviteGO.transform.SetParent(cardGO.transform, false);
+
+            RectTransform iRt = inviteGO.GetComponent<RectTransform>();
+            iRt.anchorMin = new Vector2(1f, 0.5f);
+            iRt.anchorMax = new Vector2(1f, 0.5f);
+            iRt.pivot = new Vector2(1f, 0.5f);
+            iRt.anchoredPosition = new Vector2(-10f, 0f);
+            iRt.sizeDelta = new Vector2(85f, 32f);
+
+            Image iBg = inviteGO.GetComponent<Image>();
+            iBg.color = new Color(0.12f, 0.55f, 0.95f, 0.95f); // Vibrant blue invite button
+
+            GameObject iTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            iTextGO.transform.SetParent(inviteGO.transform, false);
+            RectTransform itRt = iTextGO.GetComponent<RectTransform>();
+            itRt.anchorMin = Vector2.zero; itRt.anchorMax = Vector2.one; itRt.sizeDelta = Vector2.zero;
+
+            TextMeshProUGUI itTmp = iTextGO.GetComponent<TextMeshProUGUI>();
+            itTmp.text = "+ Invite";
+            itTmp.fontSize = 13;
+            itTmp.fontStyle = FontStyles.Bold;
+            itTmp.alignment = TextAlignmentOptions.Center;
+            itTmp.color = Color.white;
+
+            inviteBtn = inviteGO.GetComponent<Button>();
+        }
+
+        // Auto-find or Dynamically Create Friend Icon Badge from Code
+        Transform friendIconTr = cardGO.transform.Find("FriendIcon");
+        if (friendIconTr == null)
+        {
+            GameObject friendGO = new GameObject("FriendIcon", typeof(RectTransform), typeof(Image));
+            friendGO.transform.SetParent(cardGO.transform, false);
+
+            RectTransform fRt = friendGO.GetComponent<RectTransform>();
+            fRt.anchorMin = new Vector2(1f, 0.5f);
+            fRt.anchorMax = new Vector2(1f, 0.5f);
+            fRt.pivot = new Vector2(1f, 0.5f);
+            fRt.anchoredPosition = new Vector2(-10f, 0f);
+            fRt.sizeDelta = new Vector2(85f, 32f);
+
+            Image fBg = friendGO.GetComponent<Image>();
+            fBg.color = new Color(0.15f, 0.68f, 0.38f, 0.95f); // Sleek green friend badge
+
+            GameObject fTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            fTextGO.transform.SetParent(friendGO.transform, false);
+            RectTransform ftRt = fTextGO.GetComponent<RectTransform>();
+            ftRt.anchorMin = Vector2.zero; ftRt.anchorMax = Vector2.one; ftRt.sizeDelta = Vector2.zero;
+
+            TextMeshProUGUI ftTmp = fTextGO.GetComponent<TextMeshProUGUI>();
+            ftTmp.text = "✔ Friend";
+            ftTmp.fontSize = 13;
+            ftTmp.fontStyle = FontStyles.Bold;
+            ftTmp.alignment = TextAlignmentOptions.Center;
+            ftTmp.color = Color.white;
+
+            friendIconTr = friendGO.transform;
+        }
+
+        // Toggle UI based on Friend Status
+        if (isFriend)
+        {
+            if (inviteBtn != null) inviteBtn.gameObject.SetActive(false);
+            if (friendIconTr != null) friendIconTr.gameObject.SetActive(true);
+        }
+        else
+        {
+            if (friendIconTr != null) friendIconTr.gameObject.SetActive(false);
+            if (inviteBtn != null)
+            {
+                inviteBtn.gameObject.SetActive(true);
+                inviteBtn.onClick.RemoveAllListeners();
+                inviteBtn.onClick.AddListener(() =>
+                {
+                    if (CounterBoom.Networking.FirebaseManager.Instance != null)
+                    {
+                        CounterBoom.Networking.FirebaseManager.Instance.SendFriendRequest(playerName, (success, msg) =>
+                        {
+                            ShowNotification(msg);
+                        });
+                    }
+                    else
+                    {
+                        ShowNotification($"📩 Invite sent to {playerName}!");
+                    }
+                    // Switch UI to Friend Badge dynamically!
+                    inviteBtn.gameObject.SetActive(false);
+                    if (friendIconTr != null) friendIconTr.gameObject.SetActive(true);
+                });
+            }
+        }
+    }
+
+    private void CopyRoomCodeToClipboard()
+    {
+        string code = RelayNetworkManager.Instance != null ? RelayNetworkManager.Instance.CurrentJoinCode : "";
+        if (!string.IsNullOrEmpty(code))
+        {
+            GUIUtility.systemCopyBuffer = code;
+            ShowNotification($"📋 Room Code '{code}' Copied!");
+        }
+        else
+        {
+            ShowNotification("⚠️ No active Room Code to copy!");
+        }
+    }
+
+    private void OnStartMatchFromLobbyClicked()
+    {
+        CloseCustomLobbyPanel();
+        if (RelayNetworkManager.Instance != null && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+        {
+            RelayNetworkManager.Instance.StartMatchFromLobby();
+        }
+        else
+        {
+            ShowNotification("🎮 Match Started!");
+        }
+    }
+
+    private void OnLeaveLobbyFromPanelClicked()
+    {
+        OnLeaveGameClicked();
+    }
+
     public void EnableSpectatorUI(bool enable)
     {
         if (spectatorPanel != null)
@@ -889,6 +2218,7 @@ public class HUDManager : MonoBehaviour
         if (weaponSlot2 != null) weaponSlot2.gameObject.SetActive(!isGhost);
         if (boomButton != null) boomButton.gameObject.SetActive(!isGhost);
         if (pickupButton != null) pickupButton.gameObject.SetActive(!isGhost);
+        if (pickupScrollView != null) pickupScrollView.gameObject.SetActive(!isGhost);
         if (medikitButton != null) medikitButton.gameObject.SetActive(!isGhost);
         if (shakeButton != null) shakeButton.gameObject.SetActive(!isGhost);
         if (bagButton != null) bagButton.gameObject.SetActive(!isGhost);
@@ -900,6 +2230,15 @@ public class HUDManager : MonoBehaviour
         if (energyText != null) energyText.gameObject.SetActive(!isGhost);
     }
 
+    public void SetSettingsText(string text)
+    {
+        EnsureSettingsUI();
+        if (settingsInfoText != null)
+        {
+            settingsInfoText.text = text;
+        }
+    }
+
     public void ToggleSettingsMenu()
     {
         if (settingsPanel == null) EnsureSettingsUI();
@@ -907,6 +2246,14 @@ public class HUDManager : MonoBehaviour
         {
             bool newState = !settingsPanel.activeSelf;
             settingsPanel.SetActive(newState);
+            if (newState)
+            {
+                settingsPanel.transform.SetAsLastSibling();
+                if (settingsInfoText != null && (string.IsNullOrEmpty(settingsInfoText.text) || settingsInfoText.text == "New Text"))
+                {
+                    settingsInfoText.text = "<size=24><b>GAME PAUSED</b></size>\n<size=13><color=#88aacc>Select an option below</color></size>";
+                }
+            }
         }
     }
 
@@ -1306,6 +2653,27 @@ public class HUDManager : MonoBehaviour
             }
         }
 
+        // Auto-resolve Settings Info / Header Text
+        if (settingsInfoText == null && settingsPanel != null)
+        {
+            foreach (var tmp in settingsPanel.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                if (leaveGameButton != null && tmp.transform.IsChildOf(leaveGameButton.transform)) continue;
+                if (closeSettingsButton != null && tmp.transform.IsChildOf(closeSettingsButton.transform)) continue;
+                settingsInfoText = tmp;
+                break;
+            }
+        }
+
+        if (settingsInfoText != null)
+        {
+            settingsInfoText.alignment = TextAlignmentOptions.Center;
+            if (string.IsNullOrEmpty(settingsInfoText.text) || settingsInfoText.text == "New Text")
+            {
+                settingsInfoText.text = "<size=24><b>GAME PAUSED</b></size>\n<size=13><color=#88aacc>Select an option below</color></size>";
+            }
+        }
+
         // Wire Button Listeners
         if (settingsButton != null)
         {
@@ -1335,6 +2703,17 @@ public class HUDManager : MonoBehaviour
         EnsureNotificationUI();
         if (notificationText != null)
         {
+            // Position above panels (top center) and bring to front
+            RectTransform rt = notificationText.rectTransform;
+            if (rt != null)
+            {
+                rt.anchorMin = new Vector2(0.5f, 1f);
+                rt.anchorMax = new Vector2(0.5f, 1f);
+                rt.pivot = new Vector2(0.5f, 1f);
+                rt.anchoredPosition = new Vector2(0f, -25f);
+            }
+            notificationText.transform.SetAsLastSibling();
+
             notificationText.text = message;
             notificationText.gameObject.SetActive(true);
             CancelInvoke(nameof(HideNotification));
@@ -1363,10 +2742,10 @@ public class HUDManager : MonoBehaviour
             notifGO.transform.SetParent(canvas.transform, false);
 
             RectTransform rt = notifGO.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.5f, 0.72f);
-            rt.anchorMax = new Vector2(0.5f, 0.72f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = Vector2.zero;
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -25f);
             rt.sizeDelta = new Vector2(650f, 50f);
 
             notificationText = notifGO.GetComponent<TextMeshProUGUI>();

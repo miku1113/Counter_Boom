@@ -11,8 +11,8 @@ GameObject:
   - component: {fileID: 3989525504461115994}
   - component: {fileID: 5424868186410633513}
   - component: {fileID: 5654120008986588518}
-  - component: {fileID: 9141847525241112720}
   - component: {fileID: 3815825770516123494}
+  - component: {fileID: 9141847525241112720}
   m_Layer: 0
   m_Name: A625
   m_TagString: Untagged
@@ -76,12 +76,12 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: -1
-  m_Sprite: {fileID: 21300000, guid: d34e834d182f04281942b0a6e977eb95, type: 3}
+  m_Sprite: {fileID: -711793245, guid: d34e834d182f04281942b0a6e977eb95, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 3.54, y: 0.97}
+  m_Size: {x: 9.34, y: 4.41}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -123,8 +123,8 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 10.24, y: 10.24}
-    newSize: {x: 3.54, y: 0.97}
+    oldSize: {x: 9.34, y: 4.41}
+    newSize: {x: 9.34, y: 4.41}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
@@ -132,6 +132,29 @@ BoxCollider2D:
   serializedVersion: 2
   m_Size: {x: 13.481163, y: 7.3005695}
   m_EdgeRadius: 0
+--- !u!114 &3815825770516123494
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2051536657620192267}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 4264432945
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!114 &9141847525241112720
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -147,26 +170,5 @@ MonoBehaviour:
   itemData: {fileID: 11400000, guid: 3a073bdd379604fafb32e83445010e2b, type: 2}
   amount: 1
   wasDropped: 0
---- !u!114 &3815825770516123494
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2051536657620192267}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 0
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
-  SyncOwnerTransformWhenParented: 1
-  AllowOwnerToParent: 0
+  pickupSound: {fileID: 0}
+  dropSound: {fileID: 0}

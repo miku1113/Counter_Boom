@@ -14,6 +14,18 @@ public class PlayerController : NetworkBehaviour
         PlayerRole.Hostage, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
     );
 
+    public NetworkVariable<bool> isReady = new NetworkVariable<bool>(
+        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner
+    );
+
+    public NetworkVariable<int> lobbySlotIndex = new NetworkVariable<int>(
+        0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
+    public NetworkVariable<int> skinIndex = new NetworkVariable<int>(
+        0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner
+    );
+
     private TextMeshPro nameTagTMP;
 
     [Header("Name Tag Settings")]
@@ -53,7 +65,32 @@ public class PlayerController : NetworkBehaviour
     private Vector3 ghostInitialVisualLocalPos;
     private float nextFootstepTime;
 
+    [Header("Local Player Identification")]
+    [Tooltip("If enabled, this player object is treated as the local player and positioned in the center")]
+    public bool isMyPlayerToggle = false;
+
+    public bool IsMyPlayer
+    {
+        get
+        {
+            if (isMyPlayerToggle) return true;
+            return IsOwner || IsLocalPlayer;
+        }
+    }
+
     public static PlayerController LocalPlayer { get; private set; }
+
+    public static Vector3 GetLobbySlotPosition(int slot)
+    {
+        switch (slot)
+        {
+            case 0: return new Vector3(0f, 0.58f, 0f);      // Point 0 (My Slot - Center)
+            case 1: return new Vector3(-4.2f, 0.58f, 0f);   // Point 1 (Friend 1 - Left)
+            case 2: return new Vector3(4.2f, 0.58f, 0f);    // Point 2 (Friend 2 - Right)
+            case 3: return new Vector3(-8.4f, 0.58f, 0f);   // Point 3 (Friend 3 - Far Left)
+            default: return new Vector3((slot % 2 == 1 ? -1 : 1) * (4.2f + (slot / 2) * 4.2f), 0.58f, 0f);
+        }
+    }
 
     public static string GetOrGeneratePlayerName()
     {
@@ -77,6 +114,7 @@ public class PlayerController : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+        DontDestroyOnLoad(gameObject);
         RestoreGameplayComponents();
 
         isLocalCached = false;
@@ -86,13 +124,37 @@ public class PlayerController : NetworkBehaviour
         {
             isLocalCached = true;
             playerName.Value = GetOrGeneratePlayerName();
+            skinIndex.Value = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
             RegisterCameraIfLocal();
             Debug.Log($"[PlayerController] OnNetworkSpawn: Registered local player '{gameObject.name}' (OwnerClientId: {OwnerClientId})");
         }
 
         EnsureNameTag();
-        playerName.OnValueChanged += (oldVal, newVal) => UpdateNameTag(newVal.ToString());
-        UpdateNameTag(playerName.Value.ToString());
+        playerName.OnValueChanged += (oldVal, newVal) => UpdateLobbyNameTag();
+        isReady.OnValueChanged += (oldVal, newVal) => RefreshLobbyPositionAndState();
+        lobbySlotIndex.OnValueChanged += (oldVal, newVal) =>
+        {
+            foreach (var pc in FindObjectsOfType<PlayerController>())
+            {
+                if (pc != null)
+                {
+                    pc.RefreshLobbyPositionAndState();
+                    pc.UpdateLobbyNameTag();
+                }
+            }
+            if (MainMenuController.Instance != null)
+            {
+                MainMenuController.Instance.UpdateLobbyButtonsState();
+            }
+        };
+        skinIndex.OnValueChanged += (oldVal, newVal) =>
+        {
+            var ca = GetComponentInChildren<CharacterAssembler>();
+            if (ca != null)
+            {
+                ca.ApplySkinByIndex(newVal);
+            }
+        };
 
         if (IsServer)
         {
@@ -110,11 +172,283 @@ public class PlayerController : NetworkBehaviour
 
         playerRole.OnValueChanged += OnPlayerRoleNetworkChanged;
         OnPlayerRoleNetworkChanged(playerRole.Value, playerRole.Value);
+
+        RefreshLobbyPositionAndState();
+    }
+
+    public int GetLocalDisplaySlot()
+    {
+        // 1. If this player is My Player (local player or has isMyPlayerToggle enabled), it ALWAYS gets Display Spot 0 (Center!)
+        if (IsMyPlayer)
+        {
+            return 0;
+        }
+
+        // 2. Find local player instance on this machine
+        PlayerController localPC = PlayerController.LocalPlayer;
+        if (localPC == null || !localPC.IsMyPlayer)
+        {
+            foreach (var p in FindObjectsOfType<PlayerController>())
+            {
+                if (p != null && p.IsMyPlayer) { localPC = p; break; }
+            }
+        }
+
+        if (localPC == null)
+        {
+            return lobbySlotIndex.Value;
+        }
+
+        // 3. Gather all remote players (players where IsMyPlayer is false)
+        var allPCs = FindObjectsOfType<PlayerController>();
+        var remotePlayers = new System.Collections.Generic.List<PlayerController>();
+        foreach (var p in allPCs)
+        {
+            if (p != null && !p.IsMyPlayer)
+            {
+                remotePlayers.Add(p);
+            }
+        }
+        remotePlayers.Sort((a, b) => a.lobbySlotIndex.Value.CompareTo(b.lobbySlotIndex.Value));
+
+        int remoteIndex = remotePlayers.IndexOf(this);
+        if (remoteIndex < 0) remoteIndex = 0;
+
+        return remoteIndex + 1;
+    }
+
+    public void RefreshLobbyPositionAndState()
+    {
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (activeScene != "MainMenuScene")
+        {
+            RestoreGameplayComponents();
+            UpdateLobbyNameTag();
+            return;
+        }
+
+        int displaySlot = GetLocalDisplaySlot();
+        Vector3 targetPos;
+        if (MainMenuController.Instance != null)
+        {
+            targetPos = MainMenuController.Instance.GetLobbySpawnPosition(displaySlot);
+        }
+        else
+        {
+            targetPos = GetLobbySlotPosition(displaySlot);
+        }
+
+        // Disable NetworkTransform / ClientNetworkTransform in Main Menu so network interpolation ticks do not pull transform back to (0,0)
+        var cnt = GetComponent<Unity.Netcode.Components.NetworkTransform>();
+        if (cnt != null) cnt.enabled = false;
+        var cnt2 = GetComponent<ClientNetworkTransform>();
+        if (cnt2 != null) cnt2.enabled = false;
+
+        transform.position = targetPos;
+        transform.rotation = Quaternion.identity;
+        transform.localScale = new Vector3(3.081f, 3.081f, 3.081f);
+
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+            rb.position = targetPos;
+            rb.simulated = false;
+        }
+
+        // Disable Controls, Aiming Dots, and Rotation in Main Menu
+        var aiming = GetComponent<PlayerAiming>();
+        if (aiming != null) aiming.enabled = false;
+
+        var weaponCtrl = GetComponent<WeaponController>();
+        if (weaponCtrl != null) weaponCtrl.enabled = false;
+
+        var dots = GetComponentInChildren<AimingDots>(true);
+        if (dots != null) dots.gameObject.SetActive(false);
+
+        // Ensure all visual renderers and child containers are active in Main Menu lobby
+        string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        foreach (Transform child in transform)
+        {
+            if (child != null)
+            {
+                if (child.name.Contains("OverheadLeave") || child.name.Contains("OverheadMakeHost"))
+                {
+                    if (currentScene != "MainMenuScene")
+                    {
+                        child.gameObject.SetActive(false);
+                        Destroy(child.gameObject);
+                        continue;
+                    }
+                }
+                child.gameObject.SetActive(true);
+            }
+        }
+
+        var anim = GetComponentInChildren<Animator>();
+        if (anim != null) anim.enabled = true;
+
+        var assembler = GetComponentInChildren<CharacterAssembler>();
+        if (assembler != null)
+        {
+            assembler.enabled = true;
+            assembler.ApplySkinByIndex(skinIndex.Value);
+        }
+
+        UpdateLobbyNameTag();
+    }
+
+    private int GetRemotePlayerIndex()
+    {
+        var allPlayers = FindObjectsOfType<PlayerController>();
+        var remotePlayers = new System.Collections.Generic.List<PlayerController>();
+
+        foreach (var p in allPlayers)
+        {
+            if (p == null) continue;
+            var netObj = p.GetComponent<Unity.Netcode.NetworkObject>();
+            if (netObj == null || !netObj.IsSpawned) continue; // Skip static or unspawned scene objects
+
+            if (!p.IsOwner && !p.IsLocalPlayer)
+            {
+                remotePlayers.Add(p);
+            }
+        }
+
+        remotePlayers.Sort((a, b) => a.OwnerClientId.CompareTo(b.OwnerClientId));
+
+        int index = remotePlayers.IndexOf(this);
+        return index >= 0 ? index : 0;
+    }
+
+    public void UpdateLobbyNameTag()
+    {
+        if (nameTagTMP == null) return;
+
+        string displayName = playerName.Value.ToString();
+        if (string.IsNullOrEmpty(displayName)) displayName = gameObject.name;
+
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+
+        if (activeScene == "MainMenuScene")
+        {
+            int clientCount = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening ? NetworkManager.Singleton.ConnectedClientsIds.Count : 0;
+
+            if (clientCount <= 1)
+            {
+                // Solo mode: Hide overhead name tag and buttons completely
+                nameTagTMP.gameObject.SetActive(false);
+                if (leaveRoomButtonCanvasGO != null) leaveRoomButtonCanvasGO.SetActive(false);
+                if (makeHostButtonCanvasGO != null) makeHostButtonCanvasGO.SetActive(false);
+            }
+            else
+            {
+                // Team mode: Show name tag with role badges
+                nameTagTMP.gameObject.SetActive(true);
+                if (lobbySlotIndex.Value == 0)
+                {
+                    nameTagTMP.text = $"{displayName}\n<color=#FFD700>[HOST]</color>";
+                }
+                else if (isReady.Value)
+                {
+                    nameTagTMP.text = $"{displayName}\n<color=#00FF00>[READY]</color>";
+                }
+                else
+                {
+                    nameTagTMP.text = $"{displayName}\n<color=#AAAAAA>[NOT READY]</color>";
+                }
+
+                // Show LEAVE ROOM button only below the local player in Main Menu room
+                if (IsOwner || IsLocalPlayer)
+                {
+                    EnsureOverheadLeaveButton();
+                    if (leaveRoomButtonCanvasGO != null) leaveRoomButtonCanvasGO.SetActive(true);
+                    if (makeHostButtonCanvasGO != null) makeHostButtonCanvasGO.SetActive(false);
+                }
+                else
+                {
+                    if (leaveRoomButtonCanvasGO != null) leaveRoomButtonCanvasGO.SetActive(false);
+
+                    // Show MAKE HOST button below friend players ONLY when the local player is Host (slot 0)
+                    bool localIsHost = false;
+                    PlayerController localPC = PlayerController.LocalPlayer;
+                    if (localPC == null)
+                    {
+                        foreach (var p in FindObjectsOfType<PlayerController>())
+                        {
+                            if (p != null && (p.IsOwner || p.IsLocal)) { localPC = p; break; }
+                        }
+                    }
+
+                    if (localPC != null && localPC.lobbySlotIndex.Value == 0)
+                    {
+                        localIsHost = true;
+                    }
+
+                    if (localIsHost)
+                    {
+                        EnsureOverheadMakeHostButton();
+                        if (makeHostButtonCanvasGO != null) makeHostButtonCanvasGO.SetActive(true);
+                    }
+                    else
+                    {
+                        if (makeHostButtonCanvasGO != null) makeHostButtonCanvasGO.SetActive(false);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Non-MainMenu scene (CustomLobby or GameScene): Destroy overhead menu buttons completely
+            if (leaveRoomButtonCanvasGO != null)
+            {
+                Destroy(leaveRoomButtonCanvasGO);
+                leaveRoomButtonCanvasGO = null;
+            }
+            if (makeHostButtonCanvasGO != null)
+            {
+                Destroy(makeHostButtonCanvasGO);
+                makeHostButtonCanvasGO = null;
+            }
+
+            Transform oldLeave = transform.Find("OverheadLeaveRoomCanvas");
+            if (oldLeave != null) Destroy(oldLeave.gameObject);
+
+            Transform oldHost = transform.Find("OverheadMakeHostCanvas");
+            if (oldHost != null) Destroy(oldHost.gameObject);
+
+            // In gameplay / CustomLobby: Do NOT show our own name on top of us! Show clean names for other players only.
+            if (IsOwner || IsLocalPlayer)
+            {
+                if (nameTagTMP != null && nameTagTMP.gameObject != null)
+                {
+                    nameTagTMP.gameObject.SetActive(false);
+                }
+            }
+            else
+            {
+                if (nameTagTMP != null && nameTagTMP.gameObject != null)
+                {
+                    nameTagTMP.gameObject.SetActive(true);
+
+                    bool isOpponent = LocalPlayer != null && LocalPlayer.playerRole.Value != this.playerRole.Value;
+                    if (isOpponent)
+                    {
+                        nameTagTMP.text = $"<color=#FF3333>{displayName}</color>";
+                    }
+                    else
+                    {
+                        nameTagTMP.text = $"<color=#00E5FF>{displayName}</color>";
+                    }
+                }
+            }
+        }
     }
 
     private void OnPlayerRoleNetworkChanged(PlayerRole oldRole, PlayerRole newRole)
     {
         Debug.Log($"[PlayerController] playerRole NetworkVariable synced for '{gameObject.name}': {oldRole} -> {newRole}");
+        UpdateLobbyNameTag();
         if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene")
         {
             RepositionForGameScene();
@@ -127,6 +461,14 @@ public class PlayerController : NetworkBehaviour
 
     public void RestoreGameplayComponents()
     {
+        transform.localScale = new Vector3(2f, 2f, 2f);
+
+        // Re-enable NetworkTransform for active gameplay
+        var cnt = GetComponent<Unity.Netcode.Components.NetworkTransform>();
+        if (cnt != null) cnt.enabled = true;
+        var cnt2 = GetComponent<ClientNetworkTransform>();
+        if (cnt2 != null) cnt2.enabled = true;
+
         // 1. Ensure Rigidbody2D is Dynamic and simulated
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         if (rb != null)
@@ -210,6 +552,415 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    private GameObject leaveRoomButtonCanvasGO;
+    private UnityEngine.UI.Button leaveRoomButton;
+
+    private void EnsureOverheadLeaveButton()
+    {
+        Transform canvasTrans = transform.Find("OverheadLeaveRoomCanvas");
+        if (canvasTrans != null)
+        {
+            leaveRoomButtonCanvasGO = canvasTrans.gameObject;
+            canvasTrans.localPosition = new Vector3(0f, -0.60f, -0.5f);
+            canvasTrans.localScale = new Vector3(0.0042f, 0.0042f, 1f);
+            
+            var rt = canvasTrans.GetComponent<RectTransform>();
+            if (rt != null) rt.sizeDelta = new Vector2(180f, 44f);
+
+            leaveRoomButton = leaveRoomButtonCanvasGO.GetComponentInChildren<UnityEngine.UI.Button>(true);
+            if (leaveRoomButton != null)
+            {
+                leaveRoomButton.onClick.RemoveAllListeners();
+                leaveRoomButton.onClick.AddListener(OnOverheadLeaveRoomClicked);
+            }
+
+            var txtTMP = leaveRoomButtonCanvasGO.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (txtTMP != null) txtTMP.text = "LEAVE ROOM";
+            return;
+        }
+
+        leaveRoomButtonCanvasGO = new GameObject("OverheadLeaveRoomCanvas");
+        leaveRoomButtonCanvasGO.transform.SetParent(transform, false);
+        leaveRoomButtonCanvasGO.transform.localPosition = new Vector3(0f, -0.60f, -0.5f);
+        leaveRoomButtonCanvasGO.transform.localScale = new Vector3(0.0042f, 0.0042f, 1f);
+
+        Canvas canvas = leaveRoomButtonCanvasGO.GetComponent<Canvas>();
+        if (canvas == null) canvas = leaveRoomButtonCanvasGO.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvas.worldCamera = Camera.main ?? FindObjectOfType<Camera>();
+        canvas.sortingLayerName = "player";
+        canvas.sortingOrder = 5500;
+
+        if (leaveRoomButtonCanvasGO.GetComponent<UnityEngine.UI.CanvasScaler>() == null)
+            leaveRoomButtonCanvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
+        if (leaveRoomButtonCanvasGO.GetComponent<UnityEngine.UI.GraphicRaycaster>() == null)
+            leaveRoomButtonCanvasGO.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+        RectTransform canvasRt = leaveRoomButtonCanvasGO.GetComponent<RectTransform>();
+        canvasRt.sizeDelta = new Vector2(180f, 44f);
+
+        GameObject btnGO = new GameObject("LeaveRoomBtn", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.Button));
+        btnGO.transform.SetParent(leaveRoomButtonCanvasGO.transform, false);
+
+        RectTransform btnRt = btnGO.GetComponent<RectTransform>();
+        btnRt.anchorMin = Vector2.zero;
+        btnRt.anchorMax = Vector2.one;
+        btnRt.sizeDelta = Vector2.zero;
+
+        UnityEngine.UI.Image img = btnGO.GetComponent<UnityEngine.UI.Image>();
+        img.color = new Color(0.85f, 0.2f, 0.2f, 0.95f);
+
+        UnityEngine.UI.Outline outline = btnGO.AddComponent<UnityEngine.UI.Outline>();
+        outline.effectColor = new Color(1f, 0.5f, 0.5f, 0.9f);
+        outline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        GameObject txtGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        txtGO.transform.SetParent(btnGO.transform, false);
+        RectTransform txtRt = txtGO.GetComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero;
+        txtRt.anchorMax = Vector2.one;
+        txtRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI tmp = txtGO.GetComponent<TextMeshProUGUI>();
+        tmp.text = "LEAVE ROOM";
+        tmp.fontSize = 18;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+
+        leaveRoomButton = btnGO.GetComponent<UnityEngine.UI.Button>();
+        leaveRoomButton.onClick.RemoveAllListeners();
+        leaveRoomButton.onClick.AddListener(OnOverheadLeaveRoomClicked);
+    }
+
+    private async void OnOverheadLeaveRoomClicked()
+    {
+        UniversalButtonAudio.PlayClickSFX();
+        Debug.Log("[PlayerController] Local player clicked overhead LEAVE ROOM button.");
+
+        if (RelayNetworkManager.Instance != null)
+        {
+            await RelayNetworkManager.Instance.LeaveMatchGracefully();
+        }
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            NetworkManager.Singleton.Shutdown();
+        }
+
+        var allPCs = FindObjectsOfType<PlayerController>();
+        foreach (var pc in allPCs)
+        {
+            if (pc != null && pc.gameObject != null)
+            {
+                Destroy(pc.gameObject);
+            }
+        }
+
+        if (MainMenuController.Instance != null)
+        {
+            MainMenuController.Instance.SetupPreviewPlayer();
+            MainMenuController.Instance.ResetPreviewToEquippedSkin();
+        }
+    }
+
+    private GameObject makeHostButtonCanvasGO;
+    private UnityEngine.UI.Button makeHostButton;
+    private UnityEngine.UI.Button kickButton;
+
+    private void EnsureOverheadMakeHostButton()
+    {
+        Transform canvasTrans = transform.Find("OverheadMakeHostCanvas");
+        if (canvasTrans != null)
+        {
+            makeHostButtonCanvasGO = canvasTrans.gameObject;
+            canvasTrans.localPosition = new Vector3(0f, -0.60f, -0.5f);
+            canvasTrans.localScale = new Vector3(0.0042f, 0.0042f, 1f);
+
+            var rt = canvasTrans.GetComponent<RectTransform>();
+            if (rt != null) rt.sizeDelta = new Vector2(210f, 44f);
+
+            var canvas = makeHostButtonCanvasGO.GetComponent<Canvas>();
+            if (canvas != null) canvas.worldCamera = Camera.main ?? FindObjectOfType<Camera>();
+
+            makeHostButton = makeHostButtonCanvasGO.transform.Find("MakeHostBtn")?.GetComponent<UnityEngine.UI.Button>();
+            if (makeHostButton != null)
+            {
+                makeHostButton.onClick.RemoveAllListeners();
+                makeHostButton.onClick.AddListener(OnOverheadMakeHostClicked);
+            }
+
+            kickButton = makeHostButtonCanvasGO.transform.Find("KickBtn")?.GetComponent<UnityEngine.UI.Button>();
+            if (kickButton != null)
+            {
+                kickButton.onClick.RemoveAllListeners();
+                kickButton.onClick.AddListener(OnOverheadKickClicked);
+            }
+            return;
+        }
+
+        makeHostButtonCanvasGO = new GameObject("OverheadMakeHostCanvas");
+        makeHostButtonCanvasGO.transform.SetParent(transform, false);
+        makeHostButtonCanvasGO.transform.localPosition = new Vector3(0f, -0.60f, -0.5f);
+        makeHostButtonCanvasGO.transform.localScale = new Vector3(0.0042f, 0.0042f, 1f);
+
+        Canvas canvasComp = makeHostButtonCanvasGO.AddComponent<Canvas>();
+        canvasComp.renderMode = RenderMode.WorldSpace;
+        canvasComp.worldCamera = Camera.main ?? FindObjectOfType<Camera>();
+        canvasComp.sortingLayerName = "player";
+        canvasComp.sortingOrder = 5500;
+
+        makeHostButtonCanvasGO.AddComponent<UnityEngine.UI.CanvasScaler>();
+        makeHostButtonCanvasGO.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+
+        RectTransform canvasRt = makeHostButtonCanvasGO.GetComponent<RectTransform>();
+        canvasRt.sizeDelta = new Vector2(210f, 44f);
+
+        // 1. MAKE HOST Button (Gold)
+        GameObject hostBtnGO = new GameObject("MakeHostBtn", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.Button));
+        hostBtnGO.transform.SetParent(makeHostButtonCanvasGO.transform, false);
+
+        RectTransform hostRt = hostBtnGO.GetComponent<RectTransform>();
+        hostRt.anchorMin = new Vector2(0f, 0f);
+        hostRt.anchorMax = new Vector2(0.64f, 1f);
+        hostRt.sizeDelta = Vector2.zero;
+
+        UnityEngine.UI.Image hostImg = hostBtnGO.GetComponent<UnityEngine.UI.Image>();
+        hostImg.color = new Color(0.9f, 0.65f, 0.1f, 0.95f);
+
+        UnityEngine.UI.Outline hostOutline = hostBtnGO.AddComponent<UnityEngine.UI.Outline>();
+        hostOutline.effectColor = new Color(1f, 0.85f, 0.4f, 0.9f);
+        hostOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        GameObject hostTxtGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        hostTxtGO.transform.SetParent(hostBtnGO.transform, false);
+        RectTransform hostTxtRt = hostTxtGO.GetComponent<RectTransform>();
+        hostTxtRt.anchorMin = Vector2.zero;
+        hostTxtRt.anchorMax = Vector2.one;
+        hostTxtRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI hostTmp = hostTxtGO.GetComponent<TextMeshProUGUI>();
+        hostTmp.text = "MAKE HOST";
+        hostTmp.fontSize = 16;
+        hostTmp.fontStyle = FontStyles.Bold;
+        hostTmp.alignment = TextAlignmentOptions.Center;
+        hostTmp.color = Color.white;
+
+        makeHostButton = hostBtnGO.GetComponent<UnityEngine.UI.Button>();
+        makeHostButton.onClick.RemoveAllListeners();
+        makeHostButton.onClick.AddListener(OnOverheadMakeHostClicked);
+
+        // 2. KICK Button (Red)
+        GameObject kickBtnGO = new GameObject("KickBtn", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(UnityEngine.UI.Button));
+        kickBtnGO.transform.SetParent(makeHostButtonCanvasGO.transform, false);
+
+        RectTransform kickRt = kickBtnGO.GetComponent<RectTransform>();
+        kickRt.anchorMin = new Vector2(0.68f, 0f);
+        kickRt.anchorMax = new Vector2(1f, 1f);
+        kickRt.sizeDelta = Vector2.zero;
+
+        UnityEngine.UI.Image kickImg = kickBtnGO.GetComponent<UnityEngine.UI.Image>();
+        kickImg.color = new Color(0.85f, 0.2f, 0.2f, 0.95f);
+
+        UnityEngine.UI.Outline kickOutline = kickBtnGO.AddComponent<UnityEngine.UI.Outline>();
+        kickOutline.effectColor = new Color(1f, 0.5f, 0.5f, 0.9f);
+        kickOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        GameObject kickTxtGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        kickTxtGO.transform.SetParent(kickBtnGO.transform, false);
+        RectTransform kickTxtRt = kickTxtGO.GetComponent<RectTransform>();
+        kickTxtRt.anchorMin = Vector2.zero;
+        kickTxtRt.anchorMax = Vector2.one;
+        kickTxtRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI kickTmp = kickTxtGO.GetComponent<TextMeshProUGUI>();
+        kickTmp.text = "KICK";
+        kickTmp.fontSize = 16;
+        kickTmp.fontStyle = FontStyles.Bold;
+        kickTmp.alignment = TextAlignmentOptions.Center;
+        kickTmp.color = Color.white;
+
+        kickButton = kickBtnGO.GetComponent<UnityEngine.UI.Button>();
+        kickButton.onClick.RemoveAllListeners();
+        kickButton.onClick.AddListener(OnOverheadKickClicked);
+    }
+
+    private void OnOverheadMakeHostClicked()
+    {
+        UniversalButtonAudio.PlayClickSFX();
+        Debug.Log($"[PlayerController] Local host clicked MAKE HOST for player '{gameObject.name}' (OwnerClientId: {OwnerClientId})");
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            if (IsServer)
+            {
+                TransferHostLocal(OwnerClientId);
+            }
+            else
+            {
+                RequestMakeHostServerRpc(OwnerClientId);
+            }
+        }
+    }
+
+    private void OnOverheadKickClicked()
+    {
+        UniversalButtonAudio.PlayClickSFX();
+        Debug.Log($"[PlayerController] Local host clicked KICK for player '{gameObject.name}' (OwnerClientId: {OwnerClientId})");
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            if (IsServer)
+            {
+                KickPlayerLocal(OwnerClientId);
+            }
+            else
+            {
+                RequestKickPlayerServerRpc(OwnerClientId);
+            }
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestStartMatchServerRpc(ServerRpcParams rpcParams = default)
+    {
+        Debug.Log("[PlayerController] Server received RPC from Room Host (slot 0) to start match!");
+        if (RelayNetworkManager.Instance != null)
+        {
+            RelayNetworkManager.Instance.ExecuteSceneLoad("GameScene");
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestKickPlayerServerRpc(ulong targetClientId, ServerRpcParams rpcParams = default)
+    {
+        Debug.Log($"[PlayerController] Server received RPC to KICK ClientId {targetClientId}");
+        KickPlayerLocal(targetClientId);
+    }
+
+    public static void KickPlayerLocal(ulong targetClientId)
+    {
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
+
+        Debug.Log($"[PlayerController] Host kicking client {targetClientId}...");
+
+        PlayerController targetPC = null;
+        foreach (var p in FindObjectsOfType<PlayerController>())
+        {
+            if (p != null && (p.OwnerClientId == targetClientId || (p.IsLocal && targetClientId == 0)))
+            {
+                targetPC = p;
+                break;
+            }
+        }
+
+        if (targetPC != null)
+        {
+            targetPC.NotifyKickedClientRpc(new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams { TargetClientIds = new ulong[] { targetClientId } }
+            });
+        }
+
+        NetworkManager.Singleton.DisconnectClient(targetClientId);
+
+        PlayerController[] remaining = FindObjectsOfType<PlayerController>();
+        int slot = 0;
+        foreach (var p in remaining)
+        {
+            if (p != null && p != targetPC && p.OwnerClientId != targetClientId)
+            {
+                p.lobbySlotIndex.Value = slot++;
+                p.RefreshLobbyPositionAndState();
+                p.UpdateLobbyNameTag();
+            }
+        }
+    }
+
+    [ClientRpc]
+    public void NotifyKickedClientRpc(ClientRpcParams clientRpcParams = default)
+    {
+        UniversalButtonAudio.PlayClickSFX();
+        Debug.Log("[PlayerController] Received KICK notification from host.");
+
+        if (RelayNetworkManager.Instance != null)
+        {
+            _ = RelayNetworkManager.Instance.LeaveMatchGracefully();
+        }
+        else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            NetworkManager.Singleton.Shutdown();
+        }
+
+        var allPCs = FindObjectsOfType<PlayerController>();
+        foreach (var pc in allPCs)
+        {
+            if (pc != null && pc.gameObject != null) Destroy(pc.gameObject);
+        }
+
+        if (MainMenuController.Instance != null)
+        {
+            MainMenuController.Instance.SetupPreviewPlayer();
+            MainMenuController.Instance.ResetPreviewToEquippedSkin();
+            MainMenuController.Instance.UpdatePlayStatus("<color=#FF4444>You were kicked from the room</color>");
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestMakeHostServerRpc(ulong newHostClientId, ServerRpcParams rpcParams = default)
+    {
+        Debug.Log($"[PlayerController] Server received request to transfer Host to ClientId {newHostClientId}");
+        TransferHostLocal(newHostClientId);
+    }
+
+    public static void TransferHostLocal(ulong newHostClientId)
+    {
+        PlayerController[] pcs = FindObjectsOfType<PlayerController>();
+        PlayerController targetNewHost = null;
+
+        foreach (var p in pcs)
+        {
+            if (p != null && (p.OwnerClientId == newHostClientId || (p.IsLocal && newHostClientId == 0)))
+            {
+                targetNewHost = p;
+                break;
+            }
+        }
+
+        if (targetNewHost == null && pcs.Length > 0)
+        {
+            foreach (var p in pcs)
+            {
+                if (p != null && p.OwnerClientId == newHostClientId)
+                {
+                    targetNewHost = p;
+                    break;
+                }
+            }
+        }
+
+        if (targetNewHost == null) return;
+
+        targetNewHost.lobbySlotIndex.Value = 0;
+
+        int nextSlot = 1;
+        foreach (var p in pcs)
+        {
+            if (p != null && p != targetNewHost)
+            {
+                p.lobbySlotIndex.Value = nextSlot++;
+            }
+        }
+
+        foreach (var p in pcs)
+        {
+            if (p != null)
+            {
+                p.RefreshLobbyPositionAndState();
+            }
+        }
+    }
+
     public void UpdateNameTag(string nameText)
     {
         EnsureNameTag();
@@ -257,7 +1008,7 @@ public class PlayerController : NetworkBehaviour
         defaultMoveSpeed = moveSpeed;
         SetupAudio();
     }
-    
+
     private bool isLocalCached = false;
     private bool cachedIsLocal = false;
 
@@ -294,6 +1045,14 @@ public class PlayerController : NetworkBehaviour
     {
         if (isLocalCached) return;
 
+        if (isMyPlayerToggle)
+        {
+            cachedIsLocal = true;
+            isLocalCached = true;
+            LocalPlayer = this;
+            return;
+        }
+
         // Bots are NEVER local human players!
         if (CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot"))
         {
@@ -318,11 +1077,18 @@ public class PlayerController : NetworkBehaviour
             if (netObj.IsSpawned)
             {
                 if (netObj.IsLocalPlayer || netObj.IsOwner) local = true;
+                else local = false;
             }
-            else if (Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening)
+            else
             {
-                // Netcode not listening / offline test mode
-                local = true;
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+                {
+                    local = netObj.IsOwner || netObj.IsLocalPlayer;
+                }
+                else
+                {
+                    local = true; // Solo offline test mode
+                }
             }
         }
         // 2. Check Photon PUN
@@ -349,6 +1115,8 @@ public class PlayerController : NetworkBehaviour
             SetupAudio();
             RegisterCameraIfLocal();
         }
+
+        return;
     }
 
     private void RegisterCameraIfLocal()
@@ -404,6 +1172,17 @@ public class PlayerController : NetworkBehaviour
 
     private void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
     {
+        if (scene.name != "MainMenuScene")
+        {
+            RestoreGameplayComponents();
+            if (IsOwner || IsLocalPlayer)
+            {
+                RegisterCameraIfLocal();
+            }
+        }
+
+        UpdateLobbyNameTag();
+
         if (scene.name == "GameScene")
         {
             RepositionForGameScene();
@@ -464,6 +1243,21 @@ public class PlayerController : NetworkBehaviour
 
     private void Start()
     {
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName == "MainMenuScene")
+        {
+            var netObj = GetComponent<Unity.Netcode.NetworkObject>();
+            if (netObj == null || !netObj.IsSpawned)
+            {
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+                {
+                    Debug.Log($"[PlayerController] Destroying unspawned static scene Player object '{gameObject.name}' because Netcode is active.");
+                    Destroy(gameObject);
+                    return;
+                }
+            }
+        }
+
         // Ensure animator is found if not assigned
         if (animator == null)
         {
@@ -472,7 +1266,7 @@ public class PlayerController : NetworkBehaviour
 
         EvaluateIsLocal();
 
-        if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "GameScene")
+        if (sceneName == "GameScene")
         {
             RepositionForGameScene();
         }
@@ -511,6 +1305,20 @@ public class PlayerController : NetworkBehaviour
 
     private void Update()
     {
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (activeScene == "MainMenuScene")
+        {
+            int slot = GetLocalDisplaySlot();
+            Vector3 targetPos = MainMenuController.Instance != null 
+                ? MainMenuController.Instance.GetLobbySpawnPosition(slot)
+                : GetLobbySlotPosition(slot);
+
+            transform.position = targetPos;
+            if (rb == null) rb = GetComponent<Rigidbody2D>();
+            if (rb != null) rb.position = targetPos;
+            return;
+        }
+
         if (!isLocalCached)
         {
             EvaluateIsLocal();
@@ -533,9 +1341,21 @@ public class PlayerController : NetworkBehaviour
 
     private void LateUpdate()
     {
-        // Prevent root-level Animator clips from overriding world position to (0, 0)
-        if (rb != null && (IsLocal || !isLocalCached || Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening))
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (activeScene == "MainMenuScene")
         {
+            int slot = GetLocalDisplaySlot();
+            Vector3 targetPos = MainMenuController.Instance != null 
+                ? MainMenuController.Instance.GetLobbySpawnPosition(slot)
+                : GetLobbySlotPosition(slot);
+
+            transform.position = targetPos;
+            if (rb == null) rb = GetComponent<Rigidbody2D>();
+            if (rb != null) rb.position = targetPos;
+        }
+        else if (rb != null && (IsLocal || !isLocalCached || Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening))
+        {
+            // Prevent root-level Animator clips from overriding world position to (0, 0)
             transform.position = new Vector3(rb.position.x, rb.position.y, 0f);
         }
 
@@ -1068,6 +1888,8 @@ public class PlayerController : NetworkBehaviour
                     footstepAudioSource.clip = footstepClip;
                     footstepAudioSource.loop = true;
                     footstepAudioSource.volume = 0.5f;
+                    float interval = footstepInterval > 0f ? footstepInterval : 0.4f;
+                    footstepAudioSource.pitch = 0.4f / interval;
                     footstepAudioSource.Play();
                 }
             }

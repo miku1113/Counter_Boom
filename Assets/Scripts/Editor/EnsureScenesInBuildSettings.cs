@@ -16,6 +16,7 @@ public static class EnsureScenesInBuildSettings
     {
         string[] requiredScenes = new string[]
         {
+            "Assets/Scenes/LoginScene.unity",
             "Assets/Scenes/MainMenuScene.unity",
             "Assets/Scenes/LoadingGame.unity",
             "Assets/Scenes/CustomLobby.unity",

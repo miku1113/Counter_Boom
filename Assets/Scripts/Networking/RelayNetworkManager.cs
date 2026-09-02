@@ -16,7 +16,7 @@ public class RelayNetworkManager : MonoBehaviour
     public static RelayNetworkManager Instance { get; private set; }
 
     [Header("Configuration")]
-    [SerializeField] private int maxConnections = 9; // 9 connections = 10 players max (1 Host + 9 Clients)
+    [SerializeField] private int maxConnections = 2; // 2 connections = 3 players max in Main Menu Lobby (1 Host + 2 Clients)
     [SerializeField] private string lobbySceneName = "CustomLobby";
     [SerializeField] private string gameplaySceneName = "GameScene";
 
@@ -90,6 +90,7 @@ public class RelayNetworkManager : MonoBehaviour
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.OnTransportFailure += OnTransportFailure;
+            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         }
     }
@@ -99,7 +100,33 @@ public class RelayNetworkManager : MonoBehaviour
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.OnTransportFailure -= OnTransportFailure;
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        }
+    }
+
+    private void OnClientConnected(ulong clientId)
+    {
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+        {
+            AssignLobbySlotIndices();
+        }
+    }
+
+    public void AssignLobbySlotIndices()
+    {
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
+
+        PlayerController[] pcs = Object.FindObjectsOfType<PlayerController>();
+        var spawnedPlayers = pcs
+            .Where(p => p != null && p.GetComponent<NetworkObject>() != null && p.GetComponent<NetworkObject>().IsSpawned)
+            .OrderBy(p => p.OwnerClientId == NetworkManager.Singleton.LocalClientId ? -1 : (int)p.OwnerClientId)
+            .ToList();
+
+        for (int i = 0; i < spawnedPlayers.Count; i++)
+        {
+            spawnedPlayers[i].lobbySlotIndex.Value = i;
+            spawnedPlayers[i].RefreshLobbyPositionAndState();
         }
     }
 
@@ -122,6 +149,11 @@ public class RelayNetworkManager : MonoBehaviour
 
         Debug.Log($"[RelayManager] Client disconnected callback: clientId={clientId}, IsServer={NetworkManager.Singleton.IsServer}");
         
+        if (NetworkManager.Singleton.IsServer)
+        {
+            AssignLobbySlotIndices();
+        }
+
         // If we are a client in an active lobby and our host connection drops, start Host Migration!
         if (!NetworkManager.Singleton.IsServer && !IsMigrating && currentLobby != null)
         {
@@ -133,27 +165,37 @@ public class RelayNetworkManager : MonoBehaviour
     /// <summary>
     /// Initializes Core Unity Services and logs the player in anonymously.
     /// </summary>
-    public async Task InitializeUnityServicesAsync()
+    public async Task<bool> InitializeUnityServicesAsync()
     {
-        if (isServicesInitialized) return;
+        if (isServicesInitialized && AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+        {
+            return true;
+        }
 
         try
         {
             Debug.Log("[RelayManager] Initializing Unity Services...");
-            await UnityServices.InitializeAsync();
-
-            if (!AuthenticationService.Instance.IsSignedIn)
+            if (UnityServices.State == ServicesInitializationState.Uninitialized)
             {
-                Debug.Log("[RelayManager] Signing in anonymously...");
+                var options = new InitializationOptions();
+                await UnityServices.InitializeAsync(options);
+            }
+
+            if (AuthenticationService.Instance != null && !AuthenticationService.Instance.IsSignedIn)
+            {
+                Debug.Log("[RelayManager] Signing in anonymously to Unity Gaming Services...");
                 await AuthenticationService.Instance.SignInAnonymouslyAsync();
                 Debug.Log($"[RelayManager] Signed in successfully! Player ID: {AuthenticationService.Instance.PlayerId}");
             }
 
-            isServicesInitialized = true;
+            isServicesInitialized = AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn;
+            return isServicesInitialized;
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[RelayManager] Services initialization failed: {e.Message}");
+            Debug.LogWarning($"[RelayManager] Unity Services initialization warning: {e.Message}");
+            isServicesInitialized = AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn;
+            return isServicesInitialized;
         }
     }
 
@@ -164,94 +206,87 @@ public class RelayNetworkManager : MonoBehaviour
     {
         if (!IsMigrating) ClearSnapshot();
 
-        if (!isServicesInitialized)
+        bool authOk = await InitializeUnityServicesAsync();
+
+        if (authOk)
         {
-            await InitializeUnityServicesAsync();
-        }
-
-        try
-        {
-            Debug.Log("[RelayManager] Querying for open lobbies...");
-            
-            // Query for open public lobbies that haven't started yet and have available slots
-            QueryLobbiesOptions queryOptions = new QueryLobbiesOptions
+            try
             {
-                Count = 10,
-                Filters = new System.Collections.Generic.List<QueryFilter>
+                Debug.Log("[RelayManager] Querying open UGS lobbies...");
+                
+                // Query for open public lobbies that haven't started yet and have available slots
+                QueryLobbiesOptions queryOptions = new QueryLobbiesOptions
                 {
-                    new QueryFilter(
-                        field: QueryFilter.FieldOptions.AvailableSlots,
-                        op: QueryFilter.OpOptions.GT,
-                        value: "0"
-                    ),
-                    new QueryFilter(
-                        field: QueryFilter.FieldOptions.IsLocked,
-                        op: QueryFilter.OpOptions.EQ,
-                        value: "0"
-                    )
-                }
-            };
-
-            QueryResponse queryResponse = await LobbyService.Instance.QueryLobbiesAsync(queryOptions);
-
-            if (queryResponse.Results != null && queryResponse.Results.Count > 0)
-            {
-                foreach (var lobby in queryResponse.Results)
-                {
-                    bool started = false;
-                    if (lobby.Data != null && lobby.Data.ContainsKey("MatchStarted"))
+                    Count = 10,
+                    Filters = new System.Collections.Generic.List<QueryFilter>
                     {
-                        started = lobby.Data["MatchStarted"].Value == "true";
+                        new QueryFilter(
+                            field: QueryFilter.FieldOptions.AvailableSlots,
+                            op: QueryFilter.OpOptions.GT,
+                            value: "0"
+                        ),
+                        new QueryFilter(
+                            field: QueryFilter.FieldOptions.IsLocked,
+                            op: QueryFilter.OpOptions.EQ,
+                            value: "0"
+                        )
                     }
+                };
 
-                    if (!started && lobby.Data != null && lobby.Data.ContainsKey("JoinCode"))
+                QueryResponse queryResponse = await LobbyService.Instance.QueryLobbiesAsync(queryOptions);
+
+                if (queryResponse.Results != null && queryResponse.Results.Count > 0)
+                {
+                    foreach (var lobby in queryResponse.Results)
                     {
-                        string joinCode = lobby.Data["JoinCode"].Value;
-                        if (!string.IsNullOrEmpty(joinCode))
+                        bool started = false;
+                        if (lobby.Data != null && lobby.Data.ContainsKey("MatchStarted"))
                         {
-                            try
-                            {
-                                Debug.Log($"[RelayManager] Found active lobby '{lobby.Name}'. Joining UGS Lobby & Relay ({joinCode})...");
-                                Lobby joinedLobby = await LobbyService.Instance.JoinLobbyByIdAsync(lobby.Id);
-                                currentLobby = joinedLobby;
+                            started = lobby.Data["MatchStarted"].Value == "true";
+                        }
 
-                                bool clientStarted = await StartClientWithRelay(joinCode);
-                                if (clientStarted)
+                        if (!started && lobby.Data != null && lobby.Data.ContainsKey("JoinCode"))
+                        {
+                            string joinCode = lobby.Data["JoinCode"].Value;
+                            if (!string.IsNullOrEmpty(joinCode))
+                            {
+                                try
                                 {
-                                    Debug.Log($"[RelayManager] Successfully quick-joined match '{lobby.Name}'!");
-                                    return true;
+                                    Debug.Log($"[RelayManager] Found active lobby '{lobby.Name}'. Joining UGS Lobby & Relay ({joinCode})...");
+                                    Lobby joinedLobby = await LobbyService.Instance.JoinLobbyByIdAsync(lobby.Id);
+                                    currentLobby = joinedLobby;
+
+                                    bool clientStarted = await StartClientWithRelay(joinCode);
+                                    if (clientStarted)
+                                    {
+                                        Debug.Log($"[RelayManager] Successfully quick-joined match '{lobby.Name}'!");
+                                        return true;
+                                    }
+                                    else
+                                    {
+                                        Debug.LogWarning($"[RelayManager] Join Code '{joinCode}' for lobby '{lobby.Name}' failed/expired. Trying next lobby...");
+                                        currentLobby = null;
+                                    }
                                 }
-                                else
+                                catch (System.Exception ex)
                                 {
-                                    Debug.LogWarning($"[RelayManager] Join Code '{joinCode}' for lobby '{lobby.Name}' failed/expired. Trying next lobby...");
+                                    Debug.LogWarning($"[RelayManager] Failed to join candidate lobby '{lobby.Name}': {ex.Message}. Trying next...");
                                     currentLobby = null;
                                 }
-                            }
-                            catch (System.Exception ex)
-                            {
-                                Debug.LogWarning($"[RelayManager] Failed to join candidate lobby '{lobby.Name}': {ex.Message}. Trying next...");
-                                currentLobby = null;
                             }
                         }
                     }
                 }
             }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[RelayManager] UGS Lobby query exception: {e.Message}. Falling back to direct Relay Host...");
+            }
+        }
 
-            // No suitable active lobbies found (or all candidates were stale): host a new match
-            Debug.Log("[RelayManager] No working open lobbies found. Hosting a new match...");
-            return await HostAndPublishLobby();
-        }
-        catch (LobbyServiceException e)
-        {
-            Debug.LogError($"[RelayManager] Lobby Service Exception during matchmaking: {e.Message} (Code: {e.ErrorCode})");
-            // Fallback: try to host
-            return await HostAndPublishLobby();
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"[RelayManager] General matchmaking exception: {e.Message}");
-            return false;
-        }
+        // Fallback: host a new Relay match cleanly
+        Debug.Log("[RelayManager] Hosting a new Relay match...");
+        return await HostAndPublishLobby();
     }
 
     /// <summary>
@@ -269,37 +304,44 @@ public class RelayNetworkManager : MonoBehaviour
                 return false;
             }
 
-            // 2. Register the Lobby on Unity Services
-            string lobbyName = $"Lobby_{Random.Range(1000, 9999)}";
-            int maxPlayers = maxConnections + 1; // maxConnections + host
-
-            CreateLobbyOptions options = new CreateLobbyOptions
+            // 2. Register the Lobby on Unity Services (if UGS is active)
+            try
             {
-                IsPrivate = false,
-                Data = new Dictionary<string, DataObject>
+                string lobbyName = $"Lobby_{Random.Range(1000, 9999)}";
+                int maxPlayers = maxConnections + 1; // maxConnections + host
+
+                CreateLobbyOptions options = new CreateLobbyOptions
                 {
+                    IsPrivate = false,
+                    Data = new Dictionary<string, DataObject>
                     {
-                        "JoinCode", new DataObject(
-                            visibility: DataObject.VisibilityOptions.Public,
-                            value: joinCode
-                        )
+                        {
+                            "JoinCode", new DataObject(
+                                visibility: DataObject.VisibilityOptions.Public,
+                                value: joinCode
+                            )
+                        }
                     }
-                }
-            };
+                };
 
-            Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, maxPlayers, options);
-            currentLobby = lobby;
-            Debug.Log($"[RelayManager] Created public Lobby '{lobbyName}' (ID: {lobby.Id}) for room code: {joinCode}");
+                Lobby lobby = await LobbyService.Instance.CreateLobbyAsync(lobbyName, maxPlayers, options);
+                currentLobby = lobby;
+                Debug.Log($"[RelayManager] Created public Lobby '{lobbyName}' (ID: {lobby.Id}) for room code: {joinCode}");
 
-            // 3. Start Lobby Heartbeat to keep it active
-            if (heartbeatCoroutine != null) StopCoroutine(heartbeatCoroutine);
-            heartbeatCoroutine = StartCoroutine(LobbyHeartbeatRoutine(lobby.Id, 15f));
+                // 3. Start Lobby Heartbeat to keep it active
+                if (heartbeatCoroutine != null) StopCoroutine(heartbeatCoroutine);
+                heartbeatCoroutine = StartCoroutine(LobbyHeartbeatRoutine(lobby.Id, 15f));
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[RelayManager] Could not publish public UGS Lobby metadata ({ex.Message}), but Relay Host is active with code: {joinCode}");
+            }
 
             return true;
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[RelayManager] Failed to host and publish lobby: {e.Message}");
+            Debug.LogError($"[RelayManager] Failed to host match: {e.Message}");
             return false;
         }
     }
@@ -439,12 +481,9 @@ public class RelayNetworkManager : MonoBehaviour
 
             if (NetworkManager.Singleton.StartHost())
             {
-                Debug.Log($"[RelayManager] NGO Host started successfully with code '{joinCode}'.");
+                Debug.Log($"[RelayManager] NGO Host started successfully in MainMenu lobby with code '{joinCode}'.");
                 CurrentJoinCode = joinCode;
                 lastValidJoinCode = joinCode;
-
-                string targetScene = !string.IsNullOrEmpty(lobbySceneName) ? lobbySceneName : gameplaySceneName;
-                NetworkManager.Singleton.SceneManager.LoadScene(targetScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
                 return joinCode;
             }
             else
@@ -460,53 +499,99 @@ public class RelayNetworkManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Host-only method that transitions all connected clients from the pre-game lobby scene to the gameplay scene.
-    /// Locks the UGS lobby so Quick Play creates a new room for subsequent players.
-    /// </summary>
+    public void LaunchMatchFromLobby()
+    {
+        PlayerController localPlayer = PlayerController.LocalPlayer;
+        if (localPlayer == null)
+        {
+            foreach (var p in FindObjectsOfType<PlayerController>())
+            {
+                if (p != null && (p.IsOwner || p.IsLocal)) { localPlayer = p; break; }
+            }
+        }
+
+        if (localPlayer == null || localPlayer.lobbySlotIndex.Value != 0)
+        {
+            Debug.LogWarning("[RelayManager] Only Room Host (slot 0) can launch the match!");
+            return;
+        }
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            string targetScene = !string.IsNullOrEmpty(gameplaySceneName) ? gameplaySceneName : "GameScene";
+            if (NetworkManager.Singleton.IsServer)
+            {
+                ExecuteSceneLoad(targetScene);
+            }
+            else
+            {
+                localPlayer.RequestStartMatchServerRpc();
+            }
+        }
+    }
+
+    public void ExecuteSceneLoad(string targetScene)
+    {
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
+
+        Debug.Log($"[RelayManager] Room Host launching scene '{targetScene}' for all connected players...");
+
+        if (MatchRoleManager.Instance == null && FindObjectOfType<MatchRoleManager>() == null)
+        {
+            new GameObject("MatchRoleManager", typeof(MatchRoleManager));
+        }
+        if (MatchRoleManager.Instance != null)
+        {
+            MatchRoleManager.Instance.AssignRolesForConnectedPlayers();
+        }
+
+        bool loaded = false;
+        try
+        {
+            if (NetworkManager.Singleton.SceneManager != null)
+            {
+                NetworkManager.Singleton.SceneManager.LoadScene(targetScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
+                loaded = true;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[RelayManager] Netcode SceneManager.LoadScene warning: {ex.Message}");
+        }
+
+        if (!loaded)
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(targetScene);
+        }
+    }
+
+    public void TransitionToCustomLobbyScene()
+    {
+        ExecuteSceneLoad(!string.IsNullOrEmpty(lobbySceneName) ? lobbySceneName : "CustomLobby");
+    }
+
     public async void StartMatchFromLobby()
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost)
+        if (currentLobby != null)
         {
-            Debug.Log($"[RelayManager] Host starting match! Locking lobby '{currentLobby?.Id}' and loading scene '{gameplaySceneName}'...");
-
-            if (currentLobby != null)
+            try
             {
-                try
+                await LobbyService.Instance.UpdateLobbyAsync(currentLobby.Id, new UpdateLobbyOptions
                 {
-                    await LobbyService.Instance.UpdateLobbyAsync(currentLobby.Id, new UpdateLobbyOptions
+                    Data = new Dictionary<string, DataObject>
                     {
-                        Data = new Dictionary<string, DataObject>
-                        {
-                            { "MatchStarted", new DataObject(DataObject.VisibilityOptions.Public, "true") }
-                        }
-                    });
-                    Debug.Log("[RelayManager] Lobby marked MatchStarted = true successfully.");
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"[RelayManager] Failed to update lobby on match start: {e.Message}");
-                }
+                        { "MatchStarted", new DataObject(DataObject.VisibilityOptions.Public, "true") }
+                    }
+                });
+                Debug.Log("[RelayManager] Lobby marked MatchStarted = true successfully.");
             }
-
-            // Assign roles to all connected players before loading GameScene
-            if (MatchRoleManager.Instance == null && FindObjectOfType<MatchRoleManager>() == null)
+            catch (System.Exception e)
             {
-                new GameObject("MatchRoleManager", typeof(MatchRoleManager));
+                Debug.LogWarning($"[RelayManager] Failed to update lobby on match start: {e.Message}");
             }
-            if (MatchRoleManager.Instance != null)
-            {
-                MatchRoleManager.Instance.AssignRolesForConnectedPlayers();
-            }
+        }
 
-            LoadingGameController.TargetMode = LoadingGameController.MatchMode.InGameLoading;
-            string targetScene = !string.IsNullOrEmpty(gameplaySceneName) ? gameplaySceneName : "GameScene";
-            NetworkManager.Singleton.SceneManager.LoadScene(targetScene, UnityEngine.SceneManagement.LoadSceneMode.Single);
-        }
-        else
-        {
-            Debug.LogWarning("[RelayManager] Only the Host can start the match!");
-        }
+        LaunchMatchFromLobby();
     }
 
     /// <summary>
@@ -1004,6 +1089,18 @@ public class RelayNetworkManager : MonoBehaviour
 
                 Debug.Log($"[HostMigration] Lobby Host ID: {updatedHostId}, My Player ID: {myPlayerId}");
 
+                // Check if remaining player count in room is <= 1 (meaning host left a 2-player room and only 1 client remains)
+                if (updatedLobby.Players != null && updatedLobby.Players.Count <= 1)
+                {
+                    Debug.Log("[HostMigration] Only 1 player remaining after host left. Destroying room...");
+                    OnMigrationStatusChanged?.Invoke("Host left. Room closed.");
+                    yield return new WaitForSecondsRealtime(1.5f);
+                    IsMigrating = false;
+                    OnMigrationStateChanged?.Invoke(false);
+                    Disconnect();
+                    yield break;
+                }
+
                 // Scenario 1: UGS promoted us to Host
                 if (updatedHostId == myPlayerId)
                 {
@@ -1135,6 +1232,37 @@ public class RelayNetworkManager : MonoBehaviour
         {
             elapsed += Time.unscaledDeltaTime;
             yield return null;
+        }
+
+        // ── Check if we are in MainMenuScene ──
+        string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (activeScene == "MainMenuScene")
+        {
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+            {
+                AssignLobbySlotIndices();
+            }
+
+            PlayerController localPC = PlayerController.LocalPlayer;
+            if (localPC == null)
+            {
+                foreach (var p in Object.FindObjectsOfType<PlayerController>())
+                {
+                    if (p != null && p.IsOwner) { localPC = p; break; }
+                }
+            }
+            if (localPC != null)
+            {
+                localPC.RefreshLobbyPositionAndState();
+            }
+
+            OnMigrationStatusChanged?.Invoke("Room Host updated!");
+            yield return new WaitForSecondsRealtime(0.5f);
+
+            IsMigrating = false;
+            OnMigrationStateChanged?.Invoke(false);
+            Debug.Log("[HostMigration] MainMenu host migration successfully completed!");
+            yield break;
         }
 
         // ── Wait one extra frame so all MonoBehaviour Start() methods run first ──

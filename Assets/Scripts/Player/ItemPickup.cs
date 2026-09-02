@@ -378,6 +378,10 @@ public class ItemPickup : NetworkBehaviour
     {
         PlayPickupAudio();
 
+        // Immediately disable colliders and renderers on client so item cannot be picked up multiple times
+        foreach (var col in GetComponentsInChildren<Collider2D>(true)) col.enabled = false;
+        foreach (var rend in GetComponentsInChildren<Renderer>(true)) rend.enabled = false;
+
         if (PickupsInRange.Contains(this))
             PickupsInRange.Remove(this);
         if (NearestPickup == this)

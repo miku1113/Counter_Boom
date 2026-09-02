@@ -1,0 +1,266 @@
+fileFormatVersion: 2
+guid: 8669236a943334eb498e4c54798fa90a
+TextureImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 0
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 32
+  spriteMeshType: 0
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 3
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 3
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 3
+    buildTarget: iPhone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 3
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: ChatGPT Image Aug 23, 2026, 02_42_28 AM_0
+      rect:
+        serializedVersion: 2
+        x: 849
+        y: 510
+        width: 246
+        height: 247
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 91e3e2ec081124e1b9109dba8e25e571
+      internalID: 1066900794
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline:
+    - - {x: 0, y: 512}
+      - {x: -46.37069, y: 511.0659}
+      - {x: -92.572174, y: 508.26694}
+      - {x: -138.43588, y: 503.6134}
+      - {x: -183.79443, y: 497.12222}
+      - {x: -228.48235, y: 488.81708}
+      - {x: -272.33655, y: 478.7283}
+      - {x: -315.19702, y: 466.89273}
+      - {x: -356.9074, y: 453.3535}
+      - {x: -397.31543, y: 438.16}
+      - {x: -436.27374, y: 421.36774}
+      - {x: -473.6401, y: 403.03793}
+      - {x: -509.27826, y: 383.2375}
+      - {x: -543.05804, y: 362.03864}
+      - {x: -574.8563, y: 339.51877}
+      - {x: -604.557, y: 315.76}
+      - {x: -632.0517, y: 290.8491}
+      - {x: -657.2401, y: 264.8769}
+      - {x: -680.03033, y: 237.93817}
+      - {x: -700.3391, y: 210.13126}
+      - {x: -718.0925, y: 181.55759}
+      - {x: -733.2257, y: 152.32143}
+      - {x: -745.68335, y: 122.52947}
+      - {x: -755.42017, y: 92.29041}
+      - {x: -762.40045, y: 61.7146}
+      - {x: -766.5988, y: 30.913599}
+      - {x: -768, y: -0.0002054857}
+      - {x: -766.59875, y: -30.91401}
+      - {x: -762.4004, y: -61.715008}
+      - {x: -755.42004, y: -92.29082}
+      - {x: -745.6832, y: -122.52987}
+      - {x: -733.2255, y: -152.32182}
+      - {x: -718.0923, y: -181.55797}
+      - {x: -700.3389, y: -210.13162}
+      - {x: -680.03, y: -237.93854}
+      - {x: -657.23975, y: -264.87723}
+      - {x: -632.05133, y: -290.84943}
+      - {x: -604.5566, y: -315.76035}
+      - {x: -574.8559, y: -339.51907}
+      - {x: -543.0576, y: -362.03894}
+      - {x: -509.27777, y: -383.23776}
+      - {x: -473.63965, y: -403.03818}
+      - {x: -436.27322, y: -421.36798}
+      - {x: -397.31488, y: -438.16022}
+      - {x: -356.90683, y: -453.3537}
+      - {x: -315.1964, y: -466.8929}
+      - {x: -272.33594, y: -478.7285}
+      - {x: -228.48169, y: -488.81723}
+      - {x: -183.79373, y: -497.1223}
+      - {x: -138.43513, y: -503.6135}
+      - {x: -92.57141, y: -508.267}
+      - {x: -46.369907, y: -511.06592}
+      - {x: 0.00079956255, y: -512}
+      - {x: 46.371502, y: -511.06586}
+      - {x: 92.573006, y: -508.26688}
+      - {x: 138.4367, y: -503.61328}
+      - {x: 183.79529, y: -497.12207}
+      - {x: 228.48318, y: -488.8169}
+      - {x: 272.3374, y: -478.7281}
+      - {x: 315.19788, y: -466.89246}
+      - {x: 356.90823, y: -453.35318}
+      - {x: 397.31625, y: -438.15967}
+      - {x: 436.27454, y: -421.36737}
+      - {x: 473.64087, y: -403.03754}
+      - {x: 509.279, y: -383.23706}
+      - {x: 543.0587, y: -362.03818}
+      - {x: 574.85693, y: -339.51828}
+      - {x: 604.55743, y: -315.75958}
+      - {x: 632.0521, y: -290.84863}
+      - {x: 657.2405, y: -264.87643}
+      - {x: 680.0307, y: -237.9377}
+      - {x: 700.3395, y: -210.13077}
+      - {x: 718.09283, y: -181.55708}
+      - {x: 733.22595, y: -152.32092}
+      - {x: 745.6836, y: -122.52895}
+      - {x: 755.4203, y: -92.28989}
+      - {x: 762.4005, y: -61.714073}
+      - {x: 766.5989, y: -30.913067}
+      - {x: 768, y: 0.0007385274}
+      - {x: 766.59875, y: 30.914541}
+      - {x: 762.40027, y: 61.715538}
+      - {x: 755.41986, y: 92.29134}
+      - {x: 745.683, y: 122.53039}
+      - {x: 733.2252, y: 152.32233}
+      - {x: 718.09204, y: 181.55846}
+      - {x: 700.3386, y: 210.13211}
+      - {x: 680.02966, y: 237.93901}
+      - {x: 657.2394, y: 264.8777}
+      - {x: 632.0509, y: 290.84985}
+      - {x: 604.55615, y: 315.76074}
+      - {x: 574.85535, y: 339.51947}
+      - {x: 543.057, y: 362.0393}
+      - {x: 509.2772, y: 383.2381}
+      - {x: 473.639, y: 403.0385}
+      - {x: 436.27258, y: 421.3683}
+      - {x: 397.31424, y: 438.1605}
+      - {x: 356.90613, y: 453.35394}
+      - {x: 315.19568, y: 466.89313}
+      - {x: 272.33517, y: 478.72867}
+      - {x: 228.4809, y: 488.81738}
+      - {x: 183.79295, y: 497.12247}
+      - {x: 138.43436, y: 503.6136}
+      - {x: 92.57062, y: 508.26706}
+      - {x: 46.36911, y: 511.06595}
+    physicsShape: []
+    bones: []
+    spriteID: 5e97eb03825dee720800000000000000
+    internalID: 1537655665
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    nameFileIdTable:
+      ChatGPT Image Aug 23, 2026, 02_42_28 AM_0: 1066900794
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

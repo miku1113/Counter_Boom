@@ -339,7 +339,7 @@ Transform:
   m_GameObject: {fileID: 3071824879657934606}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.039, y: 0.38, z: 0}
+  m_LocalPosition: {x: 0.007, y: 0.38, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -490,7 +490,7 @@ Transform:
   m_GameObject: {fileID: 4362157586712163203}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.108, y: -0.079, z: 0}
+  m_LocalPosition: {x: -0.293, y: -0.079, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1101,6 +1101,12 @@ MonoBehaviour:
         byte0029: 0
   playerRole:
     m_InternalValue: 0
+  isReady:
+    m_InternalValue: 0
+  lobbySlotIndex:
+    m_InternalValue: 0
+  skinIndex:
+    m_InternalValue: 0
   nameTagFontSize: 1.4
   moveSpeed: 5
   rb: {fileID: 1111370383705521264}
@@ -1116,6 +1122,7 @@ MonoBehaviour:
   ghostSprite: {fileID: 21300006, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
   floatSpeed: 3
   floatAmplitude: 0.12
+  isMyPlayerToggle: 0
   nameTagHeightOffset: 0.55
 --- !u!114 &5141074792442983171
 MonoBehaviour:

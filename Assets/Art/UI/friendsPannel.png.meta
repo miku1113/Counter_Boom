@@ -1,0 +1,3858 @@
+fileFormatVersion: 2
+guid: af613e1da8b0f4e97a6aba5e985d6fab
+TextureImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 3
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 3
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 3
+    buildTarget: iPhone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 3
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: friendsPannel_0
+      rect:
+        serializedVersion: 2
+        x: 23
+        y: 981
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 549a47aab1e714d54ae75a481ad341cd
+      internalID: 2031030495
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_1
+      rect:
+        serializedVersion: 2
+        x: 33
+        y: 981
+        width: 13
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: da0b8191893a04de3be8c7055d007a11
+      internalID: 163566083
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_2
+      rect:
+        serializedVersion: 2
+        x: 47
+        y: 981
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: cbd318565039342b2a926d72d69a2eac
+      internalID: 1296759302
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_3
+      rect:
+        serializedVersion: 2
+        x: 61
+        y: 981
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fe511386faea945259d05aa63858aef6
+      internalID: 2036526710
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_4
+      rect:
+        serializedVersion: 2
+        x: 73
+        y: 980
+        width: 9
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3bc2731f2f11548409730cc0616b60ab
+      internalID: -11137813
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_5
+      rect:
+        serializedVersion: 2
+        x: 83
+        y: 980
+        width: 10
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5bd3b74a75f174883b83261c41cc6688
+      internalID: -295204115
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_6
+      rect:
+        serializedVersion: 2
+        x: 569
+        y: 976
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 24698558b09d74046889d9826ea96e4d
+      internalID: -1159502535
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_7
+      rect:
+        serializedVersion: 2
+        x: 579
+        y: 976
+        width: 13
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3176e632a28c24a798cd9e22c6e8b537
+      internalID: 1641419420
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_8
+      rect:
+        serializedVersion: 2
+        x: 593
+        y: 976
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: eb2e389440c1345a3ac7f7bc2329c278
+      internalID: 1001700983
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_9
+      rect:
+        serializedVersion: 2
+        x: 606
+        y: 976
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 2f10d99af92b948c2a84630caeb5a80f
+      internalID: 98001725
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_10
+      rect:
+        serializedVersion: 2
+        x: 626
+        y: 973
+        width: 5
+        height: 21
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a4fc0ed851c2641998bf5b1d1db61653
+      internalID: 121575595
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_11
+      rect:
+        serializedVersion: 2
+        x: 633
+        y: 976
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bee93c729f5ae4b0ab3c4c9f9c1adead
+      internalID: 1451304477
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_12
+      rect:
+        serializedVersion: 2
+        x: 646
+        y: 976
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: d173ad52b0d73405cb9a5bc61407846f
+      internalID: 1582497087
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_13
+      rect:
+        serializedVersion: 2
+        x: 658
+        y: 976
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 89d7e9284a21d44ce8d17e268cc604a2
+      internalID: -624816462
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_14
+      rect:
+        serializedVersion: 2
+        x: 668
+        y: 976
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4a9c79f6da5dd4bb7989d09efe126ef8
+      internalID: 1378958821
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_15
+      rect:
+        serializedVersion: 2
+        x: 680
+        y: 976
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: b123d1564683b451dabd666cf24caef8
+      internalID: -443831803
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_16
+      rect:
+        serializedVersion: 2
+        x: 692
+        y: 976
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6320a67bf93704ed8a0e54fdc2278bfd
+      internalID: -780885651
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_17
+      rect:
+        serializedVersion: 2
+        x: 704
+        y: 976
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c0dcca1850c85455db6e95948adefb48
+      internalID: -1528992976
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_18
+      rect:
+        serializedVersion: 2
+        x: 716
+        y: 976
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c95c23855919845328374b98175d5c1f
+      internalID: -1140364278
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_19
+      rect:
+        serializedVersion: 2
+        x: 728
+        y: 973
+        width: 6
+        height: 20
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 18c85e8150774495ca50668c8fceff1d
+      internalID: -218525428
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_20
+      rect:
+        serializedVersion: 2
+        x: 981
+        y: 977
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 8501ac187fdb7417785a3053746a52bc
+      internalID: 1573662259
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_21
+      rect:
+        serializedVersion: 2
+        x: 994
+        y: 977
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: d6211d1cfcae542969068213aaba5e53
+      internalID: 39577618
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_22
+      rect:
+        serializedVersion: 2
+        x: 1005
+        y: 977
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f8b4e555e3da04244aefd5c535a9c0d3
+      internalID: 133491978
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_23
+      rect:
+        serializedVersion: 2
+        x: 1019
+        y: 977
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: d36e7361d90ee433dac494f429956717
+      internalID: -217793833
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_24
+      rect:
+        serializedVersion: 2
+        x: 1032
+        y: 977
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ea4dc179769564b7eb507552f1e7f4a8
+      internalID: 1403707256
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_25
+      rect:
+        serializedVersion: 2
+        x: 1045
+        y: 977
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 08167bf4c22604a90ac45063b7fab380
+      internalID: 675165463
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_26
+      rect:
+        serializedVersion: 2
+        x: 1065
+        y: 977
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 37672581ee3e04cb99596854913208ac
+      internalID: 711730005
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_27
+      rect:
+        serializedVersion: 2
+        x: 1077
+        y: 977
+        width: 13
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a374976105ad14348ac810f0f8f96d2e
+      internalID: 2015397093
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_28
+      rect:
+        serializedVersion: 2
+        x: 1092
+        y: 977
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 1a243a72d4dc644a996afdfb27835135
+      internalID: -935975593
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_29
+      rect:
+        serializedVersion: 2
+        x: 21
+        y: 652
+        width: 518
+        height: 313
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 048e5d8eae3864a858572bd3ecc6aafe
+      internalID: -647003467
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_30
+      rect:
+        serializedVersion: 2
+        x: 566
+        y: 869
+        width: 182
+        height: 81
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6e9f030120c0f4c45a5d821bdb553f29
+      internalID: -876643976
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_31
+      rect:
+        serializedVersion: 2
+        x: 760
+        y: 869
+        width: 182
+        height: 81
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 89fd30bc4975d481aa931f2161d93de2
+      internalID: -858876536
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_32
+      rect:
+        serializedVersion: 2
+        x: 977
+        y: 894
+        width: 411
+        height: 67
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fce7eb97696aa4ab48a4c589f0185073
+      internalID: 1648528414
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_33
+      rect:
+        serializedVersion: 2
+        x: 1408
+        y: 888
+        width: 84
+        height: 73
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 1e6066500a1294278afb54c351b99d83
+      internalID: 1189710680
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_34
+      rect:
+        serializedVersion: 2
+        x: 979
+        y: 849
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 840fd3b1c834b4c0a9480cf0a8dce0f3
+      internalID: -106725764
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_35
+      rect:
+        serializedVersion: 2
+        x: 993
+        y: 848
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e3b78008095e149d4b468862a2bf738d
+      internalID: 62956840
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_36
+      rect:
+        serializedVersion: 2
+        x: 1005
+        y: 849
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4f8079cee47d042589c8a0ecf71fda56
+      internalID: 63371021
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_37
+      rect:
+        serializedVersion: 2
+        x: 1016
+        y: 849
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7c227329cfd4d4736adc1296b7edf8eb
+      internalID: 103515522
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_38
+      rect:
+        serializedVersion: 2
+        x: 1028
+        y: 849
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 36e1f17772d7e4ddf8484db617df9bf0
+      internalID: 1906438162
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_39
+      rect:
+        serializedVersion: 2
+        x: 1042
+        y: 849
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c4333c2feaf7340f381f3cb2b99ab491
+      internalID: -444086610
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_40
+      rect:
+        serializedVersion: 2
+        x: 1055
+        y: 848
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 81635026a46ba4981b6aa80a952145e7
+      internalID: 1219046374
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_41
+      rect:
+        serializedVersion: 2
+        x: 568
+        y: 772
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 258098c4274e84082a69cb49d53f114d
+      internalID: -176176049
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_42
+      rect:
+        serializedVersion: 2
+        x: 578
+        y: 772
+        width: 13
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c7602c31bdf494e7286886a274af6cc4
+      internalID: -1700923054
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_43
+      rect:
+        serializedVersion: 2
+        x: 592
+        y: 772
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 508ecefc0d1b14ac08524bc7c3312122
+      internalID: -677108603
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_44
+      rect:
+        serializedVersion: 2
+        x: 605
+        y: 772
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c65cdb9011d944baf9d36ecd4e861bf9
+      internalID: 2057554810
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_45
+      rect:
+        serializedVersion: 2
+        x: 626
+        y: 769
+        width: 5
+        height: 21
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9b6a60123b29d4a1395587b0f41abfce
+      internalID: 962110118
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_46
+      rect:
+        serializedVersion: 2
+        x: 633
+        y: 772
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 604e609a3e4ae42b2bbdfb33c1273422
+      internalID: -1234348765
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_47
+      rect:
+        serializedVersion: 2
+        x: 646
+        y: 772
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c7a0a561004a34fafa2891c8648efb80
+      internalID: 502707985
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_48
+      rect:
+        serializedVersion: 2
+        x: 660
+        y: 772
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c5c12ca99276644aaabd898c29124e07
+      internalID: -1690404355
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_49
+      rect:
+        serializedVersion: 2
+        x: 673
+        y: 772
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 225f033bbf91c48f197c830010aca0b4
+      internalID: 1696043949
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_50
+      rect:
+        serializedVersion: 2
+        x: 685
+        y: 772
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c47394013915b45f7a627aea9b0fd68d
+      internalID: 1665762413
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_51
+      rect:
+        serializedVersion: 2
+        x: 696
+        y: 772
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9653387c10878470d9c0c1fc5805ce27
+      internalID: -378398336
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_52
+      rect:
+        serializedVersion: 2
+        x: 708
+        y: 772
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 53f3ee0fa428742c88e32e17a15d164c
+      internalID: -1818884783
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_53
+      rect:
+        serializedVersion: 2
+        x: 721
+        y: 772
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3ef80fa6d5f7b45bab6621b42b5846e0
+      internalID: -205627718
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_54
+      rect:
+        serializedVersion: 2
+        x: 733
+        y: 772
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ec778dd4be7cc421c9051e96e6c495ea
+      internalID: 1801679695
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_55
+      rect:
+        serializedVersion: 2
+        x: 745
+        y: 772
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9f358a3b6c7854451b5b123807c59c6c
+      internalID: -1311642290
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_56
+      rect:
+        serializedVersion: 2
+        x: 758
+        y: 769
+        width: 6
+        height: 21
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 739301b59f3b8456a87c269dfbd2910e
+      internalID: 1072697663
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_57
+      rect:
+        serializedVersion: 2
+        x: 976
+        y: 750
+        width: 165
+        height: 77
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a739b9b14a74b44a2b2a2554a8760691
+      internalID: 547642038
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_58
+      rect:
+        serializedVersion: 2
+        x: 1165
+        y: 746
+        width: 93
+        height: 88
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 8ba87e68a1f9a4b8588bf42a41351989
+      internalID: -1069462329
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_59
+      rect:
+        serializedVersion: 2
+        x: 1282
+        y: 754
+        width: 69
+        height: 66
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: cb12ea065b4584c4e85f011d096863e0
+      internalID: -446982145
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_60
+      rect:
+        serializedVersion: 2
+        x: 1377
+        y: 761
+        width: 47
+        height: 46
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 1c6d84186d3174495aa5aadac8970681
+      internalID: -116669890
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_61
+      rect:
+        serializedVersion: 2
+        x: 1444
+        y: 768
+        width: 31
+        height: 31
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5999e2d1e5bec45dfa43c4cf5fb7e4a8
+      internalID: -954332471
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_62
+      rect:
+        serializedVersion: 2
+        x: 566
+        y: 666
+        width: 182
+        height: 82
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 839d7fc0dad3a4cc6b5a9d9102dc91ae
+      internalID: -552955973
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_63
+      rect:
+        serializedVersion: 2
+        x: 760
+        y: 666
+        width: 184
+        height: 82
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 472819273ff8a45bc84a425b2ce6d934
+      internalID: -1946538055
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_64
+      rect:
+        serializedVersion: 2
+        x: 978
+        y: 642
+        width: 100
+        height: 84
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 632a988b2886543cc936ed87ebe674b7
+      internalID: -1264011538
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_65
+      rect:
+        serializedVersion: 2
+        x: 1105
+        y: 642
+        width: 92
+        height: 84
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bd01de78da68242c5ba5d0e070af3e40
+      internalID: 804765620
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_66
+      rect:
+        serializedVersion: 2
+        x: 1225
+        y: 642
+        width: 87
+        height: 84
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bf6d73f26a85746309e67b1c0f56cc14
+      internalID: -697302623
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_67
+      rect:
+        serializedVersion: 2
+        x: 20
+        y: 459
+        width: 517
+        height: 170
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: bc99291f0c3f14c7a8445a941492bc63
+      internalID: -1728844812
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_68
+      rect:
+        serializedVersion: 2
+        x: 1126
+        y: 606
+        width: 12
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7e3db9a4d55df4d77b6972918044cac3
+      internalID: -252036787
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_69
+      rect:
+        serializedVersion: 2
+        x: 1139
+        y: 606
+        width: 12
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 81c96346b61f34c47888fc396fcf07d2
+      internalID: 1821011590
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_70
+      rect:
+        serializedVersion: 2
+        x: 1151
+        y: 606
+        width: 13
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a0f630461fcec4312b8f08c0a9a5cf73
+      internalID: -1467205189
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_71
+      rect:
+        serializedVersion: 2
+        x: 1164
+        y: 607
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7e81ae487ba0e4264b2772f5b0af1db8
+      internalID: -841933437
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_72
+      rect:
+        serializedVersion: 2
+        x: 1175
+        y: 607
+        width: 13
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: b568b4f86be87401ea5fb248cd39d0cd
+      internalID: 633980963
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_73
+      rect:
+        serializedVersion: 2
+        x: 1190
+        y: 606
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3aaa09a21e5104e64bdd6e90a0be16e1
+      internalID: -2045418344
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_74
+      rect:
+        serializedVersion: 2
+        x: 1211
+        y: 606
+        width: 18
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a5acccf4cf53f408d94498391b7524a7
+      internalID: 1377372350
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_75
+      rect:
+        serializedVersion: 2
+        x: 1231
+        y: 606
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0518c6b16b2914083a9e30a9b87f197b
+      internalID: -934886046
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_76
+      rect:
+        serializedVersion: 2
+        x: 1245
+        y: 607
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0e18a9fb5b4374695af10853ef6b72ff
+      internalID: -942769766
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_77
+      rect:
+        serializedVersion: 2
+        x: 1259
+        y: 606
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4f8a822059b104185bc033b76b6f2a56
+      internalID: -1380041506
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_78
+      rect:
+        serializedVersion: 2
+        x: 576
+        y: 504
+        width: 194
+        height: 65
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 731af1df7c7ef4388af35aef078bff0b
+      internalID: -795533228
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_79
+      rect:
+        serializedVersion: 2
+        x: 801
+        y: 504
+        width: 193
+        height: 64
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 952ef4a4b9a55436689b8228329d7463
+      internalID: 2023963043
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_80
+      rect:
+        serializedVersion: 2
+        x: 1123
+        y: 457
+        width: 136
+        height: 136
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ed3bb1ef5478e4e58bc4f9ffd1050841
+      internalID: -2009898994
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_81
+      rect:
+        serializedVersion: 2
+        x: 1292
+        y: 477
+        width: 100
+        height: 97
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 273c72d5012f3454ab9d564597d8f49e
+      internalID: 1316695025
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_82
+      rect:
+        serializedVersion: 2
+        x: 1419
+        y: 490
+        width: 62
+        height: 62
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0cdc8b78e35a74638a853bb40b8e4d10
+      internalID: -699532218
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_83
+      rect:
+        serializedVersion: 2
+        x: 29
+        y: 413
+        width: 14
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 28c4a68898ddb42a4a001747750d9c97
+      internalID: 1507502176
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_84
+      rect:
+        serializedVersion: 2
+        x: 46
+        y: 412
+        width: 10
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 44317ee9db25e429aa74063ca9ccb9e6
+      internalID: -1403276663
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_85
+      rect:
+        serializedVersion: 2
+        x: 57
+        y: 413
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ee3bacbf333a94130b0c638405945c56
+      internalID: -1922202291
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_86
+      rect:
+        serializedVersion: 2
+        x: 76
+        y: 413
+        width: 15
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c431d1c980bba44438c8c87d9a911567
+      internalID: 1204926642
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_87
+      rect:
+        serializedVersion: 2
+        x: 93
+        y: 413
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3892d6aceb062472ba4bf5326b772dd3
+      internalID: 1330184608
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_88
+      rect:
+        serializedVersion: 2
+        x: 105
+        y: 413
+        width: 15
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 52a98f00e029441c989713a3965e21a5
+      internalID: 879102667
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_89
+      rect:
+        serializedVersion: 2
+        x: 128
+        y: 413
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 66ee1ccf494b24f92af831a8ab3525b4
+      internalID: 1661269546
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_90
+      rect:
+        serializedVersion: 2
+        x: 140
+        y: 413
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c4a2d451f7588496aa1960b9dbb9f1ab
+      internalID: 1243000756
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_91
+      rect:
+        serializedVersion: 2
+        x: 154
+        y: 412
+        width: 10
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6f64ca9bdcb3d4f649f973c9b0ff1b63
+      internalID: -1718310484
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_92
+      rect:
+        serializedVersion: 2
+        x: 166
+        y: 413
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fc67b73cf4cfd4932a42c1e2661ff53b
+      internalID: 768780800
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_93
+      rect:
+        serializedVersion: 2
+        x: 179
+        y: 412
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7a0ce271e90974d59a6392baf9936afe
+      internalID: -1624439305
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_94
+      rect:
+        serializedVersion: 2
+        x: 192
+        y: 413
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 56cba050ae6614011a151bbbefe9f54c
+      internalID: -1270714648
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_95
+      rect:
+        serializedVersion: 2
+        x: 205
+        y: 413
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 85e7c57e0d0324335a247c95b8c6ed7e
+      internalID: 1945354562
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_96
+      rect:
+        serializedVersion: 2
+        x: 218
+        y: 413
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fdc0760b0c2e64ab29ea214afdc8592c
+      internalID: -2047795714
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_97
+      rect:
+        serializedVersion: 2
+        x: 231
+        y: 413
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6e3953ff92ee241e0bd59544de4db673
+      internalID: 1323625346
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_98
+      rect:
+        serializedVersion: 2
+        x: 245
+        y: 413
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: b2e1df8e54c504356a99a0a99205df7c
+      internalID: -1581603747
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_99
+      rect:
+        serializedVersion: 2
+        x: 979
+        y: 399
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4e4b433fa97784c1b8555563656d805a
+      internalID: -733137201
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_100
+      rect:
+        serializedVersion: 2
+        x: 993
+        y: 399
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a2cd729001e6540adadea9ace2516381
+      internalID: 618402901
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_101
+      rect:
+        serializedVersion: 2
+        x: 1007
+        y: 399
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 8957ada1844554be29fce34ca44fc0b0
+      internalID: 319456880
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_102
+      rect:
+        serializedVersion: 2
+        x: 1020
+        y: 399
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3ecca572628354f6980ebc54d2c98369
+      internalID: -1326168711
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_103
+      rect:
+        serializedVersion: 2
+        x: 1035
+        y: 399
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: da122698aa2fb420b8b47f1e8cc3c1b2
+      internalID: -442379820
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_104
+      rect:
+        serializedVersion: 2
+        x: 1047
+        y: 399
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9eaf0ea6624994d9b9d168066287e906
+      internalID: -695141254
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_105
+      rect:
+        serializedVersion: 2
+        x: 1067
+        y: 399
+        width: 13
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0283e02b7207d4c2eb9b88e0d8d2930c
+      internalID: -1306571860
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_106
+      rect:
+        serializedVersion: 2
+        x: 1082
+        y: 399
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 068bba74ace4f4c27ae93e1ddd2fa8bb
+      internalID: -1363534436
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_107
+      rect:
+        serializedVersion: 2
+        x: 1095
+        y: 398
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5156186ae74e24d4997e0ea04b238ab1
+      internalID: -2060595386
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_108
+      rect:
+        serializedVersion: 2
+        x: 1109
+        y: 399
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9b001c22cb4434ec2a8cf21310bcca0d
+      internalID: -357102086
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_109
+      rect:
+        serializedVersion: 2
+        x: 1121
+        y: 399
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fd0e9120f1bef4f8b8431a1d8e696c02
+      internalID: 1032708483
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_110
+      rect:
+        serializedVersion: 2
+        x: 1135
+        y: 399
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e660a02cd151440b98fb7069b369b9cd
+      internalID: 245779061
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_111
+      rect:
+        serializedVersion: 2
+        x: 1147
+        y: 399
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5235f23483d594feca0a46bc0749979b
+      internalID: 837989
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_112
+      rect:
+        serializedVersion: 2
+        x: 722
+        y: 395
+        width: 10
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 042f960940e5d4fd4b12681b52263f74
+      internalID: 702870757
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_113
+      rect:
+        serializedVersion: 2
+        x: 735
+        y: 395
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: b21acf3a0f15c460c97e1749939e9641
+      internalID: -779391430
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_114
+      rect:
+        serializedVersion: 2
+        x: 748
+        y: 395
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: aa8a94ea320c14e83a51e9099b2d211c
+      internalID: -151781009
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_115
+      rect:
+        serializedVersion: 2
+        x: 760
+        y: 395
+        width: 11
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ebe2e38f393264227a810fcbdf4046ff
+      internalID: 1550910819
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_116
+      rect:
+        serializedVersion: 2
+        x: 774
+        y: 395
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5830f4b3a6f8b46358cf02ec2c63fd97
+      internalID: 2089918432
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_117
+      rect:
+        serializedVersion: 2
+        x: 784
+        y: 395
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 0c390b0c3462943f8a7f1f523b5c8bd9
+      internalID: -537643408
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_118
+      rect:
+        serializedVersion: 2
+        x: 802
+        y: 395
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 237c53d712a50461e8e850c5f0fd35b3
+      internalID: 1478012322
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_119
+      rect:
+        serializedVersion: 2
+        x: 814
+        y: 395
+        width: 12
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 67716798699444e53bf49934da5a6a64
+      internalID: 1794217618
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_120
+      rect:
+        serializedVersion: 2
+        x: 828
+        y: 395
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6d3d2000cfc8c4443bf1f37a1b4f2f8f
+      internalID: -615708092
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_121
+      rect:
+        serializedVersion: 2
+        x: 22
+        y: 269
+        width: 635
+        height: 126
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: d4e2b3e2c131f4efbb7fcf751124acf4
+      internalID: -1059416237
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_122
+      rect:
+        serializedVersion: 2
+        x: 727
+        y: 20
+        width: 46
+        height: 361
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 02a3e8db64449487985577018206b4eb
+      internalID: -565928365
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_123
+      rect:
+        serializedVersion: 2
+        x: 810
+        y: 332
+        width: 36
+        height: 44
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: dd1950f5d5c414679bf3a2384b40f6da
+      internalID: 2036805757
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_124
+      rect:
+        serializedVersion: 2
+        x: 976
+        y: 282
+        width: 106
+        height: 93
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a66cc419eaa8244918868d7753e72b70
+      internalID: 1614077068
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_125
+      rect:
+        serializedVersion: 2
+        x: 1122
+        y: 282
+        width: 107
+        height: 93
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 2d4d192abff654b44b7676e655431b9c
+      internalID: -601968704
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_126
+      rect:
+        serializedVersion: 2
+        x: 1273
+        y: 278
+        width: 57
+        height: 97
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 86a74b98459dc46beb3b4785c296ea3d
+      internalID: 1640342150
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_127
+      rect:
+        serializedVersion: 2
+        x: 1373
+        y: 290
+        width: 74
+        height: 83
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 78145abf217c7411eabf511e19b261ba
+      internalID: 1138995918
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_128
+      rect:
+        serializedVersion: 2
+        x: 31
+        y: 209
+        width: 10
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 85c0068ab40f3437d9f79e6400917dd9
+      internalID: 133122818
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_129
+      rect:
+        serializedVersion: 2
+        x: 43
+        y: 209
+        width: 10
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c6cc4a80153d14cfdb07ee8386e99af1
+      internalID: 799345292
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_130
+      rect:
+        serializedVersion: 2
+        x: 56
+        y: 209
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5b2390e796a0f49189a4aa0cab532f88
+      internalID: -1225542310
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_131
+      rect:
+        serializedVersion: 2
+        x: 68
+        y: 209
+        width: 10
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f2fb404d9bf774ccebe5c3a77548fcf5
+      internalID: -399657621
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_132
+      rect:
+        serializedVersion: 2
+        x: 80
+        y: 209
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 36fdd2dc28eb04fa0a387c783efe308e
+      internalID: 1532940174
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_133
+      rect:
+        serializedVersion: 2
+        x: 91
+        y: 209
+        width: 10
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a076c07b8409143b3aea43c934f7fcfc
+      internalID: -1487895890
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_134
+      rect:
+        serializedVersion: 2
+        x: 110
+        y: 208
+        width: 7
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c14f654ab8f8a4caf945eaf1a5feae13
+      internalID: -1792710898
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_135
+      rect:
+        serializedVersion: 2
+        x: 126
+        y: 209
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ded536f91d07a4a26ad148ea9382d653
+      internalID: 1327561087
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_136
+      rect:
+        serializedVersion: 2
+        x: 136
+        y: 209
+        width: 10
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4c608894d5bb24a458cba4378ac3ef5f
+      internalID: -429564936
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_137
+      rect:
+        serializedVersion: 2
+        x: 148
+        y: 209
+        width: 4
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: af2d80a90b0ff4f03b348eca133713b0
+      internalID: -664597980
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_138
+      rect:
+        serializedVersion: 2
+        x: 154
+        y: 209
+        width: 13
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 458e9925d90e8499db6d6069523d91b9
+      internalID: 520288765
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_139
+      rect:
+        serializedVersion: 2
+        x: 176
+        y: 209
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 56ca0cd5c397f43ab994845fdfe84971
+      internalID: -1974420089
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_140
+      rect:
+        serializedVersion: 2
+        x: 187
+        y: 209
+        width: 4
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 14fa5f0b26f854060bb99a7ceb2aecd8
+      internalID: -1947000439
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_141
+      rect:
+        serializedVersion: 2
+        x: 193
+        y: 209
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f5706175f53fd470fb1a59214c9f04dc
+      internalID: -1276403325
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_142
+      rect:
+        serializedVersion: 2
+        x: 204
+        y: 209
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 28ad3e7345919435ba4c3b8b0052469c
+      internalID: -710595911
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_143
+      rect:
+        serializedVersion: 2
+        x: 216
+        y: 209
+        width: 9
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: f4d55b66cfa3d4e47aa29cbffce34527
+      internalID: -2044606581
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_144
+      rect:
+        serializedVersion: 2
+        x: 227
+        y: 209
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 8ee0d87ae0ece4343a1c657ef2e1eb35
+      internalID: 2024547686
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_145
+      rect:
+        serializedVersion: 2
+        x: 809
+        y: 44
+        width: 39
+        height: 263
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 84d16f8bd21b141509ab9022c8b60e7b
+      internalID: -1027804527
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_146
+      rect:
+        serializedVersion: 2
+        x: 976
+        y: 220
+        width: 106
+        height: 36
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3a8668560852949b286bf3d8823347f0
+      internalID: 1458161005
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_147
+      rect:
+        serializedVersion: 2
+        x: 29
+        y: 158
+        width: 604
+        height: 35
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ad3be2ae692f348b6adb3c4796e0fc9c
+      internalID: 324482947
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_148
+      rect:
+        serializedVersion: 2
+        x: 979
+        y: 148
+        width: 9
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: fad2c0e934d9643fabb822d5f3f566a7
+      internalID: 519983725
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_149
+      rect:
+        serializedVersion: 2
+        x: 990
+        y: 148
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 00778bf5b8881447d9dd507e30203e5a
+      internalID: 756343017
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_150
+      rect:
+        serializedVersion: 2
+        x: 1001
+        y: 148
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7d5d9fb20370244bfaedde5c1f19574a
+      internalID: -678413055
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_151
+      rect:
+        serializedVersion: 2
+        x: 1012
+        y: 148
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4957a9823a7304aa5974cf56604e6e45
+      internalID: -1121295600
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_152
+      rect:
+        serializedVersion: 2
+        x: 1024
+        y: 148
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 43ef376a033de483289d467eabc97aba
+      internalID: 596066548
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_153
+      rect:
+        serializedVersion: 2
+        x: 1043
+        y: 148
+        width: 16
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 38e5baa26bae94f909d4478fdfffa4fe
+      internalID: 1681383060
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_154
+      rect:
+        serializedVersion: 2
+        x: 1060
+        y: 148
+        width: 11
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 53e3fc11c3d6a4aa78d7e18fdf7b2040
+      internalID: -310529493
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_155
+      rect:
+        serializedVersion: 2
+        x: 1073
+        y: 148
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7537e795fb5b04d18a93a46637974e6c
+      internalID: -137020017
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_156
+      rect:
+        serializedVersion: 2
+        x: 1085
+        y: 148
+        width: 10
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: db0cece5e14714eefb9385bed2c1e5d0
+      internalID: 1396178233
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_157
+      rect:
+        serializedVersion: 2
+        x: 32
+        y: 121
+        width: 598
+        height: 23
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 41a42e26ea8594470906dd69df1e54b2
+      internalID: -1378383753
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_158
+      rect:
+        serializedVersion: 2
+        x: 995
+        y: 66
+        width: 66
+        height: 56
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: c14959fbc4ca6453386b82d69154f24f
+      internalID: -1342600866
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_159
+      rect:
+        serializedVersion: 2
+        x: 1103
+        y: 72
+        width: 58
+        height: 47
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 1ac0df6568ae640a88ab0737199d2bfe
+      internalID: -1732630806
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_160
+      rect:
+        serializedVersion: 2
+        x: 1195
+        y: 65
+        width: 58
+        height: 55
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 9a3ed0f6014f848308196e0f47ccfd3f
+      internalID: -1807175239
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_161
+      rect:
+        serializedVersion: 2
+        x: 1301
+        y: 101
+        width: 13
+        height: 12
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e1fae00eca85340b7a8468a0fdb52a92
+      internalID: 887893918
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_162
+      rect:
+        serializedVersion: 2
+        x: 32
+        y: 51
+        width: 47
+        height: 49
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: e50be828e31704022910e654e3c3dc71
+      internalID: 2096476348
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_163
+      rect:
+        serializedVersion: 2
+        x: 112
+        y: 40
+        width: 72
+        height: 60
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 266c239e5c0bd42cabb6c906e5818c58
+      internalID: -813610325
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_164
+      rect:
+        serializedVersion: 2
+        x: 234
+        y: 44
+        width: 74
+        height: 56
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 6d50c1deb40aa459c9c659b9cbd181c4
+      internalID: 199802901
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_165
+      rect:
+        serializedVersion: 2
+        x: 347
+        y: 63
+        width: 173
+        height: 37
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7b96e8340671b4d3fb4a2d7ebae0b93d
+      internalID: -1885851141
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_166
+      rect:
+        serializedVersion: 2
+        x: 557
+        y: 42
+        width: 72
+        height: 58
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5f3d444c34e954cab9199ef44ce5add8
+      internalID: 2122937113
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_167
+      rect:
+        serializedVersion: 2
+        x: 1301
+        y: 83
+        width: 13
+        height: 14
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ee7ac268f8ea14b79b345d2cf2b7b27d
+      internalID: 1138377187
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: friendsPannel_168
+      rect:
+        serializedVersion: 2
+        x: 1301
+        y: 67
+        width: 13
+        height: 13
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 5f34405ab1ed54f7381ad73900f94d5c
+      internalID: 807411309
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    physicsShape: []
+    bones: []
+    spriteID: 5e97eb03825dee720800000000000000
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    nameFileIdTable:
+      friendsPannel_0: 2031030495
+      friendsPannel_1: 163566083
+      friendsPannel_10: 121575595
+      friendsPannel_100: 618402901
+      friendsPannel_101: 319456880
+      friendsPannel_102: -1326168711
+      friendsPannel_103: -442379820
+      friendsPannel_104: -695141254
+      friendsPannel_105: -1306571860
+      friendsPannel_106: -1363534436
+      friendsPannel_107: -2060595386
+      friendsPannel_108: -357102086
+      friendsPannel_109: 1032708483
+      friendsPannel_11: 1451304477
+      friendsPannel_110: 245779061
+      friendsPannel_111: 837989
+      friendsPannel_112: 702870757
+      friendsPannel_113: -779391430
+      friendsPannel_114: -151781009
+      friendsPannel_115: 1550910819
+      friendsPannel_116: 2089918432
+      friendsPannel_117: -537643408
+      friendsPannel_118: 1478012322
+      friendsPannel_119: 1794217618
+      friendsPannel_12: 1582497087
+      friendsPannel_120: -615708092
+      friendsPannel_121: -1059416237
+      friendsPannel_122: -565928365
+      friendsPannel_123: 2036805757
+      friendsPannel_124: 1614077068
+      friendsPannel_125: -601968704
+      friendsPannel_126: 1640342150
+      friendsPannel_127: 1138995918
+      friendsPannel_128: 133122818
+      friendsPannel_129: 799345292
+      friendsPannel_13: -624816462
+      friendsPannel_130: -1225542310
+      friendsPannel_131: -399657621
+      friendsPannel_132: 1532940174
+      friendsPannel_133: -1487895890
+      friendsPannel_134: -1792710898
+      friendsPannel_135: 1327561087
+      friendsPannel_136: -429564936
+      friendsPannel_137: -664597980
+      friendsPannel_138: 520288765
+      friendsPannel_139: -1974420089
+      friendsPannel_14: 1378958821
+      friendsPannel_140: -1947000439
+      friendsPannel_141: -1276403325
+      friendsPannel_142: -710595911
+      friendsPannel_143: -2044606581
+      friendsPannel_144: 2024547686
+      friendsPannel_145: -1027804527
+      friendsPannel_146: 1458161005
+      friendsPannel_147: 324482947
+      friendsPannel_148: 519983725
+      friendsPannel_149: 756343017
+      friendsPannel_15: -443831803
+      friendsPannel_150: -678413055
+      friendsPannel_151: -1121295600
+      friendsPannel_152: 596066548
+      friendsPannel_153: 1681383060
+      friendsPannel_154: -310529493
+      friendsPannel_155: -137020017
+      friendsPannel_156: 1396178233
+      friendsPannel_157: -1378383753
+      friendsPannel_158: -1342600866
+      friendsPannel_159: -1732630806
+      friendsPannel_16: -780885651
+      friendsPannel_160: -1807175239
+      friendsPannel_161: 887893918
+      friendsPannel_162: 2096476348
+      friendsPannel_163: -813610325
+      friendsPannel_164: 199802901
+      friendsPannel_165: -1885851141
+      friendsPannel_166: 2122937113
+      friendsPannel_167: 1138377187
+      friendsPannel_168: 807411309
+      friendsPannel_17: -1528992976
+      friendsPannel_18: -1140364278
+      friendsPannel_19: -218525428
+      friendsPannel_2: 1296759302
+      friendsPannel_20: 1573662259
+      friendsPannel_21: 39577618
+      friendsPannel_22: 133491978
+      friendsPannel_23: -217793833
+      friendsPannel_24: 1403707256
+      friendsPannel_25: 675165463
+      friendsPannel_26: 711730005
+      friendsPannel_27: 2015397093
+      friendsPannel_28: -935975593
+      friendsPannel_29: -647003467
+      friendsPannel_3: 2036526710
+      friendsPannel_30: -876643976
+      friendsPannel_31: -858876536
+      friendsPannel_32: 1648528414
+      friendsPannel_33: 1189710680
+      friendsPannel_34: -106725764
+      friendsPannel_35: 62956840
+      friendsPannel_36: 63371021
+      friendsPannel_37: 103515522
+      friendsPannel_38: 1906438162
+      friendsPannel_39: -444086610
+      friendsPannel_4: -11137813
+      friendsPannel_40: 1219046374
+      friendsPannel_41: -176176049
+      friendsPannel_42: -1700923054
+      friendsPannel_43: -677108603
+      friendsPannel_44: 2057554810
+      friendsPannel_45: 962110118
+      friendsPannel_46: -1234348765
+      friendsPannel_47: 502707985
+      friendsPannel_48: -1690404355
+      friendsPannel_49: 1696043949
+      friendsPannel_5: -295204115
+      friendsPannel_50: 1665762413
+      friendsPannel_51: -378398336
+      friendsPannel_52: -1818884783
+      friendsPannel_53: -205627718
+      friendsPannel_54: 1801679695
+      friendsPannel_55: -1311642290
+      friendsPannel_56: 1072697663
+      friendsPannel_57: 547642038
+      friendsPannel_58: -1069462329
+      friendsPannel_59: -446982145
+      friendsPannel_6: -1159502535
+      friendsPannel_60: -116669890
+      friendsPannel_61: -954332471
+      friendsPannel_62: -552955973
+      friendsPannel_63: -1946538055
+      friendsPannel_64: -1264011538
+      friendsPannel_65: 804765620
+      friendsPannel_66: -697302623
+      friendsPannel_67: -1728844812
+      friendsPannel_68: -252036787
+      friendsPannel_69: 1821011590
+      friendsPannel_7: 1641419420
+      friendsPannel_70: -1467205189
+      friendsPannel_71: -841933437
+      friendsPannel_72: 633980963
+      friendsPannel_73: -2045418344
+      friendsPannel_74: 1377372350
+      friendsPannel_75: -934886046
+      friendsPannel_76: -942769766
+      friendsPannel_77: -1380041506
+      friendsPannel_78: -795533228
+      friendsPannel_79: 2023963043
+      friendsPannel_8: 1001700983
+      friendsPannel_80: -2009898994
+      friendsPannel_81: 1316695025
+      friendsPannel_82: -699532218
+      friendsPannel_83: 1507502176
+      friendsPannel_84: -1403276663
+      friendsPannel_85: -1922202291
+      friendsPannel_86: 1204926642
+      friendsPannel_87: 1330184608
+      friendsPannel_88: 879102667
+      friendsPannel_89: 1661269546
+      friendsPannel_9: 98001725
+      friendsPannel_90: 1243000756
+      friendsPannel_91: -1718310484
+      friendsPannel_92: 768780800
+      friendsPannel_93: -1624439305
+      friendsPannel_94: -1270714648
+      friendsPannel_95: 1945354562
+      friendsPannel_96: -2047795714
+      friendsPannel_97: 1323625346
+      friendsPannel_98: -1581603747
+      friendsPannel_99: -733137201
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

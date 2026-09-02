@@ -192,7 +192,8 @@ public class CameraController : MonoBehaviour
         Vector3 desiredPosition = new Vector3(targetPos.x + offset.x, targetPos.y + offset.y, offset.z);
 
         // Robust smooth follow using SmoothDamp (never produces NaN or jitter)
-        Vector3 smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, 0.12f);
+        float smoothTime = smoothSpeed > 0f ? smoothSpeed : 0.125f;
+        Vector3 smoothedPosition = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, smoothTime);
 
         // Only clamp if boundary box is actually defined (not min == max == 0,0)
         if (useBoundaries && (minPosition != Vector2.zero || maxPosition != Vector2.zero))

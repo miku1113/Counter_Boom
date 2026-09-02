@@ -10,7 +10,8 @@ public class MobileInputManager : MonoBehaviour
     [SerializeField] private Joystick aimJoystick;
 
     [Header("Buttons")]
-    [SerializeField] private Button shootButton;
+    [SerializeField] private Button shootButton;     // Right / Primary Shoot button
+    [SerializeField] private Button leftShootButton; // Left / Secondary Shoot button
     [SerializeField] private Button reloadButton;
 
     [Header("Player References")]
@@ -18,8 +19,10 @@ public class MobileInputManager : MonoBehaviour
     [SerializeField] private PlayerAiming playerAiming;
     [SerializeField] private WeaponController weaponController;
 
+#if UNITY_EDITOR
     [Header("Editor Testing")]
     [SerializeField] private bool useKeyboardInEditor = true;
+#endif
 
     [Header("Mini Militia Aim & Fire Joystick Setup")]
     [Tooltip("Inner joystick threshold to start aiming")]
@@ -57,6 +60,7 @@ public class MobileInputManager : MonoBehaviour
         if (moveJoystick != null) moveJoystick.gameObject.SetActive(active);
         if (aimJoystick != null) aimJoystick.gameObject.SetActive(active);
         if (shootButton != null) shootButton.gameObject.SetActive(active);
+        if (leftShootButton != null) leftShootButton.gameObject.SetActive(active);
         if (reloadButton != null) reloadButton.gameObject.SetActive(active);
 
         if (playerController != null && !active)
@@ -85,23 +89,53 @@ public class MobileInputManager : MonoBehaviour
         Canvas canvas = GetComponentInParent<Canvas>();
         if (canvas == null) canvas = FindObjectOfType<Canvas>();
 
-        if (shootButton == null && canvas != null)
+        if (canvas != null)
         {
             Button[] buttons = canvas.GetComponentsInChildren<Button>(true);
-            foreach (var b in buttons)
+
+            // 0. Check HUDManager assigned references first
+            if (shootButton == null && HUDManager.Instance != null && HUDManager.Instance.fireButton != null)
             {
-                if (b == null) continue;
-                string bName = b.gameObject.name.ToLower();
-                if (bName.Contains("shoot") || bName.Contains("fire") || bName.Contains("attack"))
+                shootButton = HUDManager.Instance.fireButton;
+            }
+            if (leftShootButton == null && HUDManager.Instance != null && HUDManager.Instance.leftFireButton != null)
+            {
+                leftShootButton = HUDManager.Instance.leftFireButton;
+            }
+
+            // 1. Auto-find Right Fire Button
+            if (shootButton == null)
+            {
+                foreach (var b in buttons)
                 {
-                    shootButton = b;
-                    break;
+                    if (b == null) continue;
+                    string bName = b.gameObject.name.ToLower();
+                    if ((bName.Contains("shoot") || bName.Contains("fire") || bName.Contains("attack")) && !bName.Contains("left"))
+                    {
+                        shootButton = b;
+                        break;
+                    }
                 }
             }
 
+            // 2. Auto-find Left Fire Button
+            if (leftShootButton == null)
+            {
+                foreach (var b in buttons)
+                {
+                    if (b == null) continue;
+                    string bName = b.gameObject.name.ToLower();
+                    if (bName.Contains("leftfire") || bName.Contains("fireleft") || bName.Contains("leftshoot") || bName.Contains("shootleft") || bName.Contains("fire_left"))
+                    {
+                        leftShootButton = b;
+                        break;
+                    }
+                }
+            }
+
+            // 3. Dynamically Create Right Fire Button if missing
             if (shootButton == null)
             {
-                // Create dedicated Shoot Button dynamically on HUD Canvas
                 GameObject btnGO = new GameObject("ShootButton", typeof(RectTransform), typeof(Image), typeof(Button));
                 btnGO.transform.SetParent(canvas.transform, false);
 
@@ -109,7 +143,7 @@ public class MobileInputManager : MonoBehaviour
                 rt.anchorMin = new Vector2(1f, 0f);
                 rt.anchorMax = new Vector2(1f, 0f);
                 rt.pivot = new Vector2(1f, 0f);
-                rt.anchoredPosition = new Vector2(-60f, 170f); // Positioned clearly on the right side above aim joystick
+                rt.anchoredPosition = new Vector2(-60f, 170f); // Right side above aim joystick
                 rt.sizeDelta = new Vector2(90f, 90f);
 
                 Image img = btnGO.GetComponent<Image>();
@@ -129,27 +163,62 @@ public class MobileInputManager : MonoBehaviour
 
                 shootButton = btnGO.GetComponent<Button>();
             }
+
+            // 4. Dynamically Create Left Fire Button if missing
+            if (leftShootButton == null)
+            {
+                GameObject btnGO = new GameObject("LeftShootButton", typeof(RectTransform), typeof(Image), typeof(Button));
+                btnGO.transform.SetParent(canvas.transform, false);
+
+                RectTransform rt = btnGO.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0f, 0f);
+                rt.anchorMax = new Vector2(0f, 0f);
+                rt.pivot = new Vector2(0f, 0f);
+                rt.anchoredPosition = new Vector2(60f, 170f); // Left side above move joystick
+                rt.sizeDelta = new Vector2(90f, 90f);
+
+                Image img = btnGO.GetComponent<Image>();
+                img.color = new Color(0.9f, 0.25f, 0.2f, 0.85f); // Red bullet fire button
+
+                GameObject textGO = new GameObject("Text", typeof(RectTransform), typeof(TMPro.TextMeshProUGUI));
+                textGO.transform.SetParent(btnGO.transform, false);
+                RectTransform textRt = textGO.GetComponent<RectTransform>();
+                textRt.anchorMin = Vector2.zero; textRt.anchorMax = Vector2.one; textRt.sizeDelta = Vector2.zero;
+
+                TMPro.TextMeshProUGUI tmp = textGO.GetComponent<TMPro.TextMeshProUGUI>();
+                tmp.text = "FIRE";
+                tmp.fontSize = 22;
+                tmp.fontStyle = TMPro.FontStyles.Bold;
+                tmp.alignment = TMPro.TextAlignmentOptions.Center;
+                tmp.color = Color.white;
+
+                leftShootButton = btnGO.GetComponent<Button>();
+            }
         }
 
-        if (shootButton != null)
-        {
-            shootButton.gameObject.SetActive(true);
+        // Configure PointerDown and PointerUp triggers on BOTH Fire Buttons for continuous firing
+        SetupFireButtonTrigger(shootButton);
+        SetupFireButtonTrigger(leftShootButton);
+    }
 
-            // Add EventTrigger for PointerDown and PointerUp to handle continuous firing when held down!
-            var trigger = shootButton.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
-            if (trigger == null) trigger = shootButton.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
-            trigger.triggers.Clear();
+    private void SetupFireButtonTrigger(Button btn)
+    {
+        if (btn == null) return;
+        btn.gameObject.SetActive(true);
 
-            var pointerDown = new UnityEngine.EventSystems.EventTrigger.Entry();
-            pointerDown.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
-            pointerDown.callback.AddListener((data) => OnShootButtonPressed());
-            trigger.triggers.Add(pointerDown);
+        var trigger = btn.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+        if (trigger == null) trigger = btn.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+        trigger.triggers.Clear();
 
-            var pointerUp = new UnityEngine.EventSystems.EventTrigger.Entry();
-            pointerUp.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
-            pointerUp.callback.AddListener((data) => OnShootButtonReleased());
-            trigger.triggers.Add(pointerUp);
-        }
+        var pointerDown = new UnityEngine.EventSystems.EventTrigger.Entry();
+        pointerDown.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
+        pointerDown.callback.AddListener((data) => OnShootButtonPressed());
+        trigger.triggers.Add(pointerDown);
+
+        var pointerUp = new UnityEngine.EventSystems.EventTrigger.Entry();
+        pointerUp.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
+        pointerUp.callback.AddListener((data) => OnShootButtonReleased());
+        trigger.triggers.Add(pointerUp);
     }
 
     private void AutoFindJoysticks()
@@ -304,6 +373,7 @@ public class MobileInputManager : MonoBehaviour
             aimJoystick.gameObject.SetActive(!isGhost); // Disable Aim joystick
         }
         if (shootButton != null) shootButton.gameObject.SetActive(!isGhost);
+        if (leftShootButton != null) leftShootButton.gameObject.SetActive(!isGhost);
         if (reloadButton != null) reloadButton.gameObject.SetActive(!isGhost);
     }
 }

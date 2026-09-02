@@ -1111,6 +1111,12 @@ MonoBehaviour:
         byte0029: 0
   playerRole:
     m_InternalValue: 0
+  isReady:
+    m_InternalValue: 0
+  lobbySlotIndex:
+    m_InternalValue: 0
+  skinIndex:
+    m_InternalValue: 0
   nameTagFontSize: 1.4
   moveSpeed: 5
   rb: {fileID: 1111370383705521264}
@@ -1126,6 +1132,7 @@ MonoBehaviour:
   ghostSprite: {fileID: 21300006, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
   floatSpeed: 3
   floatAmplitude: 0.12
+  isMyPlayerToggle: 0
   nameTagHeightOffset: 0.55
 --- !u!114 &6722566033828709258
 MonoBehaviour:

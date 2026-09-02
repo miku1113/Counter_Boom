@@ -82,7 +82,65 @@ public class InteractiveLobbyController : MonoBehaviour
         // 4. Setup Internet Speed / Ping display UI and Real-Time Voice Chat
         EnsurePingUI();
         EnsureVoiceManager();
+        EnsurePlayerSpawnedInLobby();
         InvokeRepeating(nameof(UpdatePingDisplay), 0.1f, 0.5f);
+    }
+
+    private void EnsurePlayerSpawnedInLobby()
+    {
+        var localPC = PlayerController.LocalPlayer;
+        if (localPC == null)
+        {
+            var pcs = FindObjectsOfType<PlayerController>();
+            foreach (var p in pcs)
+            {
+                if (p != null && (p.IsOwner || p.IsLocalPlayer))
+                {
+                    localPC = p;
+                    break;
+                }
+            }
+        }
+
+        if (localPC != null)
+        {
+            localPC.RestoreGameplayComponents();
+            Debug.Log("[InteractiveLobby] Restored gameplay components on local player for CustomLobby.");
+        }
+        else
+        {
+            Debug.Log("[InteractiveLobby] Local player not found in CustomLobby scene. Spawning player avatar...");
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+            {
+                GameObject playerPrefab = NetworkManager.Singleton.NetworkConfig.PlayerPrefab;
+                if (playerPrefab == null) playerPrefab = Resources.Load<GameObject>("Player");
+                if (playerPrefab != null)
+                {
+                    foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
+                    {
+                        var client = NetworkManager.Singleton.ConnectedClients[clientId];
+                        if (client.PlayerObject == null)
+                        {
+                            GameObject pObj = Instantiate(playerPrefab, new Vector3(0f, 0.58f, 0f), Quaternion.identity);
+                            pObj.transform.localScale = new Vector3(2f, 2f, 2f);
+                            pObj.GetComponent<NetworkObject>().SpawnWithOwnership(clientId, true);
+                            Debug.Log($"[InteractiveLobby] Spawned Netcode PlayerObject for ClientId {clientId}");
+                        }
+                    }
+                }
+            }
+            else if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+            {
+                GameObject playerPrefab = Resources.Load<GameObject>("Player");
+                if (playerPrefab != null)
+                {
+                    GameObject pObj = Instantiate(playerPrefab, new Vector3(0f, 0.58f, 0f), Quaternion.identity);
+                    pObj.name = "Player_Offline";
+                    pObj.transform.localScale = new Vector3(2f, 2f, 2f);
+                    Debug.Log("[InteractiveLobby] Spawned offline Player avatar for CustomLobby.");
+                }
+            }
+        }
     }
 
     private void EnsureVoiceManager()
@@ -329,6 +387,12 @@ public class InteractiveLobbyController : MonoBehaviour
 
     private void RebuildPlayerList()
     {
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.RefreshLobbyPlayerList();
+            return;
+        }
+
         // Clear old item gameobjects
         foreach (var item in spawnedListItems)
         {

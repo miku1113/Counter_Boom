@@ -336,10 +336,15 @@ public class PlayerAiming : NetworkBehaviour
         }
         else
         {
-            // Unarmed mode: Keep light front arm (leftArm) at rest pose, rotate & move ONLY dark back arm (rightArm)
+            // Unarmed mode: Keep light front arm (leftArm) at rest pose (with dip animation on unequip), rotate & move ONLY dark back arm (rightArm)
             if (leftArm != null && grenadeThrowTimer <= 0f)
             {
-                leftArm.localRotation = Quaternion.identity;
+                float leftArmRot = 0f;
+                if (weaponSwitchOffsetTimer > 0f)
+                {
+                    leftArmRot = weaponSwitchOffsetTimer * -25f;
+                }
+                leftArm.localRotation = Quaternion.Euler(0, 0, leftArmRot);
             }
 
             if (rightArm != null)
@@ -582,6 +587,40 @@ public class PlayerAiming : NetworkBehaviour
         {
             float t = elapsed / duration;
             // Parabola: dips down to max offset at t=0.5, returns to 0 at t=1
+            weaponSwitchOffsetTimer = Mathf.Sin(t * Mathf.PI);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        weaponSwitchOffsetTimer = 0f;
+        weaponSwitchCoroutine = null;
+    }
+
+    /// <summary>
+    /// Triggers a procedural hand/arm unequip and dip animation when deselecting a weapon (switching to punch mode).
+    /// </summary>
+    public void PlayWeaponDeselectAnimation()
+    {
+        if (weaponSwitchCoroutine != null) StopCoroutine(weaponSwitchCoroutine);
+        weaponSwitchCoroutine = StartCoroutine(WeaponDeselectRoutine());
+    }
+
+    private System.Collections.IEnumerator WeaponDeselectRoutine()
+    {
+        Animator anim = GetComponentInChildren<Animator>();
+        if (anim != null && anim.enabled)
+        {
+            anim.SetTrigger("unequipWeapon");
+            anim.SetTrigger("deselectWeapon");
+            anim.SetTrigger("switchWeapon");
+        }
+
+        float duration = 0.28f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
             weaponSwitchOffsetTimer = Mathf.Sin(t * Mathf.PI);
             elapsed += Time.deltaTime;
             yield return null;
