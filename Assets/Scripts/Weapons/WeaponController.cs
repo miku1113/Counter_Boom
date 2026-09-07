@@ -432,6 +432,13 @@ public class WeaponController : NetworkBehaviour
         playerAiming?.PlayMeleePunchAnimation(isPunchingRightArm);
 
         Vector2 aimDir = playerAiming != null ? playerAiming.GetAimDirection() : (Vector2)transform.right;
+
+        // Replicate punch animation and strike direction across the network
+        if (IsSpawned)
+        {
+            PunchServerRpc(isPunchingRightArm, aimDir);
+        }
+
         Vector2 punchOrigin = (Vector2)transform.position + aimDir * 0.65f;
         float punchRadius = 0.6f;
 
@@ -445,9 +452,42 @@ public class WeaponController : NetworkBehaviour
 
             if (health != null && !health.IsDead)
             {
-                health.TakeDamage(25);
-                Debug.Log($"[MeleePunch] Hit '{col.gameObject.name}' dealing 25 damage!");
+                bool isTeammate = Bullet.AreTeammates(gameObject, health.gameObject);
+                Vector2 hitPoint = col.ClosestPoint(punchOrigin);
+                ProceduralEffectsGenerator.CreateBulletBodyHitEffect(hitPoint, aimDir, isTeammate);
+
+                if (!isTeammate)
+                {
+                    health.TakeDamage(25);
+                    Debug.Log($"[MeleePunch] Hit opponent '{col.gameObject.name}' dealing 25 damage!");
+                }
+                else
+                {
+                    Debug.Log($"[MeleePunch] Hit teammate '{col.gameObject.name}'. Deflected without damage.");
+                }
             }
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void PunchServerRpc(bool useRightArm, Vector2 aimDirection)
+    {
+        PunchClientRpc(useRightArm, aimDirection);
+    }
+
+    [ClientRpc]
+    private void PunchClientRpc(bool useRightArm, Vector2 aimDirection)
+    {
+        if (IsOwner) return; // Local player already executed punch locally for instant feedback
+        if (playerAiming == null) playerAiming = GetComponent<PlayerAiming>();
+        if (playerAiming != null)
+        {
+            playerAiming.SetWeapon(null);
+            if (aimDirection.sqrMagnitude > 0.01f)
+            {
+                playerAiming.SetAimDirectionExternal(aimDirection);
+            }
+            playerAiming.PlayMeleePunchAnimation(useRightArm);
         }
     }
 

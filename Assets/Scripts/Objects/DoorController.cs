@@ -103,6 +103,53 @@ public class DoorController : MonoBehaviour
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    private bool isButtonCurrentlyShowing = false;
+
+    private void Update()
+    {
+        if (localPlayer == null)
+        {
+            if (PlayerController.LocalPlayer != null) localPlayer = PlayerController.LocalPlayer;
+            else if (OfflineManager.Instance != null && OfflineManager.Instance.SpawnedPlayer != null)
+                localPlayer = OfflineManager.Instance.SpawnedPlayer.GetComponent<PlayerController>();
+            else
+            {
+                foreach (var p in FindObjectsOfType<PlayerController>())
+                {
+                    if (p != null && p.IsLocal) { localPlayer = p; break; }
+                }
+            }
+        }
+
+        if (localPlayer == null)
+        {
+            if (isButtonCurrentlyShowing) SetButtonVisible(false);
+            return;
+        }
+
+        bool isNear = IsPlayerNearDoor(localPlayer.transform.position);
+        if (isNear != isButtonCurrentlyShowing)
+        {
+            SetButtonVisible(isNear);
+        }
+    }
+
+    private bool IsPlayerNearDoor(Vector3 playerPos)
+    {
+        Collider2D col = GetComponent<Collider2D>();
+        if (col != null)
+        {
+            if (col.OverlapPoint(playerPos)) return true;
+            Bounds b = col.bounds;
+            if (playerPos.x >= b.min.x - 0.7f && playerPos.x <= b.max.x + 0.7f &&
+                playerPos.y >= b.min.y - 0.7f && playerPos.y <= b.max.y + 0.7f)
+                return true;
+            Vector2 closest = col.ClosestPoint(playerPos);
+            if (Vector2.Distance(playerPos, closest) <= 1.8f) return true;
+        }
+        return Vector3.Distance(playerPos, transform.position) <= 2.2f;
+    }
+
     private void OnTriggerEnter2D(Collider2D other)
     {
         PlayerController pc = other.GetComponent<PlayerController>()
@@ -110,6 +157,15 @@ public class DoorController : MonoBehaviour
         if (pc == null || !pc.IsLocal) return;
         localPlayer = pc;
         SetButtonVisible(true);
+    }
+
+    private void OnTriggerStay2D(Collider2D other)
+    {
+        PlayerController pc = other.GetComponent<PlayerController>()
+                           ?? other.GetComponentInParent<PlayerController>();
+        if (pc == null || !pc.IsLocal) return;
+        localPlayer = pc;
+        if (!isButtonCurrentlyShowing) SetButtonVisible(true);
     }
 
     private void OnTriggerExit2D(Collider2D other)
@@ -227,7 +283,14 @@ public class DoorController : MonoBehaviour
 
     private void BuildButton()
     {
-        Canvas canvas = FindObjectOfType<Canvas>();
+        if (buttonGO != null) Destroy(buttonGO);
+
+        Canvas canvas = null;
+        if (HUDManager.Instance != null)
+        {
+            canvas = HUDManager.Instance.GetComponentInParent<Canvas>() ?? HUDManager.Instance.GetComponent<Canvas>();
+        }
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
         if (canvas == null) return;
 
         buttonGO = new GameObject($"DoorEnterBtn_{gameObject.name}", typeof(RectTransform));
@@ -235,20 +298,21 @@ public class DoorController : MonoBehaviour
         buttonGO.layer = LayerMask.NameToLayer("UI");
 
         RectTransform rt  = buttonGO.GetComponent<RectTransform>();
-        rt.sizeDelta        = new Vector2(160f, 60f);
-        rt.anchorMin        = new Vector2(0.5f, 0.18f);
-        rt.anchorMax        = new Vector2(0.5f, 0.18f);
+        rt.sizeDelta        = new Vector2(170f, 58f);
+        rt.anchorMin        = new Vector2(0.5f, 0.22f);
+        rt.anchorMax        = new Vector2(0.5f, 0.22f);
         rt.anchoredPosition = Vector2.zero;
 
         Image bg   = buttonGO.AddComponent<Image>();
-        bg.color   = new Color(0.05f, 0.05f, 0.05f, 0.88f);
+        bg.color   = new Color(0.08f, 0.12f, 0.18f, 0.95f);
 
         button = buttonGO.AddComponent<Button>();
         button.onClick.AddListener(OnEnterPressed);
 
         ColorBlock cb       = button.colors;
-        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
-        cb.pressedColor     = new Color(0.5f, 0.5f, 0.5f, 1f);
+        cb.normalColor      = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.95f, 1f, 1f);
+        cb.pressedColor     = new Color(0.5f, 0.7f, 0.9f, 1f);
         button.colors       = cb;
 
         GameObject lblGO = new GameObject("Label", typeof(RectTransform));
@@ -262,11 +326,11 @@ public class DoorController : MonoBehaviour
         lrt.anchoredPosition = Vector2.zero;
 
         buttonLabel           = lblGO.AddComponent<TextMeshProUGUI>();
-        buttonLabel.text      = promptText;
-        buttonLabel.fontSize  = 22f;
+        buttonLabel.text      = !string.IsNullOrEmpty(promptText) ? promptText : "ENTER ROOM";
+        buttonLabel.fontSize  = 20f;
         buttonLabel.fontStyle = FontStyles.Bold;
         buttonLabel.alignment = TextAlignmentOptions.Center;
-        buttonLabel.color     = Color.white;
+        buttonLabel.color     = new Color(1f, 0.85f, 0.2f, 1f);
 
         Outline o        = buttonGO.AddComponent<Outline>();
         o.effectColor    = new Color(1f, 0.8f, 0.1f, 0.9f);
@@ -277,6 +341,7 @@ public class DoorController : MonoBehaviour
 
     private void SetButtonVisible(bool show)
     {
+        isButtonCurrentlyShowing = show;
         Button targetBtn = GetEnterButton();
         if (targetBtn != null)
         {
@@ -294,9 +359,14 @@ public class DoorController : MonoBehaviour
             return;
         }
 
+        if (buttonGO == null && show)
+        {
+            BuildButton();
+        }
+
         if (buttonGO != null)
         {
-            if (show) buttonGO.transform.SetAsLastSibling(); // Always on top of every UI element
+            if (show) buttonGO.transform.SetAsLastSibling();
             buttonGO.SetActive(show);
         }
     }

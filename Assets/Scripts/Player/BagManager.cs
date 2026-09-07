@@ -29,6 +29,12 @@ public class BagManager : NetworkBehaviour
     public int scopeCount        = 0;
     public int medikitCount      = 0;
     public int proteinShakeCount = 0;
+
+    [Header("Keys Inventory")]
+    public int keysInBag = 0;
+    public bool hasMasterGateKey = false;
+    public bool hasSafeKey = false;
+    public List<int> collectedKeyIndices = new List<int>();
     
     [Header("Active Grenade Type")]
     public GrenadeType activeGrenadeType = GrenadeType.Explosive;
@@ -572,7 +578,7 @@ public class BagManager : NetworkBehaviour
     }
 
     /// <summary>
-    /// Drops all equipped weapons onto the ground when the player dies.
+    /// Drops all equipped weapons and held keys onto the ground when the player dies.
     /// </summary>
     public void DropAllWeaponsOnDeath()
     {
@@ -588,6 +594,63 @@ public class BagManager : NetworkBehaviour
                 }
             }
         }
+
+        // Drop any held keys on death so teammates can retrieve them
+        if (collectedKeyIndices != null && collectedKeyIndices.Count > 0)
+        {
+            foreach (int kIdx in collectedKeyIndices)
+            {
+                bool isMaster = (MatchRoleManager.Instance != null && kIdx == MatchRoleManager.Instance.MasterGateKeyIndex.Value);
+                GameObject kObj = new GameObject($"Dropped_Key_{kIdx}", typeof(KeyItemPickup));
+                kObj.transform.position = transform.position + new Vector3(Random.Range(-0.6f, 0.6f), Random.Range(-0.3f, 0.3f), 0f);
+                var pickup = kObj.GetComponent<KeyItemPickup>();
+                if (pickup != null)
+                {
+                    pickup.keyIndex = kIdx;
+                    pickup.isMasterKey = isMaster;
+                }
+            }
+            ClearAllKeys();
+        }
+    }
+
+    public void AddKey(int keyIndex, bool isMaster)
+    {
+        if (collectedKeyIndices == null) collectedKeyIndices = new List<int>();
+        if (!collectedKeyIndices.Contains(keyIndex))
+        {
+            collectedKeyIndices.Add(keyIndex);
+        }
+        keysInBag = collectedKeyIndices.Count;
+        if (isMaster)
+        {
+            hasMasterGateKey = true;
+        }
+        OnBagUpdated?.Invoke();
+        Debug.Log($"[BagManager] 🗝️ Added Key #{keyIndex} (isMaster={isMaster}) to Bag. Total keys in bag: {keysInBag}");
+    }
+
+    public void AddSafeKey()
+    {
+        hasSafeKey = true;
+        OnBagUpdated?.Invoke();
+        Debug.Log("[BagManager] 🔑 Added Safe Key to Bag!");
+    }
+
+    public void RemoveSafeKey()
+    {
+        hasSafeKey = false;
+        OnBagUpdated?.Invoke();
+        Debug.Log("[BagManager] 🔑 Removed Safe Key from Bag!");
+    }
+
+    public void ClearAllKeys()
+    {
+        if (collectedKeyIndices != null) collectedKeyIndices.Clear();
+        keysInBag = 0;
+        hasMasterGateKey = false;
+        hasSafeKey = false;
+        OnBagUpdated?.Invoke();
     }
 
     public void DropWeapon(int slotIndex)

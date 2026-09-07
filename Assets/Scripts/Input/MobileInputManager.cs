@@ -48,6 +48,10 @@ public class MobileInputManager : MonoBehaviour
         playerController = controller;
         playerAiming = aiming;
         weaponController = weapon;
+        if (playerController != null)
+        {
+            playerController.SetMoveInput(Vector2.zero);
+        }
         HUDManager.Instance?.BindLocalPlayer();
         Debug.Log("[MobileInputManager] Local player references registered successfully.");
     }
@@ -320,7 +324,18 @@ public class MobileInputManager : MonoBehaviour
         {
             if (moveInput == Vector2.zero)
             {
-                moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+                float h = 0f;
+                float v = 0f;
+                if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))  h -= 1f;
+                if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) h += 1f;
+                if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))  v -= 1f;
+                if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))    v += 1f;
+
+                Vector2 keyMove = new Vector2(h, v);
+                if (keyMove != Vector2.zero)
+                {
+                    moveInput = keyMove.normalized;
+                }
             }
 
             if (aimInput == Vector2.zero && Camera.main != null && playerAiming != null)

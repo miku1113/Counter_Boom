@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
 
 namespace CounterBoom.Networking
 {
@@ -54,6 +55,23 @@ namespace CounterBoom.Networking
             DontDestroyOnLoad(gameObject);
 
             LoadLocalUserDataBackup();
+            StartPresenceHeartbeat();
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private void OnDestroy()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            forcedPresenceStatus = "";
+            StartPresenceHeartbeat();
+            if (CurrentUser != null)
+            {
+                StartCoroutine(RoutineSendPresenceHeartbeat());
+            }
         }
 
         // ─── Authentication API ───────────────────────────────────────────────────
@@ -580,16 +598,21 @@ namespace CounterBoom.Networking
 
         public void SendGameInvite(string targetUid, string roomCode, Action<bool> onComplete = null)
         {
+            SendGameInvite(targetUid, roomCode, null, onComplete);
+        }
+
+        public void SendGameInvite(string targetUid, string roomCode, string targetDisplayName, Action<bool> onComplete = null)
+        {
             if (CurrentUser == null || string.IsNullOrEmpty(targetUid) || string.IsNullOrEmpty(roomCode))
             {
                 onComplete?.Invoke(false);
                 return;
             }
 
-            StartCoroutine(RoutineSendGameInvite(targetUid, roomCode, onComplete));
+            StartCoroutine(RoutineSendGameInvite(targetUid, roomCode, targetDisplayName, onComplete));
         }
 
-        private IEnumerator RoutineSendGameInvite(string targetUid, string roomCode, Action<bool> onComplete)
+        private IEnumerator RoutineSendGameInvite(string targetUid, string roomCode, string targetDisplayName, Action<bool> onComplete)
         {
             string senderName = !string.IsNullOrEmpty(CurrentUser.displayName) ? CurrentUser.displayName : PlayerPrefs.GetString("PlayerName", "Player");
             string inviteJson = $"{{\"senderUid\":\"{CurrentUser.uid}\",\"senderName\":\"{senderName}\",\"roomCode\":\"{roomCode}\",\"timestamp\":{System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}}}";
@@ -598,6 +621,7 @@ namespace CounterBoom.Networking
             string safeTargetUid = UnityWebRequest.EscapeURL(targetUid.Trim());
             string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/invites/{safeTargetUid}.json{authQuery}";
 
+            bool success = false;
             using (UnityWebRequest www = new UnityWebRequest(url, "PUT"))
             {
                 byte[] jsonBytes = System.Text.Encoding.UTF8.GetBytes(inviteJson);
@@ -607,17 +631,33 @@ namespace CounterBoom.Networking
 
                 yield return www.SendWebRequest();
 
-                bool success = www.result == UnityWebRequest.Result.Success;
+                success = www.result == UnityWebRequest.Result.Success;
                 if (!success)
                 {
                     Debug.LogWarning($"[FirebaseManager] SendGameInvite to '{targetUid}' failed: {www.error} ({www.downloadHandler.text})");
                 }
                 else
                 {
-                    Debug.Log($"[FirebaseManager] SendGameInvite successfully written to invites/{safeTargetUid}.json!");
+                    Debug.Log($"[FirebaseManager] SendGameInvite successfully written to invites/{safeTargetUid}.json with roomCode '{roomCode}'!");
                 }
-                onComplete?.Invoke(success);
             }
+
+            // Also dual-write to targetDisplayName endpoint if provided and distinct
+            if (!string.IsNullOrEmpty(targetDisplayName) && targetDisplayName != targetUid)
+            {
+                string safeTargetName = UnityWebRequest.EscapeURL(targetDisplayName.Trim());
+                string urlName = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/invites/{safeTargetName}.json{authQuery}";
+                using (UnityWebRequest wwwName = new UnityWebRequest(urlName, "PUT"))
+                {
+                    byte[] jsonBytes = System.Text.Encoding.UTF8.GetBytes(inviteJson);
+                    wwwName.uploadHandler = new UploadHandlerRaw(jsonBytes);
+                    wwwName.downloadHandler = new DownloadHandlerBuffer();
+                    wwwName.SetRequestHeader("Content-Type", "application/json");
+                    yield return wwwName.SendWebRequest();
+                }
+            }
+
+            onComplete?.Invoke(success);
         }
 
         public void PollGameInvite(Action<GameInviteData> onInviteReceived)
@@ -765,45 +805,35 @@ namespace CounterBoom.Networking
                 yield break;
             }
 
-            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/users.json";
-            using (UnityWebRequest www = UnityWebRequest.Get(url))
+            List<FirebaseUserData> allUsers = null;
+            yield return RoutineFetchAllUsers(users => allUsers = users);
+            if (allUsers == null) allUsers = new List<FirebaseUserData>();
+
+            FirebaseUserData targetUser = allUsers.Find(u => u.uid == targetUid || u.displayName == targetUid);
+            List<string> targetFriends = new List<string>();
+
+            if (targetUser != null && targetUser.friends != null && targetUser.friends.Count > 0)
             {
-                yield return www.SendWebRequest();
+                targetFriends = targetUser.friends;
+            }
 
-                var allUsers = new List<FirebaseUserData>();
-                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+            if (targetFriends.Count > 0)
+            {
+                var addedTargetUids = new HashSet<string>();
+                foreach (var fId in targetFriends)
                 {
-                    try
+                    if (!IsValidUserIdentifier(fId)) continue;
+                    var match = allUsers.Find(u => u.uid == fId || u.displayName == fId);
+                    if (match != null)
                     {
-                        allUsers = ParseAllUsersFromRtdbJson(www.downloadHandler.text);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[FirebaseManager] Friends parse error: {ex.Message}");
-                    }
-                }
+                        if (addedTargetUids.Contains(match.uid)) continue;
+                        addedTargetUids.Add(match.uid);
 
-                FirebaseUserData targetUser = allUsers.Find(u => u.uid == targetUid || u.displayName == targetUid);
-                List<string> targetFriends = new List<string>();
-
-                if (targetUser != null && targetUser.friends != null && targetUser.friends.Count > 0)
-                {
-                    targetFriends = targetUser.friends;
-                }
-
-                if (targetFriends.Count > 0)
-                {
-                    foreach (var fId in targetFriends)
-                    {
-                        var match = allUsers.Find(u => u.uid == fId || u.displayName == fId);
-                        if (match != null)
+                        result.Add(new FriendProfile(match.uid, match.displayName)
                         {
-                            result.Add(new FriendProfile(match.uid, match.displayName)
-                            {
-                                level = match.level,
-                                selectedSkinIndex = match.selectedSkinIndex
-                            });
-                        }
+                            level = match.level,
+                            selectedSkinIndex = match.selectedSkinIndex
+                        });
                     }
                 }
             }
@@ -890,6 +920,46 @@ namespace CounterBoom.Networking
             return users;
         }
 
+        private List<FirebaseUserData> cachedAllUsers = null;
+        private float lastAllUsersFetchTime = -999f;
+        private const float ALL_USERS_CACHE_TTL = 45f;
+
+        public void InvalidateAllUsersCache()
+        {
+            cachedAllUsers = null;
+            lastAllUsersFetchTime = -999f;
+        }
+
+        private IEnumerator RoutineFetchAllUsers(Action<List<FirebaseUserData>> onComplete, bool forceRefresh = false)
+        {
+            if (!forceRefresh && cachedAllUsers != null && (Time.time - lastAllUsersFetchTime < ALL_USERS_CACHE_TTL))
+            {
+                onComplete?.Invoke(cachedAllUsers);
+                yield break;
+            }
+
+            string usersUrl = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/users.json";
+            using (UnityWebRequest www = UnityWebRequest.Get(usersUrl))
+            {
+                yield return www.SendWebRequest();
+
+                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+                {
+                    try
+                    {
+                        cachedAllUsers = ParseAllUsersFromRtdbJson(www.downloadHandler.text);
+                        lastAllUsersFetchTime = Time.time;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[FirebaseManager] All users parse error: {ex.Message}");
+                    }
+                }
+            }
+
+            onComplete?.Invoke(cachedAllUsers ?? new List<FirebaseUserData>());
+        }
+
         private IEnumerator RoutineFetchFriendsList(Action<List<FriendProfile>> onComplete)
         {
             var result = new List<FriendProfile>();
@@ -927,58 +997,44 @@ namespace CounterBoom.Networking
                 }
             }
 
-            // Clean legacy IDs
-            friendIds.RemoveWhere(id => string.IsNullOrEmpty(id) || id.StartsWith("USR_100"));
+            // Clean invalid/corrupt legacy IDs
+            friendIds.RemoveWhere(id => !IsValidUserIdentifier(id));
 
-            // Sync back to CurrentUser.friends and clear sentPendingRequests / pendingRequests for active friends
-            CurrentUser.friends = new List<string>(friendIds);
-            if (CurrentUser.sentPendingRequests != null)
-            {
-                CurrentUser.sentPendingRequests.RemoveAll(f => friendIds.Contains(f));
-            }
-            if (CurrentUser.pendingRequests != null)
-            {
-                CurrentUser.pendingRequests.RemoveAll(f => friendIds.Contains(f));
-            }
-            SaveUserProfile();
+            List<FirebaseUserData> allUsers = null;
+            yield return RoutineFetchAllUsers(users => allUsers = users);
+            if (allUsers == null) allUsers = new List<FirebaseUserData>();
 
-            if (friendIds.Count == 0)
+            var validFriendIds = new List<string>();
+            var addedUids = new HashSet<string>();
+            foreach (var fId in friendIds)
             {
-                onComplete?.Invoke(result);
-                yield break;
-            }
-
-            string usersUrl = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/users.json";
-            using (UnityWebRequest www = UnityWebRequest.Get(usersUrl))
-            {
-                yield return www.SendWebRequest();
-
-                var allUsers = new List<FirebaseUserData>();
-                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+                var match = allUsers.Find(u => u.uid == fId || u.displayName == fId);
+                if (match != null)
                 {
-                    try { allUsers = ParseAllUsersFromRtdbJson(www.downloadHandler.text); }
-                    catch (Exception ex) { Debug.LogWarning($"[FirebaseManager] Friends parse error: {ex.Message}"); }
-                }
-
-                var addedUids = new HashSet<string>();
-                foreach (var fId in friendIds)
-                {
-                    var match = allUsers.Find(u => u.uid == fId || u.displayName == fId);
-                    string targetKey = match != null ? match.uid : fId;
-
+                    string targetKey = match.uid;
                     if (addedUids.Contains(targetKey)) continue;
                     addedUids.Add(targetKey);
 
-                    if (match != null)
-                    {
-                        result.Add(new FriendProfile(match.uid, match.displayName) { level = match.level, selectedSkinIndex = match.selectedSkinIndex });
-                    }
-                    else if (!fId.StartsWith("USR_100"))
-                    {
-                        result.Add(new FriendProfile(fId, fId.Length > 8 ? fId.Substring(0, 8) : fId) { level = 1 });
-                    }
+                    validFriendIds.Add(targetKey);
+                    result.Add(new FriendProfile(match.uid, match.displayName) 
+                    { 
+                        level = match.level, 
+                        selectedSkinIndex = match.selectedSkinIndex 
+                    });
                 }
             }
+
+            // Sync strictly verified friend IDs to CurrentUser.friends
+            CurrentUser.friends = validFriendIds;
+            if (CurrentUser.sentPendingRequests != null)
+            {
+                CurrentUser.sentPendingRequests.RemoveAll(f => addedUids.Contains(f));
+            }
+            if (CurrentUser.pendingRequests != null)
+            {
+                CurrentUser.pendingRequests.RemoveAll(f => addedUids.Contains(f));
+            }
+            SaveUserProfile();
 
             onComplete?.Invoke(result);
         }
@@ -1122,46 +1178,35 @@ namespace CounterBoom.Networking
                 }
             }
 
-            CurrentUser.pendingRequests = new List<string>(incomingUids);
+            // Clean invalid/corrupt IDs
+            incomingUids.RemoveWhere(id => !IsValidUserIdentifier(id));
 
-            if (incomingUids.Count == 0)
+            List<FirebaseUserData> allUsers = null;
+            yield return RoutineFetchAllUsers(users => allUsers = users);
+            if (allUsers == null) allUsers = new List<FirebaseUserData>();
+
+            var validRequestUids = new List<string>();
+            var addedRequestUids = new HashSet<string>();
+            foreach (var senderId in incomingUids)
             {
-                onComplete?.Invoke(result);
-                yield break;
-            }
-
-            // 4. Query all users from RTDB to populate sender details (display name, level, skin)
-            string usersUrl = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/users.json";
-            using (UnityWebRequest www = UnityWebRequest.Get(usersUrl))
-            {
-                yield return www.SendWebRequest();
-
-                var allUsers = new List<FirebaseUserData>();
-                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+                var match = allUsers.Find(u => u.uid == senderId || u.displayName == senderId);
+                if (match != null)
                 {
-                    try { allUsers = ParseAllUsersFromRtdbJson(www.downloadHandler.text); }
-                    catch (Exception ex) { Debug.LogWarning($"[FirebaseManager] Requests parse error: {ex.Message}"); }
-                }
-
-                var addedRequestUids = new HashSet<string>();
-                foreach (var senderId in incomingUids)
-                {
-                    var match = allUsers.Find(u => u.uid == senderId || u.displayName == senderId);
-                    string targetKey = match != null ? match.uid : senderId;
-
+                    string targetKey = match.uid;
                     if (addedRequestUids.Contains(targetKey)) continue;
                     addedRequestUids.Add(targetKey);
 
-                    if (match != null)
-                    {
-                        result.Add(new FriendProfile(match.uid, match.displayName) { level = match.level, selectedSkinIndex = match.selectedSkinIndex });
-                    }
-                    else
-                    {
-                        result.Add(new FriendProfile(senderId, senderId.Length > 8 ? senderId.Substring(0, 8) : senderId) { level = 1 });
-                    }
+                    validRequestUids.Add(targetKey);
+                    result.Add(new FriendProfile(match.uid, match.displayName) 
+                    { 
+                        level = match.level, 
+                        selectedSkinIndex = match.selectedSkinIndex 
+                    });
                 }
             }
+
+            CurrentUser.pendingRequests = validRequestUids;
+            SaveUserProfile();
 
             onComplete?.Invoke(result);
         }
@@ -1169,22 +1214,47 @@ namespace CounterBoom.Networking
         private void ParseIncomingRequestUids(string json, HashSet<string> targetSet)
         {
             if (string.IsNullOrEmpty(json) || json == "null") return;
+            string trimmed = json.Trim();
+            // Strictly reject HTML error pages or non-object responses
+            if (trimmed.StartsWith("<") || !trimmed.StartsWith("{")) return;
 
             int pos = 0;
-            while (pos < json.Length)
+            while (pos < trimmed.Length)
             {
-                int quoteIdx = json.IndexOf('"', pos);
+                int quoteIdx = trimmed.IndexOf('"', pos);
                 if (quoteIdx < 0) break;
-                int endQuote = json.IndexOf('"', quoteIdx + 1);
+                int endQuote = trimmed.IndexOf('"', quoteIdx + 1);
                 if (endQuote < 0) break;
 
-                string key = json.Substring(quoteIdx + 1, endQuote - quoteIdx - 1);
-                if (!string.IsNullOrEmpty(key) && key != "senderUid" && key != "senderName")
+                // Validate that this is a JSON key followed by a colon ':'
+                int afterQuote = endQuote + 1;
+                while (afterQuote < trimmed.Length && char.IsWhiteSpace(trimmed[afterQuote]))
                 {
-                    targetSet.Add(key);
+                    afterQuote++;
                 }
+
+                if (afterQuote < trimmed.Length && trimmed[afterQuote] == ':')
+                {
+                    string key = trimmed.Substring(quoteIdx + 1, endQuote - quoteIdx - 1);
+                    if (IsValidUserIdentifier(key))
+                    {
+                        targetSet.Add(key);
+                    }
+                }
+
                 pos = endQuote + 1;
             }
+        }
+
+        public static bool IsValidUserIdentifier(string id)
+        {
+            if (string.IsNullOrEmpty(id) || id.Length < 2 || id.Length > 64) return false;
+            if (id == "senderUid" || id == "senderName" || id == "timestamp" || id == "error" || id == "status") return false;
+            if (id.StartsWith("http") || id.Contains("/") || id.Contains(":") || id.Contains("<") || id.Contains(">") || 
+                id.Contains(" ") || id.Contains(".") || id.Contains("\\") || id.Contains("?") || id.Contains("&")) return false;
+            if (id == "en-US" || id == "ltr" || id == "origin" || id == "referrer" || id == "preconne") return false;
+            if (id.StartsWith("USR_100")) return false;
+            return true;
         }
 
         private string ParseSimpleJsonString(string json, string fieldName, string defaultValue)
@@ -1225,55 +1295,40 @@ namespace CounterBoom.Networking
             return defaultValue;
         }
 
-        public void SearchPlayers(string query, Action<List<FirebaseUserData>> onComplete)
+        public void SearchPlayers(string query, Action<List<FirebaseUserData>> onComplete, bool forceRefresh = false)
         {
-            StartCoroutine(RoutineSearchPlayers(query, onComplete));
+            StartCoroutine(RoutineSearchPlayers(query, onComplete, forceRefresh));
         }
 
-        private IEnumerator RoutineSearchPlayers(string query, Action<List<FirebaseUserData>> onComplete)
+        private IEnumerator RoutineSearchPlayers(string query, Action<List<FirebaseUserData>> onComplete, bool forceRefresh = false)
         {
             var results = new List<FirebaseUserData>();
             string cleanQuery = query != null ? query.Trim().ToLower() : "";
             bool isSearching = !string.IsNullOrEmpty(cleanQuery);
 
-            // Query Firebase Realtime Database (Strictly Real Data)
-            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/users.json";
-            using (UnityWebRequest www = UnityWebRequest.Get(url))
+            List<FirebaseUserData> allUsers = null;
+            yield return RoutineFetchAllUsers(users => allUsers = users, forceRefresh);
+
+            if (allUsers != null)
             {
-                yield return www.SendWebRequest();
-
-                Debug.Log($"[FirebaseManager] RTDB Backend Response (URL: {url} | Status: {www.responseCode}): {www.downloadHandler.text}");
-
-                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+                foreach (var user in allUsers)
                 {
-                    try
+                    if (CurrentUser != null && (user.uid == CurrentUser.uid || user.displayName == CurrentUser.displayName))
                     {
-                        var allUsers = ParseAllUsersFromRtdbJson(www.downloadHandler.text);
+                        continue;
+                    }
 
-                        foreach (var user in allUsers)
+                    if (isSearching)
+                    {
+                        if (user.uid.ToLower().Contains(cleanQuery) || user.displayName.ToLower().Contains(cleanQuery) || user.email.ToLower().Contains(cleanQuery))
                         {
-                            if (CurrentUser != null && (user.uid == CurrentUser.uid || user.displayName == CurrentUser.displayName))
-                            {
-                                continue;
-                            }
-
-                            if (isSearching)
-                            {
-                                if (user.uid.ToLower().Contains(cleanQuery) || user.displayName.ToLower().Contains(cleanQuery) || user.email.ToLower().Contains(cleanQuery))
-                                {
-                                    results.Add(user);
-                                }
-                            }
-                            else
-                            {
-                                results.Add(user);
-                                if (results.Count >= 100) break;
-                            }
+                            results.Add(user);
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Debug.LogWarning($"[FirebaseManager] Search parse error: {ex.Message}");
+                        results.Add(user);
+                        if (results.Count >= 100) break;
                     }
                 }
             }
@@ -1525,5 +1580,437 @@ namespace CounterBoom.Networking
         {
             public List<int> items = new List<int>();
         }
+
+        #region Presence & Status Tracking
+
+        public enum PlayerPresenceStatus
+        {
+            Offline,
+            Online,
+            InRoom,
+            RoomFull,
+            InGame
+        }
+
+        [System.Serializable]
+        public class PlayerPresenceData
+        {
+            public string uid = "";
+            public string displayName = "";
+            public string status = "offline"; // "online", "in_room", "room_full", "in_game", "offline"
+            public string roomCode = "";
+            public int roomPlayerCount = 0;
+            public int roomMaxPlayers = 2;
+            public long lastHeartbeat = 0;
+
+            public PlayerPresenceStatus GetStatusEnum()
+            {
+                long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                if (now - lastHeartbeat > 25) return PlayerPresenceStatus.Offline;
+
+                switch (status)
+                {
+                    case "in_game": return PlayerPresenceStatus.InGame;
+                    case "room_full": return PlayerPresenceStatus.RoomFull;
+                    case "in_room":
+                        if (roomMaxPlayers > 0 && roomPlayerCount >= roomMaxPlayers) return PlayerPresenceStatus.RoomFull;
+                        return PlayerPresenceStatus.InRoom;
+                    case "online": return PlayerPresenceStatus.Online;
+                    default: return PlayerPresenceStatus.Offline;
+                }
+            }
+        }
+
+        public class JoinRequestData
+        {
+            public string senderUid;
+            public string senderName;
+            public long timestamp;
+        }
+
+        private Coroutine presenceCoroutine;
+        private string forcedPresenceStatus = "";
+
+        public void SetForcedPresenceStatus(string status)
+        {
+            forcedPresenceStatus = status;
+        }
+
+        public void ForceSendPresenceUpdate()
+        {
+            forcedPresenceStatus = "";
+            StartPresenceHeartbeat();
+            if (CurrentUser != null)
+            {
+                StartCoroutine(RoutineSendPresenceHeartbeat());
+            }
+        }
+
+        private void StartPresenceHeartbeat()
+        {
+            if (presenceCoroutine != null) StopCoroutine(presenceCoroutine);
+            presenceCoroutine = StartCoroutine(RoutinePresenceHeartbeat());
+        }
+
+        private IEnumerator RoutinePresenceHeartbeat()
+        {
+            while (true)
+            {
+                yield return new WaitForSecondsRealtime(4f);
+                if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.uid))
+                {
+                    LoadLocalUserDataBackup();
+                }
+
+                if (CurrentUser != null && !string.IsNullOrEmpty(CurrentUser.uid))
+                {
+                    yield return RoutineSendPresenceHeartbeat();
+                }
+            }
+        }
+
+        private IEnumerator RoutineSendPresenceHeartbeat()
+        {
+            if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.uid)) yield break;
+
+            string status = "online";
+            string roomCode = "";
+            int roomPlayerCount = 0;
+            int roomMaxPlayers = (RelayNetworkManager.Instance != null) ? RelayNetworkManager.Instance.MaxPlayers : 4;
+
+            if (!string.IsNullOrEmpty(forcedPresenceStatus))
+            {
+                status = forcedPresenceStatus;
+            }
+            else if (SceneManager.GetActiveScene().name == "GameScene")
+            {
+                status = "in_game";
+            }
+            else if (RelayNetworkManager.Instance != null && !string.IsNullOrEmpty(RelayNetworkManager.Instance.CurrentJoinCode))
+            {
+                roomCode = RelayNetworkManager.Instance.CurrentJoinCode;
+                roomPlayerCount = GetLocalRoomPlayerCount();
+                bool isMainMenu = SceneManager.GetActiveScene().name == "MainMenuScene";
+                if (isMainMenu && roomPlayerCount <= 1)
+                {
+                    status = "online";
+                }
+                else
+                {
+                    status = (roomPlayerCount >= roomMaxPlayers) ? "room_full" : "in_room";
+                }
+            }
+            else
+            {
+                status = "online";
+            }
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string json = $"{{\"uid\":\"{CurrentUser.uid}\",\"displayName\":\"{EscapeJsonString(CurrentUser.displayName)}\",\"status\":\"{status}\",\"roomCode\":\"{roomCode}\",\"roomPlayerCount\":{roomPlayerCount},\"roomMaxPlayers\":{roomMaxPlayers},\"lastHeartbeat\":{now}}}";
+
+            string authQuery = !string.IsNullOrEmpty(CurrentAuthToken) ? $"?auth={CurrentAuthToken}" : "";
+            string safeUid = UnityWebRequest.EscapeURL(CurrentUser.uid.Trim());
+            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/presence/{safeUid}.json{authQuery}";
+
+            using (UnityWebRequest www = UnityWebRequest.Put(url, json))
+            {
+                www.SetRequestHeader("Content-Type", "application/json");
+                yield return www.SendWebRequest();
+                if (www.result != UnityWebRequest.Result.Success)
+                {
+                    // If auth query failed (token expired), retry without auth token parameter
+                    if (!string.IsNullOrEmpty(authQuery))
+                    {
+                        string fallbackUrl = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/presence/{safeUid}.json";
+                        using (UnityWebRequest fallbackWww = UnityWebRequest.Put(fallbackUrl, json))
+                        {
+                            fallbackWww.SetRequestHeader("Content-Type", "application/json");
+                            yield return fallbackWww.SendWebRequest();
+                        }
+                    }
+                }
+            }
+        }
+
+        private int GetLocalRoomPlayerCount()
+        {
+            var pcs = FindObjectsOfType<PlayerController>();
+            int count = 0;
+            if (pcs != null)
+            {
+                foreach (var p in pcs)
+                {
+                    if (p != null) count++;
+                }
+            }
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                count = Mathf.Max(count, Unity.Netcode.NetworkManager.Singleton.ConnectedClients.Count);
+            }
+            return Mathf.Max(1, count);
+        }
+
+        private void OnApplicationQuit()
+        {
+            SetPresenceOfflineSync();
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+            {
+                SetPresenceOfflineSync();
+            }
+            else
+            {
+                if (CurrentUser != null) StartCoroutine(RoutineSendPresenceHeartbeat());
+            }
+        }
+
+        private void SetPresenceOfflineSync()
+        {
+            if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.uid)) return;
+            string authQuery = !string.IsNullOrEmpty(CurrentAuthToken) ? $"?auth={CurrentAuthToken}" : "";
+            string safeUid = UnityWebRequest.EscapeURL(CurrentUser.uid.Trim());
+            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/presence/{safeUid}.json{authQuery}";
+            string json = $"{{\"status\":\"offline\",\"lastHeartbeat\":0}}";
+
+            UnityWebRequest www = UnityWebRequest.Put(url, json);
+            www.SetRequestHeader("Content-Type", "application/json");
+            www.SendWebRequest();
+        }
+
+        public void FetchAllPresences(Action<Dictionary<string, PlayerPresenceData>> onComplete)
+        {
+            StartCoroutine(RoutineFetchAllPresences(onComplete));
+        }
+
+        private IEnumerator RoutineFetchAllPresences(Action<Dictionary<string, PlayerPresenceData>> onComplete)
+        {
+            string authQuery = !string.IsNullOrEmpty(CurrentAuthToken) ? $"?auth={CurrentAuthToken}" : "";
+            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/presence.json{authQuery}";
+            using (UnityWebRequest www = UnityWebRequest.Get(url))
+            {
+                yield return www.SendWebRequest();
+                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+                {
+                    var dict = ParseAllPresencesFromJson(www.downloadHandler.text);
+                    onComplete?.Invoke(dict);
+                }
+                else
+                {
+                    onComplete?.Invoke(new Dictionary<string, PlayerPresenceData>());
+                }
+            }
+        }
+
+        private Dictionary<string, PlayerPresenceData> ParseAllPresencesFromJson(string json)
+        {
+            var dict = new Dictionary<string, PlayerPresenceData>();
+            if (string.IsNullOrEmpty(json) || json == "null") return dict;
+            string trimmed = json.Trim();
+            if (trimmed.StartsWith("<") || !trimmed.StartsWith("{")) return dict;
+
+            int pos = 0;
+            while (pos < trimmed.Length)
+            {
+                int quoteIdx = trimmed.IndexOf('"', pos);
+                if (quoteIdx < 0) break;
+                int endQuote = trimmed.IndexOf('"', quoteIdx + 1);
+                if (endQuote < 0) break;
+
+                int colonIdx = trimmed.IndexOf(':', endQuote + 1);
+                if (colonIdx < 0) break;
+
+                bool isKey = true;
+                for (int i = endQuote + 1; i < colonIdx; i++)
+                {
+                    if (!char.IsWhiteSpace(trimmed[i])) { isKey = false; break; }
+                }
+
+                if (!isKey)
+                {
+                    pos = endQuote + 1;
+                    continue;
+                }
+
+                string uid = trimmed.Substring(quoteIdx + 1, endQuote - quoteIdx - 1);
+
+                int afterColon = colonIdx + 1;
+                while (afterColon < trimmed.Length && char.IsWhiteSpace(trimmed[afterColon])) afterColon++;
+
+                if (afterColon < trimmed.Length && trimmed[afterColon] == '{')
+                {
+                    int braceDepth = 1;
+                    int objEnd = afterColon + 1;
+                    while (objEnd < trimmed.Length && braceDepth > 0)
+                    {
+                        if (trimmed[objEnd] == '{') braceDepth++;
+                        else if (trimmed[objEnd] == '}') braceDepth--;
+                        objEnd++;
+                    }
+
+                    string objJson = trimmed.Substring(afterColon, objEnd - afterColon);
+                    string status = ParseSimpleJsonString(objJson, "status", "offline");
+                    string roomCode = ParseSimpleJsonString(objJson, "roomCode", "");
+                    int roomPlayerCount = ParseSimpleJsonInt(objJson, "roomPlayerCount", 0);
+                    int roomMaxPlayers = ParseSimpleJsonInt(objJson, "roomMaxPlayers", 2);
+
+                    long lastHeartbeat = 0;
+                    string hbStr = ParseSimpleJsonString(objJson, "lastHeartbeat", "");
+                    if (!string.IsNullOrEmpty(hbStr)) long.TryParse(hbStr, out lastHeartbeat);
+                    else lastHeartbeat = ParseSimpleJsonInt(objJson, "lastHeartbeat", 0);
+
+                    if (IsValidUserIdentifier(uid))
+                    {
+                        dict[uid] = new PlayerPresenceData
+                        {
+                            uid = uid,
+                            displayName = ParseSimpleJsonString(objJson, "displayName", ""),
+                            status = status,
+                            roomCode = roomCode,
+                            roomPlayerCount = roomPlayerCount,
+                            roomMaxPlayers = roomMaxPlayers,
+                            lastHeartbeat = lastHeartbeat
+                        };
+                    }
+
+                    pos = objEnd;
+                }
+                else
+                {
+                    pos = colonIdx + 1;
+                }
+            }
+            return dict;
+        }
+
+        public void SendJoinRoomRequest(string targetUid, Action<bool> onComplete = null)
+        {
+            SendJoinRoomRequest(targetUid, null, onComplete);
+        }
+
+        public void SendJoinRoomRequest(string targetUid, string targetDisplayName, Action<bool> onComplete = null)
+        {
+            StartCoroutine(RoutineSendJoinRoomRequest(targetUid, targetDisplayName, onComplete));
+        }
+
+        private IEnumerator RoutineSendJoinRoomRequest(string targetUid, string targetDisplayName, Action<bool> onComplete)
+        {
+            if (CurrentUser == null || string.IsNullOrEmpty(targetUid))
+            {
+                onComplete?.Invoke(false);
+                yield break;
+            }
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string json = $"{{\"senderUid\":\"{CurrentUser.uid}\",\"senderName\":\"{EscapeJsonString(CurrentUser.displayName)}\",\"timestamp\":{now}}}";
+
+            string authQuery = !string.IsNullOrEmpty(CurrentAuthToken) ? $"?auth={CurrentAuthToken}" : "";
+            string safeTarget = UnityWebRequest.EscapeURL(targetUid.Trim());
+            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/join_requests/{safeTarget}.json{authQuery}";
+
+            bool success = false;
+            using (UnityWebRequest www = UnityWebRequest.Put(url, json))
+            {
+                www.SetRequestHeader("Content-Type", "application/json");
+                yield return www.SendWebRequest();
+                success = (www.result == UnityWebRequest.Result.Success);
+            }
+
+            if (!string.IsNullOrEmpty(targetDisplayName) && targetDisplayName != targetUid)
+            {
+                string safeName = UnityWebRequest.EscapeURL(targetDisplayName.Trim());
+                string urlName = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/join_requests/{safeName}.json{authQuery}";
+                using (UnityWebRequest wwwName = UnityWebRequest.Put(urlName, json))
+                {
+                    wwwName.SetRequestHeader("Content-Type", "application/json");
+                    yield return wwwName.SendWebRequest();
+                }
+            }
+
+            onComplete?.Invoke(success);
+        }
+
+        public void PollJoinRoomRequest(Action<JoinRequestData> onRequestReceived)
+        {
+            if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.uid)) return;
+            StartCoroutine(RoutinePollJoinRoomRequest(onRequestReceived));
+        }
+
+        private IEnumerator RoutinePollJoinRoomRequest(Action<JoinRequestData> onRequestReceived)
+        {
+            if (CurrentUser == null || string.IsNullOrEmpty(CurrentUser.uid)) yield break;
+
+            string authQuery = !string.IsNullOrEmpty(CurrentAuthToken) ? $"?auth={CurrentAuthToken}" : "";
+            string safeUid = UnityWebRequest.EscapeURL(CurrentUser.uid.Trim());
+            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/join_requests/{safeUid}.json{authQuery}";
+
+            bool requestFound = false;
+            using (UnityWebRequest www = UnityWebRequest.Get(url))
+            {
+                yield return www.SendWebRequest();
+                if (www.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(www.downloadHandler.text) && www.downloadHandler.text != "null")
+                {
+                    string json = www.downloadHandler.text;
+                    string senderUid = ParseSimpleJsonString(json, "senderUid", "");
+                    string senderName = ParseSimpleJsonString(json, "senderName", "");
+                    if (!string.IsNullOrEmpty(senderUid) && !string.IsNullOrEmpty(senderName))
+                    {
+                        requestFound = true;
+                        StartCoroutine(RoutineClearJoinRoomRequest(CurrentUser.uid));
+                        onRequestReceived?.Invoke(new JoinRequestData
+                        {
+                            senderUid = senderUid,
+                            senderName = senderName
+                        });
+                        yield break;
+                    }
+                }
+            }
+
+            if (!requestFound && !string.IsNullOrEmpty(CurrentUser.displayName) && CurrentUser.displayName != CurrentUser.uid)
+            {
+                string safeName = UnityWebRequest.EscapeURL(CurrentUser.displayName.Trim());
+                string urlName = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/join_requests/{safeName}.json{authQuery}";
+                using (UnityWebRequest wwwName = UnityWebRequest.Get(urlName))
+                {
+                    yield return wwwName.SendWebRequest();
+                    if (wwwName.result == UnityWebRequest.Result.Success && !string.IsNullOrEmpty(wwwName.downloadHandler.text) && wwwName.downloadHandler.text != "null")
+                    {
+                        string json = wwwName.downloadHandler.text;
+                        string senderUid = ParseSimpleJsonString(json, "senderUid", "");
+                        string senderName = ParseSimpleJsonString(json, "senderName", "");
+                        if (!string.IsNullOrEmpty(senderUid) && !string.IsNullOrEmpty(senderName))
+                        {
+                            StartCoroutine(RoutineClearJoinRoomRequest(CurrentUser.displayName));
+                            onRequestReceived?.Invoke(new JoinRequestData
+                            {
+                                senderUid = senderUid,
+                                senderName = senderName
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        public void ClearJoinRoomRequest(string targetUid)
+        {
+            if (string.IsNullOrEmpty(targetUid)) return;
+            StartCoroutine(RoutineClearJoinRoomRequest(targetUid));
+        }
+
+        private IEnumerator RoutineClearJoinRoomRequest(string targetUid)
+        {
+            string authQuery = !string.IsNullOrEmpty(CurrentAuthToken) ? $"?auth={CurrentAuthToken}" : "";
+            string safeUid = UnityWebRequest.EscapeURL(targetUid.Trim());
+            string url = $"https://{firebaseProjectId}-default-rtdb.firebaseio.com/join_requests/{safeUid}.json{authQuery}";
+            using (UnityWebRequest www = UnityWebRequest.Delete(url))
+            {
+                yield return www.SendWebRequest();
+            }
+        }
+        #endregion
     }
 }

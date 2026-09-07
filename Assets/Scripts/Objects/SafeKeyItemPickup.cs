@@ -162,6 +162,18 @@ public class SafeKeyItemPickup : NetworkBehaviour
         }
     }
 
+    private bool CanCollectSafeKey(PlayerController player)
+    {
+        if (player == null) return false;
+        if (player.CompareTag("Bot") || player.GetComponent<AiBotController>() != null) return false;
+
+        // In offline mode / singleplayer, human player can collect it
+        if (player.IsLocal || OfflineManager.Instance != null) return true;
+
+        // In multiplayer, Thieves can collect the Safe Key!
+        return player.playerRole.Value == PlayerRole.Thief;
+    }
+
     private void CheckPlayerProximity()
     {
         if (isCollected) return;
@@ -169,8 +181,7 @@ public class SafeKeyItemPickup : NetworkBehaviour
         PlayerController[] players = FindObjectsOfType<PlayerController>();
         foreach (var p in players)
         {
-            // Only Thief players can collect the Safe Key!
-            if (p != null && p.playerRole.Value == PlayerRole.Thief)
+            if (CanCollectSafeKey(p))
             {
                 float dist = Vector3.Distance(transform.position, p.transform.position);
                 if (dist <= 1.8f)
@@ -199,8 +210,7 @@ public class SafeKeyItemPickup : NetworkBehaviour
         PlayerController player = other.GetComponentInParent<PlayerController>();
         if (player == null) player = other.GetComponent<PlayerController>();
 
-        // Human players / Thieves can collect the Safe Key!
-        if (player != null && !player.CompareTag("Bot") && player.GetComponent<AiBotController>() == null)
+        if (CanCollectSafeKey(player))
         {
             CollectSafeKey(player);
         }
@@ -216,13 +226,20 @@ public class SafeKeyItemPickup : NetworkBehaviour
             PlayerController.LocalPlayer.PlayPickupSound(pickupSound);
         }
 
-        Debug.Log($"[SafeKeyItemPickup] Safe Key collected by Thief '{player.playerName.Value}'!");
+        Debug.Log($"[SafeKeyItemPickup] Safe Key collected by '{player.playerName.Value}'!");
+
+        var bag = player.GetComponent<BagManager>() ?? player.GetComponentInChildren<BagManager>() ?? BagManager.Instance;
+        if (bag != null)
+        {
+            bag.AddSafeKey();
+        }
 
         if (MatchRoleManager.Instance != null)
         {
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || IsServer)
             {
                 MatchRoleManager.Instance.SafeKeyCollectedByThief.Value = true;
+                MatchRoleManager.Instance.DespawnSafeKeyClientRpc();
             }
             else
             {
@@ -232,7 +249,7 @@ public class SafeKeyItemPickup : NetworkBehaviour
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowNotification("<color=gold>🔑 SAFE KEY COLLECTED! Locate and unlock the SAFE (\"seaf\") to steal the Treasure!</color>");
+            HUDManager.Instance.ShowNotification("<color=gold>🔑 SAFE KEY COLLECTED! Locate and unlock the SAFE to steal the Treasure!</color>");
         }
 
         Destroy(gameObject);

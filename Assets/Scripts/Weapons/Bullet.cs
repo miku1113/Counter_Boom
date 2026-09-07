@@ -55,15 +55,17 @@ public class Bullet : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        ProcessHit(collision);
+        Vector2 hitPoint = collision != null ? collision.ClosestPoint(transform.position) : (Vector2)transform.position;
+        ProcessHit(collision, hitPoint);
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        ProcessHit(collision.collider);
+        Vector2 hitPoint = collision.contactCount > 0 ? collision.GetContact(0).point : (Vector2)transform.position;
+        ProcessHit(collision.collider, hitPoint);
     }
 
-    private void ProcessHit(Collider2D collision)
+    private void ProcessHit(Collider2D collision, Vector2 hitPoint)
     {
         if (collision == null) return;
 
@@ -85,9 +87,33 @@ public class Bullet : MonoBehaviour
                 return;
             }
 
-            // Apply damage to enemy player
-            health.TakeDamage(damage);
-            Debug.Log($"[Bullet] Hit '{collision.name}' for {damage} damage.");
+            // Friendly fire check: Teammates take NO damage!
+            bool isTeammate = AreTeammates(shooter, health.gameObject);
+
+            Vector2 hitNormal = ((Vector2)transform.position - hitPoint).normalized;
+            if (hitNormal.sqrMagnitude < 0.001f) hitNormal = -direction;
+
+            // Spawn visual hit effect directly on the body where bullet hit
+            ProceduralEffectsGenerator.CreateBulletBodyHitEffect(hitPoint, hitNormal, isTeammate);
+
+            if (isTeammate)
+            {
+                Debug.Log($"[Bullet] Hit teammate '{collision.name}'. Shield effect played without damage.");
+            }
+            else
+            {
+                // Only damage opponents! Only the shooter's client triggers networked damage to prevent duplicate hits
+                bool isShooterOwner = shooter == null || 
+                                      !shooter.TryGetComponent<Unity.Netcode.NetworkObject>(out var netObj) || 
+                                      !netObj.IsSpawned || 
+                                      netObj.IsOwner;
+
+                if (isShooterOwner)
+                {
+                    health.TakeDamage(damage);
+                    Debug.Log($"[Bullet] Hit opponent '{collision.name}' for {damage} damage.");
+                }
+            }
 
             Destroy(gameObject);
             return;
@@ -98,7 +124,39 @@ public class Bullet : MonoBehaviour
         if (layer == LayerMask.NameToLayer("Default") || layer == LayerMask.NameToLayer("Obstacle") || layer == LayerMask.NameToLayer("Wall"))
         {
             if (!collision.isTrigger)
+            {
+                Vector2 hitNormal = ((Vector2)transform.position - hitPoint).normalized;
+                if (hitNormal.sqrMagnitude < 0.001f) hitNormal = -direction;
+                ProceduralEffectsGenerator.CreateBulletSurfaceHitEffect(hitPoint, hitNormal);
                 Destroy(gameObject);
+            }
         }
+    }
+
+    /// <summary>
+    /// Checks whether two GameObjects belong to the same team (Thief vs Hostage, Bot vs Bot, etc.)
+    /// </summary>
+    public static bool AreTeammates(GameObject objA, GameObject objB)
+    {
+        if (objA == null || objB == null) return false;
+        if (objA == objB) return true;
+        if (objA.transform.root == objB.transform.root) return true;
+
+        bool aIsBot = objA.CompareTag("Bot") || objA.GetComponentInParent<AiBotController>() != null || objA.name.ToLower().Contains("bot");
+        bool bIsBot = objB.CompareTag("Bot") || objB.GetComponentInParent<AiBotController>() != null || objB.name.ToLower().Contains("bot");
+
+        if (aIsBot && bIsBot) return true; // Bots are allies with each other
+        if (aIsBot != bIsBot) return false; // Bot vs Human are always opponents
+
+        PlayerController pcA = objA.GetComponent<PlayerController>() ?? objA.GetComponentInParent<PlayerController>();
+        PlayerController pcB = objB.GetComponent<PlayerController>() ?? objB.GetComponentInParent<PlayerController>();
+
+        if (pcA != null && pcB != null)
+        {
+            // If both players have the same role (both Thieves or both Hostages), they are teammates!
+            return pcA.playerRole.Value == pcB.playerRole.Value;
+        }
+
+        return false;
     }
 }

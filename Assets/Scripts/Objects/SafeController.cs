@@ -624,7 +624,7 @@ public class SafeController : NetworkBehaviour
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowVictoryModal(10, currentCoins);
+            HUDManager.Instance.ShowNotification("<color=gold>💰 TREASURE STOLEN! Now escape through the Main Gate to Win!</color>");
         }
 
         SetButtonVisible(false);

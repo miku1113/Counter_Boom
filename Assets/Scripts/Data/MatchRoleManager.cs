@@ -23,9 +23,19 @@ public class MatchRoleManager : NetworkBehaviour
     [Header("Map Thief Spawn Settings")]
     public float mapThiefSpawnRadius = 12f;
 
-    // Synced key collection count for hostages objective (0 to 2)
+    // Synced key collection count for hostages objective
     public NetworkVariable<int> KeysCollected = new NetworkVariable<int>(
         0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
+    // Random index (1 to 7) of the key that actually opens the Main Gate
+    public NetworkVariable<int> MasterGateKeyIndex = new NetworkVariable<int>(
+        1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
+    // Synchronized state whether Main Gate is unlocked
+    public NetworkVariable<bool> IsGateUnlocked = new NetworkVariable<bool>(
+        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
     );
 
     // Network variables tracking the Safe Key & Treasure quest lifecycle
@@ -49,6 +59,17 @@ public class MatchRoleManager : NetworkBehaviour
     public NetworkVariable<bool> TreasureStolen = new NetworkVariable<bool>(
         false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
     );
+
+    // Synchronized match outcome state
+    public NetworkVariable<bool> IsMatchEnded = new NetworkVariable<bool>(
+        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
+    public NetworkVariable<PlayerRole> WinningRole = new NetworkVariable<PlayerRole>(
+        PlayerRole.Hostage, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server
+    );
+
+    private HashSet<ulong> escapedHostageClientIds = new HashSet<ulong>();
 
     [Header("Assignable Map Locations (Drag & Drop in Inspector)")]
     public Transform groundHallTransform;      // Ground Hall / Ground Floor
@@ -128,13 +149,49 @@ public class MatchRoleManager : NetworkBehaviour
         if (IsServerAuthority())
         {
             KeysCollected.Value = 0;
+            MasterGateKeyIndex.Value = Random.Range(1, 8); // Pick 1 of 7 keys as Master Key
+            IsGateUnlocked.Value = false;
             SafeKeyHolderClientId.Value = 999999;
             GateKeyHolderClientId.Value = 999999;
             SafeKeyCollectedByThief.Value = false;
             IsSafeOpened.Value = false;
             TreasureStolen.Value = false;
+            IsMatchEnded.Value = false;
+            escapedHostageClientIds.Clear();
             assignedRoles.Clear();
-            Debug.Log("[MatchRoleManager] Successfully reset all match quest state and network variables for a new game!");
+            Debug.Log($"[MatchRoleManager] Successfully reset match quest state. MasterGateKeyIndex={MasterGateKeyIndex.Value}");
+        }
+    }
+
+    public void EnsureSafeKeyHolderAssigned()
+    {
+        if (!IsServerAuthority()) return;
+
+        List<ulong> hostageClientIds = new List<ulong>();
+        foreach (var pair in assignedRoles)
+        {
+            if (pair.Value == PlayerRole.Hostage) hostageClientIds.Add(pair.Key);
+        }
+
+        // If current holder is valid and still assigned as hostage, keep them
+        if (SafeKeyHolderClientId.Value != 999999 && hostageClientIds.Contains(SafeKeyHolderClientId.Value))
+        {
+            return;
+        }
+
+        if (hostageClientIds.Count > 0)
+        {
+            ulong chosenSafeKeyHolder = hostageClientIds[Random.Range(0, hostageClientIds.Count)];
+            SafeKeyHolderClientId.Value = chosenSafeKeyHolder;
+            Debug.Log($"[MatchRoleManager] 🔑 Assigned Safe Key to Hostage ClientId: {chosenSafeKeyHolder} (out of {hostageClientIds.Count} hostages)");
+            if (IsServer && NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            {
+                NotifySafeKeyHolderClientRpc(chosenSafeKeyHolder);
+            }
+            else if (chosenSafeKeyHolder == 0 && BagManager.Instance != null)
+            {
+                BagManager.Instance.AddSafeKey();
+            }
         }
     }
 
@@ -146,11 +203,18 @@ public class MatchRoleManager : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
-        if (IsServer)
+        if (IsServer && !RelayNetworkManager.IsMigrating)
         {
             ResetMatchState();
             AssignRolesForConnectedPlayers();
         }
+    }
+
+    public void SetRoleForClient(ulong clientId, PlayerRole role)
+    {
+        assignedRoles[clientId] = role;
+        Debug.Log($"[MatchRoleManager] Authoritatively registered ClientId {clientId} as {role}");
+        EnsureSafeKeyHolderAssigned();
     }
 
     /// <summary>
@@ -244,17 +308,61 @@ public class MatchRoleManager : NetworkBehaviour
         return GateKeyHolderClientId.Value == clientId;
     }
 
-    public void HandleSafeKeyHolderDeath(Vector3 dropPosition)
+    public void DropSafeKey(Vector3 dropPosition)
     {
-        Debug.Log($"[MatchRoleManager] Safe Key Holder (Hostage) died at {dropPosition}! Spawning SafeKeyItemPickup for Thieves...");
+        if (SafeKeyCollectedByThief.Value) return;
+
+        Debug.Log($"[MatchRoleManager] DropSafeKey called at {dropPosition}. NetworkManager.IsListening={NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening}, IsServer={IsServer}");
+
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+        {
+            SpawnSafeKeyLocal(dropPosition);
+            return;
+        }
+
+        if (IsServer)
+        {
+            SpawnSafeKeyClientRpc(dropPosition);
+        }
+        else
+        {
+            RequestDropSafeKeyServerRpc(dropPosition);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestDropSafeKeyServerRpc(Vector3 dropPosition)
+    {
+        if (!SafeKeyCollectedByThief.Value)
+        {
+            SpawnSafeKeyClientRpc(dropPosition);
+        }
+    }
+
+    [ClientRpc]
+    public void SpawnSafeKeyClientRpc(Vector3 dropPosition)
+    {
+        SpawnSafeKeyLocal(dropPosition);
+    }
+
+    private void SpawnSafeKeyLocal(Vector3 dropPosition)
+    {
+        if (FindObjectOfType<SafeKeyItemPickup>() != null) return;
 
         GameObject keyGO = new GameObject("Dropped_SafeKey", typeof(SafeKeyItemPickup));
         keyGO.transform.position = dropPosition;
 
+        Debug.Log($"[MatchRoleManager] 🔑 Safe Key dropped at {dropPosition}!");
+
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowNotification("<color=yellow>🔑 SAFE KEY DROPPED! Hostage holding Safe Key was eliminated!</color>");
+            HUDManager.Instance.ShowNotification("<color=yellow>🔑 SAFE KEY DROPPED! The Hostage holding the Safe Key was eliminated!</color>");
         }
+    }
+
+    public void HandleSafeKeyHolderDeath(Vector3 dropPosition)
+    {
+        DropSafeKey(dropPosition);
     }
 
     public void HandleGateKeyHolderDeath(Vector3 dropPosition)
@@ -275,6 +383,70 @@ public class MatchRoleManager : NetworkBehaviour
     {
         SafeKeyCollectedByThief.Value = true;
         Debug.Log("[MatchRoleManager] SafeKeyCollectedByThief set to TRUE via ServerRpc!");
+        DespawnSafeKeyClientRpc();
+    }
+
+    [ClientRpc]
+    public void DespawnSafeKeyClientRpc()
+    {
+        SafeKeyItemPickup[] all = FindObjectsOfType<SafeKeyItemPickup>();
+        foreach (var k in all)
+        {
+            if (k != null) Destroy(k.gameObject);
+        }
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowNotification("<color=gold>🔑 SAFE KEY COLLECTED! Locate and unlock the Safe to steal the Treasure!</color>");
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void UnlockMainGateServerRpc()
+    {
+        IsGateUnlocked.Value = true;
+        Debug.Log("[MatchRoleManager] Main Gate unlocked via ServerRpc!");
+        UnlockMainGateClientRpc();
+    }
+
+    [ClientRpc]
+    public void UnlockMainGateClientRpc()
+    {
+        if (MainGateController.Instance != null)
+        {
+            MainGateController.Instance.SetGateUnlocked();
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void DespawnKeyServerRpc(int keyIndex)
+    {
+        DespawnKeyClientRpc(keyIndex);
+    }
+
+    [ClientRpc]
+    public void DespawnKeyClientRpc(int keyIndex)
+    {
+        KeyItemPickup[] all = FindObjectsOfType<KeyItemPickup>();
+        foreach (var k in all)
+        {
+            if (k != null && k.keyIndex == keyIndex)
+            {
+                Destroy(k.gameObject);
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void NotifySafeKeyHolderClientRpc(ulong holderClientId)
+    {
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.LocalClientId == holderClientId)
+        {
+            if (BagManager.Instance != null) BagManager.Instance.AddSafeKey();
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.ShowNotification("<color=yellow>🔑 YOU ARE CARRYING THE SAFE KEY! Stay alive - if you die, Thieves will get it!</color>");
+            }
+        }
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -491,4 +663,179 @@ public class MatchRoleManager : NetworkBehaviour
             Debug.Log($"[MatchRoleManager] Key collected! Total keys: {KeysCollected.Value}/2");
         }
     }
+
+    public void ReportHostageEscaped(ulong clientId)
+    {
+        if (IsMatchEnded.Value) return;
+
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+        {
+            escapedHostageClientIds.Add(clientId);
+            HideEscapedPlayer(clientId);
+            CheckIfAllHostagesEscaped();
+            return;
+        }
+
+        if (IsServer)
+        {
+            escapedHostageClientIds.Add(clientId);
+            HideEscapedPlayerClientRpc(clientId);
+            CheckIfAllHostagesEscaped();
+        }
+        else
+        {
+            ReportHostageEscapedServerRpc(clientId);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ReportHostageEscapedServerRpc(ulong clientId)
+    {
+        if (IsMatchEnded.Value) return;
+        escapedHostageClientIds.Add(clientId);
+        HideEscapedPlayerClientRpc(clientId);
+        CheckIfAllHostagesEscaped();
+    }
+
+    [ClientRpc]
+    public void HideEscapedPlayerClientRpc(ulong clientId)
+    {
+        HideEscapedPlayer(clientId);
+    }
+
+    private void HideEscapedPlayer(ulong clientId)
+    {
+        PlayerController[] allPlayers = FindObjectsOfType<PlayerController>();
+        foreach (var p in allPlayers)
+        {
+            if (p != null && p.OwnerClientId == clientId)
+            {
+                if (p.IsLocal)
+                {
+                    if (HUDManager.Instance != null)
+                    {
+                        HUDManager.Instance.ShowNotification("<color=green>🚪 YOU ESCAPED SAFELY! Waiting for remaining teammates...</color>");
+                    }
+                }
+                p.enabled = false;
+                var col = p.GetComponent<Collider2D>();
+                if (col != null) col.enabled = false;
+                var srs = p.GetComponentsInChildren<SpriteRenderer>();
+                foreach (var sr in srs)
+                {
+                    if (sr != null) sr.enabled = false;
+                }
+                break;
+            }
+        }
+    }
+
+    public void CheckIfAllHostagesEscaped()
+    {
+        if (IsMatchEnded.Value) return;
+
+        PlayerController[] allPlayers = FindObjectsOfType<PlayerController>();
+        int aliveUnescapedHostages = 0;
+        int totalHostages = 0;
+
+        foreach (var p in allPlayers)
+        {
+            if (p == null) continue;
+            if (p.playerRole.Value == PlayerRole.Hostage)
+            {
+                totalHostages++;
+                var ph = p.GetComponent<PlayerHealth>();
+                bool isDead = p.IsGhost || (ph != null && ph.IsDead);
+                bool hasEscaped = escapedHostageClientIds.Contains(p.OwnerClientId);
+                if (!isDead && !hasEscaped)
+                {
+                    aliveUnescapedHostages++;
+                }
+            }
+        }
+
+        Debug.Log($"[MatchRoleManager] Hostage escape check: Alive & Unescaped={aliveUnescapedHostages}, Total={totalHostages}, Escaped={escapedHostageClientIds.Count}");
+
+        // If at least one hostage escaped, and all living hostages are out -> HOSTAGES WIN!
+        if (escapedHostageClientIds.Count > 0 && aliveUnescapedHostages == 0)
+        {
+            EndMatchWithWinner(PlayerRole.Hostage);
+        }
+        else if (totalHostages > 0 && aliveUnescapedHostages == 0 && escapedHostageClientIds.Count == 0)
+        {
+            // All hostages died without escaping -> THIEVES WIN!
+            EndMatchWithWinner(PlayerRole.Thief);
+        }
+    }
+
+    public void OnPlayerDied()
+    {
+        if (IsMatchEnded.Value) return;
+        if (IsServerAuthority())
+        {
+            CheckIfAllHostagesEscaped();
+        }
+    }
+
+    public void ReportThiefEscapedWithTreasure(ulong clientId)
+    {
+        if (IsMatchEnded.Value) return;
+
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+        {
+            EndMatchWithWinner(PlayerRole.Thief);
+            return;
+        }
+
+        if (IsServer)
+        {
+            EndMatchWithWinner(PlayerRole.Thief);
+        }
+        else
+        {
+            ReportThiefEscapedServerRpc(clientId);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ReportThiefEscapedServerRpc(ulong clientId)
+    {
+        if (IsMatchEnded.Value) return;
+        EndMatchWithWinner(PlayerRole.Thief);
+    }
+
+    public void EndMatchWithWinner(PlayerRole winner)
+    {
+        if (IsMatchEnded.Value) return;
+        if (IsServerAuthority())
+        {
+            IsMatchEnded.Value = true;
+            WinningRole.Value = winner;
+
+            Debug.Log($"[MatchRoleManager] 🏆 MATCH OVER! Winner: {winner}");
+
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            {
+                BroadcastMatchEndedClientRpc(winner);
+            }
+            else
+            {
+                if (HUDManager.Instance != null)
+                {
+                    HUDManager.Instance.ShowAnimatedWinnerModal(winner);
+                }
+            }
+        }
+    }
+
+    [ClientRpc]
+    public void BroadcastMatchEndedClientRpc(PlayerRole winner)
+    {
+        Debug.Log($"[MatchRoleManager] BroadcastMatchEndedClientRpc received. Winner: {winner}");
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowAnimatedWinnerModal(winner);
+        }
+    }
 }
+

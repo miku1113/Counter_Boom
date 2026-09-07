@@ -171,28 +171,39 @@ public class PlayerHealth : NetworkBehaviour
         Debug.Log($"[PlayerHealth] Player '{gameObject.name}' died! Starting death animation...");
         OnDeath?.Invoke();
 
-        // Drop Safe Key & Room Keys when a Bot dies (or when the Safe/Gate Key Holder dies in Online match)
+        // Drop Safe Key when the designated Safe Key Holder Hostage dies (or when Bot dies in offline mode)
         bool isBot = CompareTag("Bot") || GetComponent<AiBotController>() != null || gameObject.name.ToLower().Contains("bot");
         if (isBot)
         {
-            GameObject safeKeyGO = new GameObject("Dropped_SafeKey", typeof(SafeKeyItemPickup));
-            safeKeyGO.transform.position = transform.position;
-
-            GameObject roomKeyGO = new GameObject("Dropped_Key", typeof(KeyItemPickup));
-            roomKeyGO.transform.position = transform.position + new Vector3(0.5f, 0.2f, 0f);
+            if (MatchRoleManager.Instance != null)
+            {
+                MatchRoleManager.Instance.DropSafeKey(transform.position);
+            }
+            else
+            {
+                GameObject safeKeyGO = new GameObject("Dropped_SafeKey", typeof(SafeKeyItemPickup));
+                safeKeyGO.transform.position = transform.position;
+            }
             
-            Debug.Log($"[PlayerHealth] 🔑 Bot '{gameObject.name}' dropped Safe Key and Room Key at {transform.position}!");
+            Debug.Log($"[PlayerHealth] 🔑 Bot '{gameObject.name}' dropped Safe Key at {transform.position}!");
         }
         else if (MatchRoleManager.Instance != null)
         {
-            if (MatchRoleManager.Instance.IsSafeKeyHolder(OwnerClientId))
+            var pc = GetComponent<PlayerController>();
+            bool isHostage = (pc != null && pc.playerRole.Value == PlayerRole.Hostage);
+            bool isSafeKeyHolder = MatchRoleManager.Instance.IsSafeKeyHolder(OwnerClientId);
+
+            // If this player is the designated Safe Key holder hostage (or if there's only 1 hostage and holder was unassigned)
+            if (isSafeKeyHolder || (isHostage && MatchRoleManager.Instance.SafeKeyHolderClientId.Value == 999999))
             {
-                MatchRoleManager.Instance.HandleSafeKeyHolderDeath(transform.position);
+                MatchRoleManager.Instance.DropSafeKey(transform.position);
             }
             else if (MatchRoleManager.Instance.IsGateKeyHolder(OwnerClientId))
             {
                 MatchRoleManager.Instance.HandleGateKeyHolderDeath(transform.position);
             }
+
+            MatchRoleManager.Instance.OnPlayerDied();
         }
 
         // Drop all equipped weapons on the ground for other players to pick up!
@@ -283,7 +294,7 @@ public class PlayerHealth : NetworkBehaviour
             playerCtrl.EnableGhostMode();
         }
 
-        // 7. Update UI controls ONLY if the local player died & show Game Over Restart modal!
+        // 7. Update UI controls ONLY if the local player died (switch to Ghost mode UI with only move control)
         if (isLocalPlayer)
         {
             if (MobileInputManager.Instance != null)
@@ -293,7 +304,6 @@ public class PlayerHealth : NetworkBehaviour
             if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.SetGhostUI(true);
-                HUDManager.Instance.ShowGameOverModal();
             }
         }
     }

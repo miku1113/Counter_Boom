@@ -29,21 +29,14 @@ public class CharacterAssembler : NetworkBehaviour
     
     private bool isFacingRight = false;
 
-    // Network variable to sync custom skin index
-    private readonly NetworkVariable<int> equippedSkinIndex = new NetworkVariable<int>(
-        0, 
-        NetworkVariableReadPermission.Everyone, 
-        NetworkVariableWritePermission.Owner
-    );
+    public static CharacterSkinData[] globalSkinsCache;
 
-    private void Awake()
+    public static void SetGlobalSkins(CharacterSkinData[] skins)
     {
-        equippedSkinIndex.OnValueChanged += OnSkinIndexChanged;
-    }
-
-    private void OnSkinIndexChanged(int oldVal, int newVal)
-    {
-        ApplySkinByIndex(newVal);
+        if (skins != null && skins.Length > 0)
+        {
+            globalSkinsCache = skins;
+        }
     }
     
     public override void OnNetworkSpawn()
@@ -51,37 +44,28 @@ public class CharacterAssembler : NetworkBehaviour
         base.OnNetworkSpawn();
         UpdateSortingLayers();
 
-        if (IsOwner)
+        var pc = GetComponent<PlayerController>() ?? GetComponentInParent<PlayerController>();
+        if (pc != null && pc.skinIndex != null)
         {
-            int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
-            string equippedName = PlayerPrefs.GetString("EquippedSkinName", "");
-
-            // If name exists, match index by name in availableSkins
-            if (availableSkins != null && availableSkins.Length > 0 && !string.IsNullOrEmpty(equippedName))
-            {
-                int matchedIndex = System.Array.FindIndex(availableSkins, s => s != null && s.skinName == equippedName);
-                if (matchedIndex >= 0) equippedIndex = matchedIndex;
-            }
-
-            equippedSkinIndex.Value = equippedIndex;
-            ApplySkinByIndex(equippedIndex);
+            ApplySkinByIndex(pc.skinIndex.Value);
         }
-        else
+        else if (IsOwner)
         {
-            ApplySkinByIndex(equippedSkinIndex.Value);
+            LoadEquippedSkin();
         }
     }
 
     private void Start()
     {
         UpdateSortingLayers();
-        if (IsOwner || !IsSpawned)
+        var pc = GetComponent<PlayerController>() ?? GetComponentInParent<PlayerController>();
+        if (pc != null && pc.skinIndex != null && IsSpawned)
+        {
+            ApplySkinByIndex(pc.skinIndex.Value);
+        }
+        else if (IsOwner || !IsSpawned)
         {
             LoadEquippedSkin();
-        }
-        else
-        {
-            ApplySkinByIndex(equippedSkinIndex.Value);
         }
     }
 
@@ -91,13 +75,15 @@ public class CharacterAssembler : NetworkBehaviour
     /// </summary>
     public void LoadEquippedSkin()
     {
-        if (availableSkins == null || availableSkins.Length == 0)
+        var pc = GetComponent<PlayerController>() ?? GetComponentInParent<PlayerController>();
+        if (pc != null && !pc.IsLocal && !pc.IsOwner)
         {
-            if (MainMenuController.Instance != null && MainMenuController.Instance.skins != null)
-            {
-                availableSkins = MainMenuController.Instance.skins;
-            }
+            // Do NOT apply local device PlayerPrefs to remote players!
+            ApplySkinByIndex(pc.skinIndex.Value);
+            return;
         }
+
+        EnsureAvailableSkins();
         if (availableSkins == null || availableSkins.Length == 0) return;
 
         int equippedIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
@@ -126,27 +112,58 @@ public class CharacterAssembler : NetworkBehaviour
         }
     }
 
-    public void ApplySkinByIndex(int index)
+    public void EnsureAvailableSkins()
     {
         if (availableSkins == null || availableSkins.Length == 0)
         {
-            if (MainMenuController.Instance != null && MainMenuController.Instance.skins != null)
+            if (globalSkinsCache != null && globalSkinsCache.Length > 0)
+            {
+                availableSkins = globalSkinsCache;
+            }
+            else if (MainMenuController.Instance != null && MainMenuController.Instance.skins != null && MainMenuController.Instance.skins.Length > 0)
             {
                 availableSkins = MainMenuController.Instance.skins;
             }
+            else
+            {
+                var playerPrefab = Resources.Load<GameObject>("Player");
+                if (playerPrefab != null)
+                {
+                    var ca = playerPrefab.GetComponentInChildren<CharacterAssembler>();
+                    if (ca != null && ca.availableSkins != null && ca.availableSkins.Length > 0)
+                    {
+                        availableSkins = ca.availableSkins;
+                        globalSkinsCache = ca.availableSkins;
+                    }
+                }
+            }
         }
+    }
+
+    public void ApplySkinByIndex(int index)
+    {
+        EnsureAvailableSkins();
 
         if (availableSkins != null && index >= 0 && index < availableSkins.Length && availableSkins[index] != null)
         {
             SetCharacterSkin(availableSkins[index]);
         }
-        else if (IsOwner || !IsSpawned)
+        else
         {
-            LoadEquippedSkin();
+            var pc = GetComponent<PlayerController>() ?? GetComponentInParent<PlayerController>();
+            if (pc == null || pc.IsLocal || pc.IsOwner || !IsSpawned)
+            {
+                LoadEquippedSkin();
+            }
         }
     }
 
-    public int GetEquippedSkinIndexNetworkValue() => equippedSkinIndex.Value;
+    public int GetEquippedSkinIndexNetworkValue()
+    {
+        var pc = GetComponent<PlayerController>() ?? GetComponentInParent<PlayerController>();
+        if (pc != null && pc.skinIndex != null) return pc.skinIndex.Value;
+        return PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+    }
 
 #if UNITY_EDITOR
     [ContextMenu("Auto-Populate Skins")]

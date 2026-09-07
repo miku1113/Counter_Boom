@@ -147,8 +147,6 @@ public class HUDManager : MonoBehaviour
         {
             health.OnHealthChanged -= UpdateHealthUI;
             health.OnHealthChanged += UpdateHealthUI;
-            health.OnDeath         -= ShowGameOverModal;
-            health.OnDeath         += ShowGameOverModal;
             UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
         }
 
@@ -624,8 +622,6 @@ public class HUDManager : MonoBehaviour
         {
             health.OnHealthChanged -= UpdateHealthUI;
             health.OnHealthChanged += UpdateHealthUI;
-            health.OnDeath         -= ShowGameOverModal;
-            health.OnDeath         += ShowGameOverModal;
             UpdateHealthUI(health.GetCurrentHealth(), health.GetMaxHealth());
         }
 
@@ -2209,8 +2205,11 @@ public class HUDManager : MonoBehaviour
         }
     }
 
+    private GameObject ghostModeBanner;
+
     /// <summary>
     /// Disables action buttons (weapons, grenades, pickup, consumables, bag) during ghost spectating mode.
+    /// Only move control remains active.
     /// </summary>
     public void SetGhostUI(bool isGhost)
     {
@@ -2228,6 +2227,50 @@ public class HUDManager : MonoBehaviour
         if (healthText != null) healthText.gameObject.SetActive(!isGhost);
         if (energySlider != null) energySlider.gameObject.SetActive(!isGhost);
         if (energyText != null) energyText.gameObject.SetActive(!isGhost);
+
+        // Top ghost mode indicator banner
+        if (isGhost)
+        {
+            if (ghostModeBanner == null)
+            {
+                Canvas canvas = GetComponentInParent<Canvas>();
+                if (canvas == null) canvas = GetComponent<Canvas>();
+                if (canvas != null)
+                {
+                    ghostModeBanner = new GameObject("GhostModeBanner", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+                    ghostModeBanner.transform.SetParent(canvas.transform, false);
+
+                    RectTransform rt = ghostModeBanner.GetComponent<RectTransform>();
+                    rt.anchorMin = new Vector2(0.5f, 1f);
+                    rt.anchorMax = new Vector2(0.5f, 1f);
+                    rt.pivot = new Vector2(0.5f, 1f);
+                    rt.anchoredPosition = new Vector2(0f, -15f);
+                    rt.sizeDelta = new Vector2(240f, 36f);
+
+                    UnityEngine.UI.Image img = ghostModeBanner.GetComponent<UnityEngine.UI.Image>();
+                    img.color = new Color(0.08f, 0.14f, 0.24f, 0.85f);
+
+                    GameObject txtGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+                    txtGO.transform.SetParent(ghostModeBanner.transform, false);
+                    RectTransform txtRt = txtGO.GetComponent<RectTransform>();
+                    txtRt.anchorMin = Vector2.zero;
+                    txtRt.anchorMax = Vector2.one;
+                    txtRt.sizeDelta = Vector2.zero;
+
+                    TextMeshProUGUI tmp = txtGO.GetComponent<TextMeshProUGUI>();
+                    tmp.text = "👻 GHOST MODE";
+                    tmp.fontSize = 17;
+                    tmp.fontStyle = FontStyles.Bold;
+                    tmp.alignment = TextAlignmentOptions.Center;
+                    tmp.color = new Color(0.5f, 0.88f, 1.0f, 1.0f);
+                }
+            }
+            if (ghostModeBanner != null) ghostModeBanner.SetActive(true);
+        }
+        else
+        {
+            if (ghostModeBanner != null) ghostModeBanner.SetActive(false);
+        }
     }
 
     public void SetSettingsText(string text)
@@ -2278,6 +2321,13 @@ public class HUDManager : MonoBehaviour
         // Reset player inventory & state
         if (BagManager.Instance != null) BagManager.Instance.ClearInventory();
         if (WeaponController.Instance != null) WeaponController.Instance.ClearAttachPointChildren();
+
+        // Immediately update player presence to online upon leaving match
+        if (CounterBoom.Networking.FirebaseManager.Instance != null)
+        {
+            CounterBoom.Networking.FirebaseManager.Instance.SetForcedPresenceStatus("online");
+            CounterBoom.Networking.FirebaseManager.Instance.ForceSendPresenceUpdate();
+        }
 
         // Disconnect Relay / Netcode session gracefully so host migration triggers for remaining players!
         if (RelayNetworkManager.Instance != null)
@@ -3129,7 +3179,7 @@ public class HUDManager : MonoBehaviour
         menuTmp.color = Color.white;
 
         Button menuBtn = menuBtnGO.GetComponent<Button>();
-        menuBtn.onClick.AddListener(ReturnToMainMenu);
+        menuBtn.onClick.AddListener(ReturnToMainMenuViaLoading);
 
         victoryPanel = panelGO;
         victoryPanel.SetActive(false);
@@ -3143,11 +3193,324 @@ public class HUDManager : MonoBehaviour
 
     public void ReturnToMainMenu()
     {
+        ReturnToMainMenuViaLoading();
+    }
+
+    // ─── Animated Winner & End Game Modal ───────────────────────────────────────
+
+    private GameObject winnerPanel;
+    private GameObject winnerCardGO;
+    private TextMeshProUGUI winnerTitleText;
+    private TextMeshProUGUI winnerSubtitleText;
+    private TextMeshProUGUI winnerRoleBadgeText;
+    private TextMeshProUGUI winnerCountdownText;
+    private Outline winnerCardOutline;
+    private Coroutine autoReturnCoroutine;
+    private Coroutine animateModalCoroutine;
+
+    public void ShowAnimatedWinnerModal(PlayerRole winner)
+    {
+        EnsureWinnerUI();
+
+        if (winner == PlayerRole.Hostage)
+        {
+            if (winnerTitleText != null)
+            {
+                winnerTitleText.text = "🏆 HOSTAGES WIN! 🏆";
+                winnerTitleText.color = new Color(0.2f, 1f, 0.65f, 1f); // Vibrant Emerald Green
+            }
+            if (winnerSubtitleText != null)
+            {
+                winnerSubtitleText.text = "All living hostages unlocked the gate and escaped safely!";
+            }
+            if (winnerRoleBadgeText != null)
+            {
+                winnerRoleBadgeText.text = "ESCAPED VICTORY";
+                winnerRoleBadgeText.color = new Color(0.15f, 0.9f, 0.5f, 1f);
+            }
+            if (winnerCardOutline != null)
+            {
+                winnerCardOutline.effectColor = new Color(0.2f, 0.9f, 0.5f, 0.85f);
+            }
+        }
+        else
+        {
+            if (winnerTitleText != null)
+            {
+                winnerTitleText.text = "🏆 THIEVES WIN! 🏆";
+                winnerTitleText.color = new Color(1f, 0.82f, 0.2f, 1f); // Vibrant Gold
+            }
+            if (winnerSubtitleText != null)
+            {
+                winnerSubtitleText.text = "Safe cracked, treasure stolen, and thief escaped through the gate!";
+            }
+            if (winnerRoleBadgeText != null)
+            {
+                winnerRoleBadgeText.text = "HEIST SUCCESSFUL";
+                winnerRoleBadgeText.color = new Color(1f, 0.75f, 0.1f, 1f);
+            }
+            if (winnerCardOutline != null)
+            {
+                winnerCardOutline.effectColor = new Color(1f, 0.82f, 0.2f, 0.85f);
+            }
+        }
+
+        if (winnerPanel != null)
+        {
+            winnerPanel.SetActive(true);
+            winnerPanel.transform.SetAsLastSibling();
+        }
+
+        // Animate card scale bounce
+        if (animateModalCoroutine != null) StopCoroutine(animateModalCoroutine);
+        animateModalCoroutine = StartCoroutine(AnimateWinnerModalRoutine(winnerCardGO));
+
+        // Start 10-second countdown to return to main menu
+        if (autoReturnCoroutine != null) StopCoroutine(autoReturnCoroutine);
+        autoReturnCoroutine = StartCoroutine(AutoReturnCountdownRoutine(10));
+    }
+
+    private System.Collections.IEnumerator AnimateWinnerModalRoutine(GameObject targetCard)
+    {
+        if (targetCard == null) yield break;
+
+        targetCard.transform.localScale = Vector3.zero;
+        float duration = 0.5f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+
+            float scale;
+            if (t < 0.65f)
+            {
+                float tUp = t / 0.65f;
+                scale = Mathf.Lerp(0f, 1.14f, Mathf.Sin(tUp * Mathf.PI * 0.5f));
+            }
+            else
+            {
+                float tDown = (t - 0.65f) / 0.35f;
+                scale = Mathf.Lerp(1.14f, 1.0f, Mathf.Sin(tDown * Mathf.PI * 0.5f));
+            }
+
+            targetCard.transform.localScale = Vector3.one * scale;
+            yield return null;
+        }
+
+        targetCard.transform.localScale = Vector3.one;
+    }
+
+    private System.Collections.IEnumerator AutoReturnCountdownRoutine(int seconds)
+    {
+        int remaining = seconds;
+        while (remaining > 0)
+        {
+            if (winnerCountdownText != null)
+            {
+                winnerCountdownText.text = $"Returning to Main Menu in {remaining}s...";
+            }
+            yield return new WaitForSecondsRealtime(1.0f);
+            remaining--;
+        }
+
+        if (winnerCountdownText != null)
+        {
+            winnerCountdownText.text = "Returning to Main Menu...";
+        }
+
+        ReturnToMainMenuViaLoading();
+    }
+
+    private void EnsureWinnerUI()
+    {
+        if (winnerPanel != null) return;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = GetComponent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // Dim backdrop
+        GameObject panelGO = new GameObject("WinnerPanel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        panelGO.transform.SetParent(canvas.transform, false);
+
+        RectTransform rt = panelGO.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.sizeDelta = Vector2.zero;
+
+        UnityEngine.UI.Image bgImg = panelGO.GetComponent<UnityEngine.UI.Image>();
+        bgImg.color = new Color(0.01f, 0.02f, 0.05f, 0.94f);
+
+        // Center card
+        winnerCardGO = new GameObject("WinnerCard", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+        winnerCardGO.transform.SetParent(panelGO.transform, false);
+
+        RectTransform cardRt = winnerCardGO.GetComponent<RectTransform>();
+        cardRt.anchorMin = new Vector2(0.5f, 0.5f);
+        cardRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRt.pivot = new Vector2(0.5f, 0.5f);
+        cardRt.sizeDelta = new Vector2(480f, 320f);
+        cardRt.anchoredPosition = Vector2.zero;
+
+        UnityEngine.UI.Image cardImg = winnerCardGO.GetComponent<UnityEngine.UI.Image>();
+        cardImg.color = new Color(0.08f, 0.1f, 0.15f, 0.98f);
+
+        winnerCardOutline = winnerCardGO.AddComponent<Outline>();
+        winnerCardOutline.effectColor = new Color(1f, 0.82f, 0.2f, 0.85f);
+        winnerCardOutline.effectDistance = new Vector2(2.5f, -2.5f);
+
+        // Close button (X) in top right
+        GameObject closeBtnGO = new GameObject("CloseBtn", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        closeBtnGO.transform.SetParent(winnerCardGO.transform, false);
+        RectTransform closeRt = closeBtnGO.GetComponent<RectTransform>();
+        closeRt.anchorMin = new Vector2(1f, 1f);
+        closeRt.anchorMax = new Vector2(1f, 1f);
+        closeRt.pivot = new Vector2(1f, 1f);
+        closeRt.anchoredPosition = new Vector2(-12f, -12f);
+        closeRt.sizeDelta = new Vector2(36f, 36f);
+
+        UnityEngine.UI.Image closeImg = closeBtnGO.GetComponent<UnityEngine.UI.Image>();
+        closeImg.color = new Color(0.2f, 0.24f, 0.32f, 0.9f);
+
+        Outline closeOutline = closeBtnGO.AddComponent<Outline>();
+        closeOutline.effectColor = new Color(0.5f, 0.55f, 0.65f, 0.7f);
+        closeOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        GameObject closeTxtGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        closeTxtGO.transform.SetParent(closeBtnGO.transform, false);
+        RectTransform ctxtRt = closeTxtGO.GetComponent<RectTransform>();
+        ctxtRt.anchorMin = Vector2.zero; ctxtRt.anchorMax = Vector2.one; ctxtRt.sizeDelta = Vector2.zero;
+        TextMeshProUGUI ctxt = closeTxtGO.AddComponent<TextMeshProUGUI>();
+        ctxt.text = "✕";
+        ctxt.fontSize = 20f;
+        ctxt.fontStyle = FontStyles.Bold;
+        ctxt.alignment = TextAlignmentOptions.Center;
+        ctxt.color = Color.white;
+
+        Button closeBtn = closeBtnGO.GetComponent<Button>();
+        closeBtn.onClick.AddListener(ReturnToMainMenuViaLoading);
+
+        // Winner Badge
+        GameObject badgeGO = new GameObject("WinnerBadge", typeof(RectTransform), typeof(TextMeshProUGUI));
+        badgeGO.transform.SetParent(winnerCardGO.transform, false);
+        RectTransform badgeRt = badgeGO.GetComponent<RectTransform>();
+        badgeRt.anchorMin = new Vector2(0f, 1f); badgeRt.anchorMax = new Vector2(1f, 1f);
+        badgeRt.pivot = new Vector2(0.5f, 1f);
+        badgeRt.anchoredPosition = new Vector2(0f, -22f);
+        badgeRt.sizeDelta = new Vector2(0f, 22f);
+
+        winnerRoleBadgeText = badgeGO.GetComponent<TextMeshProUGUI>();
+        winnerRoleBadgeText.text = "VICTORY";
+        winnerRoleBadgeText.fontSize = 14f;
+        winnerRoleBadgeText.fontStyle = FontStyles.Bold;
+        winnerRoleBadgeText.alignment = TextAlignmentOptions.Center;
+        winnerRoleBadgeText.color = new Color(1f, 0.85f, 0.2f, 0.9f);
+
+        // Title
+        GameObject titleGO = new GameObject("WinnerTitle", typeof(RectTransform), typeof(TextMeshProUGUI));
+        titleGO.transform.SetParent(winnerCardGO.transform, false);
+        RectTransform titleRt = titleGO.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 1f); titleRt.anchorMax = new Vector2(1f, 1f);
+        titleRt.pivot = new Vector2(0.5f, 1f);
+        titleRt.anchoredPosition = new Vector2(0f, -48f);
+        titleRt.sizeDelta = new Vector2(0f, 44f);
+
+        winnerTitleText = titleGO.GetComponent<TextMeshProUGUI>();
+        winnerTitleText.text = "🏆 VICTORY! 🏆";
+        winnerTitleText.fontSize = 30f;
+        winnerTitleText.fontStyle = FontStyles.Bold;
+        winnerTitleText.alignment = TextAlignmentOptions.Center;
+        winnerTitleText.color = new Color(1f, 0.85f, 0.2f, 1f);
+
+        // Subtitle
+        GameObject subGO = new GameObject("WinnerSubtitle", typeof(RectTransform), typeof(TextMeshProUGUI));
+        subGO.transform.SetParent(winnerCardGO.transform, false);
+        RectTransform subRt = subGO.GetComponent<RectTransform>();
+        subRt.anchorMin = new Vector2(0f, 1f); subRt.anchorMax = new Vector2(1f, 1f);
+        subRt.pivot = new Vector2(0.5f, 1f);
+        subRt.anchoredPosition = new Vector2(0f, -96f);
+        subRt.sizeDelta = new Vector2(0f, 32f);
+
+        winnerSubtitleText = subGO.GetComponent<TextMeshProUGUI>();
+        winnerSubtitleText.text = "Game Over";
+        winnerSubtitleText.fontSize = 15f;
+        winnerSubtitleText.alignment = TextAlignmentOptions.Center;
+        winnerSubtitleText.color = new Color(0.85f, 0.9f, 1f, 1f);
+
+        // Countdown Text
+        GameObject cdGO = new GameObject("CountdownText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        cdGO.transform.SetParent(winnerCardGO.transform, false);
+        RectTransform cdRt = cdGO.GetComponent<RectTransform>();
+        cdRt.anchorMin = new Vector2(0f, 0f); cdRt.anchorMax = new Vector2(1f, 0f);
+        cdRt.pivot = new Vector2(0.5f, 0f);
+        cdRt.anchoredPosition = new Vector2(0f, 95f);
+        cdRt.sizeDelta = new Vector2(0f, 26f);
+
+        winnerCountdownText = cdGO.GetComponent<TextMeshProUGUI>();
+        winnerCountdownText.text = "Returning to Main Menu in 10s...";
+        winnerCountdownText.fontSize = 14f;
+        winnerCountdownText.alignment = TextAlignmentOptions.Center;
+        winnerCountdownText.color = new Color(0.65f, 0.75f, 0.9f, 0.9f);
+
+        // Return to Main Menu Button
+        GameObject menuBtnGO = new GameObject("ReturnMainMenuButton", typeof(RectTransform), typeof(UnityEngine.UI.Image), typeof(Button));
+        menuBtnGO.transform.SetParent(winnerCardGO.transform, false);
+        RectTransform menuRt = menuBtnGO.GetComponent<RectTransform>();
+        menuRt.anchorMin = new Vector2(0.5f, 0f); menuRt.anchorMax = new Vector2(0.5f, 0f);
+        menuRt.pivot = new Vector2(0.5f, 0f);
+        menuRt.anchoredPosition = new Vector2(0f, 32f);
+        menuRt.sizeDelta = new Vector2(280f, 46f);
+
+        UnityEngine.UI.Image menuImg = menuBtnGO.GetComponent<UnityEngine.UI.Image>();
+        menuImg.color = new Color(0.2f, 0.45f, 0.85f, 1f);
+
+        Outline mOutline = menuBtnGO.AddComponent<Outline>();
+        mOutline.effectColor = new Color(0.4f, 0.65f, 1f, 0.8f);
+        mOutline.effectDistance = new Vector2(1.5f, -1.5f);
+
+        GameObject menuTextGO = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        menuTextGO.transform.SetParent(menuBtnGO.transform, false);
+        RectTransform mTextRt = menuTextGO.GetComponent<RectTransform>();
+        mTextRt.anchorMin = Vector2.zero; mTextRt.anchorMax = Vector2.one; mTextRt.sizeDelta = Vector2.zero;
+
+        TextMeshProUGUI menuTmp = menuTextGO.GetComponent<TextMeshProUGUI>();
+        menuTmp.text = "RETURN TO MAIN MENU";
+        menuTmp.fontSize = 16f;
+        menuTmp.fontStyle = FontStyles.Bold;
+        menuTmp.alignment = TextAlignmentOptions.Center;
+        menuTmp.color = Color.white;
+
+        Button menuBtn = menuBtnGO.GetComponent<Button>();
+        menuBtn.onClick.AddListener(ReturnToMainMenuViaLoading);
+
+        winnerPanel = panelGO;
+        winnerPanel.SetActive(false);
+    }
+
+    public void ReturnToMainMenuViaLoading()
+    {
+        if (autoReturnCoroutine != null)
+        {
+            StopCoroutine(autoReturnCoroutine);
+            autoReturnCoroutine = null;
+        }
+
+        if (CounterBoom.Networking.FirebaseManager.Instance != null)
+        {
+            CounterBoom.Networking.FirebaseManager.Instance.SetForcedPresenceStatus("online");
+            CounterBoom.Networking.FirebaseManager.Instance.ForceSendPresenceUpdate();
+        }
+
         if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
         {
             Unity.Netcode.NetworkManager.Singleton.Shutdown();
         }
-        UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenuScene");
+
+        LoadingGameController.TargetMode = LoadingGameController.MatchMode.ReturnToMainMenu;
+        UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
     }
 }
 

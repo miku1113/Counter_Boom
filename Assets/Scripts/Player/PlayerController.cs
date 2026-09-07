@@ -26,6 +26,14 @@ public class PlayerController : NetworkBehaviour
         0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner
     );
 
+    public NetworkVariable<bool> isInGame = new NetworkVariable<bool>(
+        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner
+    );
+
+    public NetworkVariable<bool> isGhostNet = new NetworkVariable<bool>(
+        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner
+    );
+
     private TextMeshPro nameTagTMP;
 
     [Header("Name Tag Settings")]
@@ -33,6 +41,7 @@ public class PlayerController : NetworkBehaviour
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
+    private float nextSnapshotSaveTime = 0f;
     
     [Header("References")]
     [SerializeField] private Rigidbody2D rb;
@@ -124,9 +133,10 @@ public class PlayerController : NetworkBehaviour
         {
             isLocalCached = true;
             playerName.Value = GetOrGeneratePlayerName();
-            skinIndex.Value = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            int mySkin = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+            SetSkin(mySkin);
             RegisterCameraIfLocal();
-            Debug.Log($"[PlayerController] OnNetworkSpawn: Registered local player '{gameObject.name}' (OwnerClientId: {OwnerClientId})");
+            Debug.Log($"[PlayerController] OnNetworkSpawn: Registered local player '{gameObject.name}' (OwnerClientId: {OwnerClientId}, skinIndex: {skinIndex.Value})");
         }
 
         EnsureNameTag();
@@ -155,6 +165,26 @@ public class PlayerController : NetworkBehaviour
                 ca.ApplySkinByIndex(newVal);
             }
         };
+        isInGame.OnValueChanged += (oldVal, newVal) => UpdateLobbyNameTag();
+        isGhostNet.OnValueChanged += (oldVal, newVal) =>
+        {
+            if (newVal && !IsGhost)
+            {
+                EnableGhostMode();
+            }
+            else if (!newVal && IsGhost)
+            {
+                DisableGhostMode();
+            }
+            UpdateGhostVisibility();
+        };
+
+        // Immediately apply current skinIndex.Value on network spawn for local and remote players!
+        var initCA = GetComponentInChildren<CharacterAssembler>();
+        if (initCA != null)
+        {
+            initCA.ApplySkinByIndex(skinIndex.Value);
+        }
 
         if (IsServer)
         {
@@ -173,7 +203,27 @@ public class PlayerController : NetworkBehaviour
         playerRole.OnValueChanged += OnPlayerRoleNetworkChanged;
         OnPlayerRoleNetworkChanged(playerRole.Value, playerRole.Value);
 
+        if (IsOwner && RelayNetworkManager.IsMigrating && RelayNetworkManager.HasSnapshot && RelayNetworkManager.LastPlayerSnapshot.HasValue)
+        {
+            var snap = RelayNetworkManager.LastPlayerSnapshot.Value;
+            if (!IsServer)
+            {
+                RequestRestoreRoleServerRpc(snap.role);
+            }
+        }
+
         RefreshLobbyPositionAndState();
+    }
+
+    [ServerRpc]
+    public void RequestRestoreRoleServerRpc(PlayerRole role, ServerRpcParams rpcParams = default)
+    {
+        playerRole.Value = role;
+        if (MatchRoleManager.Instance != null)
+        {
+            MatchRoleManager.Instance.SetRoleForClient(OwnerClientId, role);
+        }
+        Debug.Log($"[PlayerController] Client {OwnerClientId} authoritatively restored role to {role} via ServerRpc");
     }
 
     public int GetLocalDisplaySlot()
@@ -323,10 +373,15 @@ public class PlayerController : NetworkBehaviour
 
     public void UpdateLobbyNameTag()
     {
+        EnsureNameTag();
         if (nameTagTMP == null) return;
 
         string displayName = playerName.Value.ToString();
-        if (string.IsNullOrEmpty(displayName)) displayName = gameObject.name;
+        if (string.IsNullOrEmpty(displayName) || displayName.Contains("(Clone)"))
+        {
+            string clean = gameObject.name.Replace("(Clone)", "").Trim();
+            displayName = !string.IsNullOrEmpty(clean) && clean != "Player" ? clean : "Player";
+        }
 
         string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
 
@@ -417,8 +472,9 @@ public class PlayerController : NetworkBehaviour
             Transform oldHost = transform.Find("OverheadMakeHostCanvas");
             if (oldHost != null) Destroy(oldHost.gameObject);
 
-            // In gameplay / CustomLobby: Do NOT show our own name on top of us! Show clean names for other players only.
-            if (IsOwner || IsLocalPlayer)
+            // In gameplay / CustomLobby: Do NOT show our own name on top of us! Show clean names for other players only without [HOST] or [READY] tags.
+            bool isThisLocal = IsLocal || IsOwner || IsLocalPlayer || (LocalPlayer == this);
+            if (isThisLocal)
             {
                 if (nameTagTMP != null && nameTagTMP.gameObject != null)
                 {
@@ -430,8 +486,17 @@ public class PlayerController : NetworkBehaviour
                 if (nameTagTMP != null && nameTagTMP.gameObject != null)
                 {
                     nameTagTMP.gameObject.SetActive(true);
+                    nameTagTMP.enabled = true;
 
-                    bool isOpponent = LocalPlayer != null && LocalPlayer.playerRole.Value != this.playerRole.Value;
+                    var mr = nameTagTMP.GetComponent<MeshRenderer>();
+                    if (mr != null)
+                    {
+                        mr.sortingLayerName = "player";
+                        mr.sortingOrder = 5000;
+                        mr.enabled = true;
+                    }
+
+                    bool isOpponent = LocalPlayer != null && LocalPlayer.playerRole.Value != PlayerRole.Hostage && LocalPlayer.playerRole.Value != this.playerRole.Value;
                     if (isOpponent)
                     {
                         nameTagTMP.text = $"<color=#FF3333>{displayName}</color>";
@@ -496,14 +561,7 @@ public class PlayerController : NetworkBehaviour
         if (ca != null) 
         { 
             ca.enabled = true; 
-            if (IsOwner || !IsSpawned)
-            {
-                ca.LoadEquippedSkin(); 
-            }
-            else
-            {
-                ca.ApplySkinByIndex(ca.GetEquippedSkinIndexNetworkValue());
-            }
+            ca.ApplySkinByIndex(skinIndex.Value);
         }
         var anim = GetComponent<Animator>(); if (anim != null) anim.enabled = true;
     }
@@ -522,9 +580,9 @@ public class PlayerController : NetworkBehaviour
             tagTrans = tagGO.transform;
         }
 
-        // Position on top of the player's head/hair (Y = 0.85f, Z = -0.5f)
+        // Position on top of the player's head/hair (Y = 0.85f, Z = -1.0f)
         float targetY = (nameTagHeightOffset > 0f) ? nameTagHeightOffset : 0.85f;
-        tagTrans.localPosition = new Vector3(0f, targetY, -0.5f);
+        tagTrans.localPosition = new Vector3(0f, targetY, -1.0f);
         tagTrans.localRotation = Quaternion.identity;
 
         nameTagTMP = tagTrans.GetComponent<TextMeshPro>();
@@ -533,13 +591,22 @@ public class PlayerController : NetworkBehaviour
             nameTagTMP = tagTrans.gameObject.AddComponent<TextMeshPro>();
         }
 
+        if (nameTagTMP.font == null)
+        {
+            var f = LoadingGameController.GetFontAsset();
+            if (f != null) nameTagTMP.font = f;
+        }
+
         float targetFontSize = (nameTagFontSize > 0f) ? nameTagFontSize : 2.8f;
         nameTagTMP.fontSize = targetFontSize;
         nameTagTMP.fontStyle = FontStyles.Bold;
         nameTagTMP.alignment = TextAlignmentOptions.Center;
+        nameTagTMP.enableWordWrapping = false;
+        nameTagTMP.overflowMode = TextOverflowModes.Overflow;
+        nameTagTMP.rectTransform.sizeDelta = new Vector2(10f, 2f);
         // Bright yellow outline-style: visible above all character sprites and backgrounds
         nameTagTMP.color = new Color(1f, 0.95f, 0.3f, 1f);
-        nameTagTMP.outlineWidth = 0.2f;
+        nameTagTMP.outlineWidth = 0.25f;
         nameTagTMP.outlineColor = new Color32(0, 0, 0, 255);
         nameTagTMP.sortingLayerID = SortingLayer.NameToID("player");
         nameTagTMP.sortingOrder = 5000; // Well above character sprite renderers (baseOrder 0 to 4)
@@ -549,6 +616,7 @@ public class PlayerController : NetworkBehaviour
         {
             mr.sortingLayerName = "player";
             mr.sortingOrder = 5000;
+            mr.enabled = true;
         }
     }
 
@@ -638,8 +706,27 @@ public class PlayerController : NetworkBehaviour
         UniversalButtonAudio.PlayClickSFX();
         Debug.Log("[PlayerController] Local player clicked overhead LEAVE ROOM button.");
 
+        bool isHost = NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
+
+        if (isHost)
+        {
+            try
+            {
+                NotifyRoomDisbandedClientRpc();
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[PlayerController] Could not broadcast NotifyRoomDisbandedClientRpc: {ex.Message}");
+            }
+            await System.Threading.Tasks.Task.Delay(150);
+        }
+
         if (RelayNetworkManager.Instance != null)
         {
+            if (!string.IsNullOrEmpty(RelayNetworkManager.Instance.CurrentJoinCode))
+            {
+                RelayNetworkManager.LastKickedOrLeftRoomCode = RelayNetworkManager.Instance.CurrentJoinCode;
+            }
             await RelayNetworkManager.Instance.LeaveMatchGracefully();
         }
 
@@ -661,6 +748,8 @@ public class PlayerController : NetworkBehaviour
         {
             MainMenuController.Instance.SetupPreviewPlayer();
             MainMenuController.Instance.ResetPreviewToEquippedSkin();
+            MainMenuController.Instance.UpdateLobbyButtonsState();
+            MainMenuController.Instance.UpdatePlayStatus("");
         }
     }
 
@@ -821,6 +910,45 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    public void SetSkin(int newSkinIndex)
+    {
+        if (IsOwner || !IsSpawned)
+        {
+            skinIndex.Value = newSkinIndex;
+        }
+
+        var ca = GetComponentInChildren<CharacterAssembler>();
+        if (ca != null)
+        {
+            ca.ApplySkinByIndex(newSkinIndex);
+        }
+
+        if (IsSpawned)
+        {
+            SetSkinServerRpc(newSkinIndex);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void SetSkinServerRpc(int newSkinIndex, ServerRpcParams rpcParams = default)
+    {
+        if (IsOwner)
+        {
+            skinIndex.Value = newSkinIndex;
+        }
+        SetSkinClientRpc(newSkinIndex);
+    }
+
+    [ClientRpc]
+    private void SetSkinClientRpc(int newSkinIndex)
+    {
+        var ca = GetComponentInChildren<CharacterAssembler>();
+        if (ca != null)
+        {
+            ca.ApplySkinByIndex(newSkinIndex);
+        }
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void RequestStartMatchServerRpc(ServerRpcParams rpcParams = default)
     {
@@ -831,6 +959,63 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    [ClientRpc]
+    public void NotifyPartyTargetModeClientRpc(LoadingGameController.MatchMode mode)
+    {
+        Debug.Log($"[PlayerController] Client received party target mode from host: {mode}");
+        LoadingGameController.TargetMode = mode;
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestPartyStartMatchServerRpc(ServerRpcParams rpcParams = default)
+    {
+        Debug.Log("[PlayerController] Server received RPC from Room Host (slot 0) to transition party to LoadingGame -> CustomLobby!");
+        LoadingGameController.TargetMode = LoadingGameController.MatchMode.PartyToLobby;
+        NotifyPartyTargetModeClientRpc(LoadingGameController.MatchMode.PartyToLobby);
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer && NetworkManager.Singleton.SceneManager != null)
+        {
+            NetworkManager.Singleton.SceneManager.LoadScene("LoadingGame", UnityEngine.SceneManagement.LoadSceneMode.Single);
+        }
+        else if (RelayNetworkManager.Instance != null)
+        {
+            RelayNetworkManager.Instance.ExecuteSceneLoad("LoadingGame");
+        }
+        else
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
+        }
+    }
+
+    [ClientRpc]
+    public void NotifyRoomDisbandedClientRpc()
+    {
+        if (IsServer) return; // Server already initiated the disband
+        Debug.Log("[PlayerController] Room Host disbanded the room in Main Menu. Leaving room cleanly...");
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            NetworkManager.Singleton.Shutdown();
+        }
+
+        var allPCs = FindObjectsOfType<PlayerController>();
+        foreach (var pc in allPCs)
+        {
+            if (pc != null && pc.gameObject != null)
+            {
+                Destroy(pc.gameObject);
+            }
+        }
+
+        if (MainMenuController.Instance != null)
+        {
+            MainMenuController.Instance.SetupPreviewPlayer();
+            MainMenuController.Instance.ResetPreviewToEquippedSkin();
+            MainMenuController.Instance.UpdateLobbyButtonsState();
+            MainMenuController.Instance.UpdatePlayStatus("<color=yellow>Room disbanded by host</color>");
+        }
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void RequestKickPlayerServerRpc(ulong targetClientId, ServerRpcParams rpcParams = default)
     {
@@ -838,7 +1023,7 @@ public class PlayerController : NetworkBehaviour
         KickPlayerLocal(targetClientId);
     }
 
-    public static void KickPlayerLocal(ulong targetClientId)
+    public static async void KickPlayerLocal(ulong targetClientId)
     {
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
 
@@ -860,9 +1045,14 @@ public class PlayerController : NetworkBehaviour
             {
                 Send = new ClientRpcSendParams { TargetClientIds = new ulong[] { targetClientId } }
             });
+            // Allow RPC packet time to be dispatched over Relay to client before disconnecting
+            await System.Threading.Tasks.Task.Delay(150);
         }
 
-        NetworkManager.Singleton.DisconnectClient(targetClientId);
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer && NetworkManager.Singleton.ConnectedClients.ContainsKey(targetClientId))
+        {
+            NetworkManager.Singleton.DisconnectClient(targetClientId);
+        }
 
         PlayerController[] remaining = FindObjectsOfType<PlayerController>();
         int slot = 0;
@@ -885,6 +1075,10 @@ public class PlayerController : NetworkBehaviour
 
         if (RelayNetworkManager.Instance != null)
         {
+            if (!string.IsNullOrEmpty(RelayNetworkManager.Instance.CurrentJoinCode))
+            {
+                RelayNetworkManager.LastKickedOrLeftRoomCode = RelayNetworkManager.Instance.CurrentJoinCode;
+            }
             _ = RelayNetworkManager.Instance.LeaveMatchGracefully();
         }
         else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
@@ -902,6 +1096,7 @@ public class PlayerController : NetworkBehaviour
         {
             MainMenuController.Instance.SetupPreviewPlayer();
             MainMenuController.Instance.ResetPreviewToEquippedSkin();
+            MainMenuController.Instance.UpdateLobbyButtonsState();
             MainMenuController.Instance.UpdatePlayStatus("<color=#FF4444>You were kicked from the room</color>");
         }
     }
@@ -957,6 +1152,15 @@ public class PlayerController : NetworkBehaviour
             if (p != null)
             {
                 p.RefreshLobbyPositionAndState();
+            }
+        }
+
+        if (RelayNetworkManager.Instance != null)
+        {
+            string targetPlayerId = targetNewHost.playerName != null ? targetNewHost.playerName.Value.ToString() : "";
+            if (!string.IsNullOrEmpty(targetPlayerId))
+            {
+                _ = RelayNetworkManager.Instance.TransferLobbyHostAsync(targetPlayerId);
             }
         }
     }
@@ -1178,7 +1382,52 @@ public class PlayerController : NetworkBehaviour
             if (IsOwner || IsLocalPlayer)
             {
                 RegisterCameraIfLocal();
+                // Ensure local player's authoritative skin is broadcast to all clients in the match
+                int mySkin = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
+                SetSkin(mySkin);
             }
+        }
+
+        moveInput = Vector2.zero;
+        isMoving = false;
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+        }
+        if (animator != null && animator.enabled)
+        {
+            animator.SetBool("isWalking", false);
+            animator.SetFloat("moveSpeed", 0f);
+        }
+
+        if (scene.name == "CustomLobby")
+        {
+            if (rb != null)
+            {
+                rb.velocity = Vector2.zero;
+            }
+            if (IsOwner || IsLocalPlayer)
+            {
+                isInGame.Value = true;
+                transform.position = new Vector3(0f, 0.58f, 0f);
+                if (rb != null) rb.position = new Vector2(0f, 0.58f);
+            }
+        }
+        else if (scene.name == "GameScene")
+        {
+            if (IsOwner || IsLocalPlayer)
+            {
+                isInGame.Value = true;
+            }
+        }
+        else if (scene.name == "MainMenuScene")
+        {
+            if (IsOwner || IsLocalPlayer)
+            {
+                isInGame.Value = false;
+                if (isGhostNet != null && isGhostNet.Value) isGhostNet.Value = false;
+            }
+            DisableGhostMode();
         }
 
         UpdateLobbyNameTag();
@@ -1186,6 +1435,11 @@ public class PlayerController : NetworkBehaviour
         if (scene.name == "GameScene")
         {
             RepositionForGameScene();
+            var ca = GetComponentInChildren<CharacterAssembler>();
+            if (ca != null)
+            {
+                ca.ApplySkinByIndex(skinIndex.Value);
+            }
         }
     }
 
@@ -1266,6 +1520,12 @@ public class PlayerController : NetworkBehaviour
 
         EvaluateIsLocal();
 
+        var ca = GetComponentInChildren<CharacterAssembler>();
+        if (ca != null)
+        {
+            ca.ApplySkinByIndex(skinIndex.Value);
+        }
+
         if (sceneName == "GameScene")
         {
             RepositionForGameScene();
@@ -1324,18 +1584,54 @@ public class PlayerController : NetworkBehaviour
             EvaluateIsLocal();
         }
 
+        // Spectral Ghost Visibility:
+        // Only ghosts can see other ghosts and themselves. Normal living players cannot see ghosts.
+        UpdateGhostVisibility();
+
         if (rb != null && (IsLocal || !isLocalCached || Unity.Netcode.NetworkManager.Singleton == null || !Unity.Netcode.NetworkManager.Singleton.IsListening))
         {
             transform.position = new Vector3(rb.position.x, rb.position.y, 0f);
         }
 
+        // Continuously persist live snapshot while playing in GameScene so host migration never loses position/data
+        if (IsLocal && !RelayNetworkManager.IsMigrating && activeScene == "GameScene")
+        {
+            if (Time.time >= nextSnapshotSaveTime)
+            {
+                nextSnapshotSaveTime = Time.time + 0.5f;
+                RelayNetworkManager.SaveCurrentPlayerState(this);
+            }
+        }
+
         HandleFootstepSounds();
 
-        // Floating air animation when in ghost mode (smooth vertical bobbing)
-        if (IsGhost && ghostVisualContainer != null)
+        // Floating air animation when in ghost mode (smooth vertical bobbing, tilt, scale breathing)
+        if (IsGhost && ghostVisualContainer != null && ghostVisualContainer.gameObject.activeSelf)
         {
-            float yOffset = Mathf.Sin(Time.time * floatSpeed) * floatAmplitude;
-            ghostVisualContainer.localPosition = ghostInitialVisualLocalPos + new Vector3(0f, yOffset, 0f);
+            float time = Time.time;
+            // 1. Smooth vertical bobbing in the air
+            float yBob = Mathf.Sin(time * floatSpeed) * floatAmplitude;
+            // 2. Gentle sway / tilt in the air
+            float tilt = Mathf.Sin(time * 2.2f) * 4.0f;
+            // When moving, tilt dynamically towards movement direction
+            if (moveInput.sqrMagnitude > 0.01f)
+            {
+                tilt += -moveInput.x * 10f;
+            }
+            // 3. Subtle ethereal breathing scale
+            float scaleY = 0.95f + Mathf.Sin(time * floatSpeed) * 0.04f;
+            float scaleX = 0.95f - Mathf.Sin(time * floatSpeed) * 0.025f;
+
+            ghostVisualContainer.localPosition = ghostInitialVisualLocalPos + new Vector3(0f, yBob, 0f);
+            ghostVisualContainer.localRotation = Quaternion.Euler(0f, 0f, tilt);
+            ghostVisualContainer.localScale = new Vector3(scaleX, scaleY, 1f);
+
+            // Facing flip according to horizontal movement
+            SpriteRenderer ghostSR = ghostVisualContainer.GetComponent<SpriteRenderer>();
+            if (ghostSR != null && Mathf.Abs(moveInput.x) > 0.05f)
+            {
+                ghostSR.flipX = moveInput.x < 0;
+            }
         }
     }
 
@@ -1455,81 +1751,221 @@ public class PlayerController : NetworkBehaviour
 
     public bool IsGhost { get; private set; } = false;
 
-    private static Sprite fallbackGhostSprite;
+    private static Sprite proceduralGhostSprite;
 
-    public static Sprite GetFallbackGhostSprite()
+    public static Sprite GetProceduralGhostSprite()
     {
-        if (fallbackGhostSprite != null) return fallbackGhostSprite;
+        if (proceduralGhostSprite != null) return proceduralGhostSprite;
 
-        int width = 128;
-        int height = 128;
-        Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        int size = 256;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.filterMode = FilterMode.Bilinear;
+        tex.wrapMode = TextureWrapMode.Clamp;
 
-        Color transparent = new Color(0f, 0f, 0f, 0f);
-        Color ghostBody = new Color(0.82f, 0.94f, 1.0f, 0.85f);
-        Color eyeColor = new Color(0.12f, 0.18f, 0.3f, 0.95f);
-
-        for (int y = 0; y < height; y++)
+        Color clear = new Color(0f, 0f, 0f, 0f);
+        for (int y = 0; y < size; y++)
         {
-            for (int x = 0; x < width; x++)
+            for (int x = 0; x < size; x++)
             {
-                tex.SetPixel(x, y, transparent);
+                tex.SetPixel(x, y, clear);
             }
         }
 
-        float centerX = width * 0.5f;
-        float headCenterY = height * 0.62f;
-        float headRadius = width * 0.36f;
+        float cx = size * 0.5f;
+        float headY = size * 0.60f;
+        float radiusX = size * 0.22f; // ~56 pixels radius for slender cute proportion
+        float radiusY = size * 0.25f; // ~64 pixels radius
+        float bottomY = size * 0.16f;
 
-        for (int y = 0; y < height; y++)
+        Color ghostColorTop = new Color(0.92f, 0.98f, 1.0f, 0.94f);    // Glowing celestial white
+        Color ghostColorBottom = new Color(0.72f, 0.90f, 1.0f, 0.75f); // Translucent spiritual cyan
+        Color glowColor = new Color(0.5f, 0.85f, 1.0f, 0.35f);         // Ethereal aura glow
+        Color eyeColor = new Color(0.08f, 0.10f, 0.20f, 0.98f);        // Cute dark eyes
+        Color eyeHighlight = new Color(1.0f, 1.0f, 1.0f, 0.98f);       // Sparkle catchlights
+        Color blushColor = new Color(0.55f, 0.82f, 1.0f, 0.35f);       // Soft celestial blush
+
+        for (int y = 0; y < size; y++)
         {
-            for (int x = 0; x < width; x++)
-            {
-                float dx = x - centerX;
-                float dy = y - headCenterY;
-                float distToHead = Mathf.Sqrt(dx * dx + dy * dy);
+            float normY = Mathf.Clamp01((y - bottomY) / (size * 0.88f - bottomY));
+            Color baseColor = Color.Lerp(ghostColorBottom, ghostColorTop, normY);
 
-                // Upper rounded head
-                if (y >= headCenterY && distToHead <= headRadius)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - cx;
+
+                // 1. Head dome (smooth semi-ellipse)
+                if (y >= headY)
                 {
-                    float edgeAlpha = Mathf.Clamp01((headRadius - distToHead) / 2.5f);
-                    tex.SetPixel(x, y, new Color(ghostBody.r, ghostBody.g, ghostBody.b, ghostBody.a * edgeAlpha));
-                }
-                // Floating tail & body
-                else if (y < headCenterY && y > height * 0.1f && Mathf.Abs(dx) <= headRadius * (y / headCenterY))
-                {
-                    float wave = Mathf.Sin((y / (float)height) * Mathf.PI * 4f) * 6f;
-                    float distFromEdge = (headRadius * (y / headCenterY)) - Mathf.Abs(dx + wave);
-                    if (distFromEdge >= 0f)
+                    float dy = y - headY;
+                    float ellipseDist = (dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY);
+                    if (ellipseDist <= 1.0f)
                     {
-                        float edgeAlpha = Mathf.Clamp01(distFromEdge / 2f);
-                        tex.SetPixel(x, y, new Color(ghostBody.r, ghostBody.g, ghostBody.b, ghostBody.a * edgeAlpha));
+                        float edgeDist = 1.0f - Mathf.Sqrt(ellipseDist);
+                        float alpha = Mathf.Clamp01(edgeDist * (radiusX / 2.0f));
+                        tex.SetPixel(x, y, new Color(baseColor.r, baseColor.g, baseColor.b, baseColor.a * alpha));
+                    }
+                    else if (ellipseDist <= 1.25f)
+                    {
+                        float auraAlpha = Mathf.Clamp01((1.25f - ellipseDist) * 3f) * 0.22f;
+                        tex.SetPixel(x, y, new Color(glowColor.r, glowColor.g, glowColor.b, glowColor.a * auraAlpha));
+                    }
+                }
+                // 2. Body & tapered undulating skirt
+                else if (y >= bottomY)
+                {
+                    float progressDown = 1f - Mathf.Clamp01((y - bottomY) / (headY - bottomY));
+                    // 3 soft ripples at the hem
+                    float wave = Mathf.Sin(((x - cx) / (radiusX * 1.15f)) * Mathf.PI * 3f) * (7f * progressDown);
+                    float currentWidth = radiusX * (1.0f + progressDown * 0.12f);
+
+                    if (y + wave >= bottomY && Mathf.Abs(dx) <= currentWidth)
+                    {
+                        float edgeX = currentWidth - Mathf.Abs(dx);
+                        float edgeY = (y + wave) - bottomY;
+                        float edgeDist = Mathf.Min(edgeX, edgeY);
+                        float alpha = Mathf.Clamp01(edgeDist / 2.5f);
+                        tex.SetPixel(x, y, new Color(baseColor.r, baseColor.g, baseColor.b, baseColor.a * alpha));
+                    }
+                    else if (Mathf.Abs(dx) <= currentWidth + 5f && y + wave >= bottomY - 5f)
+                    {
+                        tex.SetPixel(x, y, new Color(glowColor.r, glowColor.g, glowColor.b, glowColor.a * 0.18f));
                     }
                 }
             }
         }
 
-        // Cute dark ghost eyes
-        int eyeOffsetY = Mathf.RoundToInt(headCenterY + 4f);
-        int leftEyeX = Mathf.RoundToInt(centerX - 12f);
-        int rightEyeX = Mathf.RoundToInt(centerX + 12f);
+        // 3. Cute vertical oval eyes
+        int eyeY = Mathf.RoundToInt(headY + 4f);
+        int leftEyeX = Mathf.RoundToInt(cx - 15f);
+        int rightEyeX = Mathf.RoundToInt(cx + 15f);
+        float eyeRadX = 5.5f;
+        float eyeRadY = 9f;
 
-        for (int ey = -7; ey <= 7; ey++)
+        for (int ey = -12; ey <= 12; ey++)
         {
-            for (int ex = -5; ex <= 5; ex++)
+            for (int ex = -8; ex <= 8; ex++)
             {
-                if (ex * ex + ey * ey <= 28)
+                float eyeDist = (ex * ex) / (eyeRadX * eyeRadX) + (ey * ey) / (eyeRadY * eyeRadY);
+                if (eyeDist <= 1.0f)
                 {
-                    tex.SetPixel(leftEyeX + ex, eyeOffsetY + ey, eyeColor);
-                    tex.SetPixel(rightEyeX + ex, eyeOffsetY + ey, eyeColor);
+                    float aa = Mathf.Clamp01((1f - Mathf.Sqrt(eyeDist)) * 3f);
+                    Color curL = tex.GetPixel(leftEyeX + ex, eyeY + ey);
+                    Color curR = tex.GetPixel(rightEyeX + ex, eyeY + ey);
+                    tex.SetPixel(leftEyeX + ex, eyeY + ey, Color.Lerp(curL, eyeColor, aa));
+                    tex.SetPixel(rightEyeX + ex, eyeY + ey, Color.Lerp(curR, eyeColor, aa));
+                }
+            }
+        }
+
+        // 4. White sparkle catchlights in the eyes
+        for (int sy = -2; sy <= 2; sy++)
+        {
+            for (int sx = -2; sx <= 2; sx++)
+            {
+                if (sx * sx + sy * sy <= 4)
+                {
+                    tex.SetPixel(leftEyeX + 2 + sx, eyeY + 3 + sy, eyeHighlight);
+                    tex.SetPixel(rightEyeX + 2 + sx, eyeY + 3 + sy, eyeHighlight);
+                }
+            }
+        }
+
+        // 5. Soft blush
+        int blushY = Mathf.RoundToInt(headY - 8f);
+        int blushLX = Mathf.RoundToInt(cx - 24f);
+        int blushRX = Mathf.RoundToInt(cx + 24f);
+        for (int by = -4; by <= 4; by++)
+        {
+            for (int bx = -7; bx <= 7; bx++)
+            {
+                float bDist = (bx * bx) / 49f + (by * by) / 16f;
+                if (bDist <= 1.0f)
+                {
+                    float bAlpha = (1f - bDist) * 0.35f;
+                    Color curL = tex.GetPixel(blushLX + bx, blushY + by);
+                    Color curR = tex.GetPixel(blushRX + bx, blushY + by);
+                    tex.SetPixel(blushLX + bx, blushY + by, Color.Lerp(curL, blushColor, bAlpha));
+                    tex.SetPixel(blushRX + bx, blushY + by, Color.Lerp(curR, blushColor, bAlpha));
                 }
             }
         }
 
         tex.Apply();
-        fallbackGhostSprite = Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.4f), 100f);
-        return fallbackGhostSprite;
+        proceduralGhostSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.45f), 240f);
+        return proceduralGhostSprite;
+    }
+
+    public void UpdateGhostVisibility()
+    {
+        // 1. Find the local viewer
+        PlayerController localViewer = LocalPlayer;
+        if (localViewer == null)
+        {
+            foreach (var pc in FindObjectsOfType<PlayerController>())
+            {
+                if (pc != null && (pc.IsOwner || pc.IsLocal)) { localViewer = pc; break; }
+            }
+        }
+
+        bool viewerIsGhost = (localViewer != null && localViewer.IsGhost);
+        bool thisIsGhost = IsGhost || (isGhostNet != null && isGhostNet.Value);
+
+        if (thisIsGhost)
+        {
+            // Only ghost viewers can see ghosts! Normal living players CANNOT see ghosts.
+            if (ghostVisualContainer != null)
+            {
+                if (ghostVisualContainer.gameObject.activeSelf != viewerIsGhost)
+                {
+                    ghostVisualContainer.gameObject.SetActive(viewerIsGhost);
+                }
+            }
+
+            // Name tag visibility:
+            if (nameTagTMP != null && nameTagTMP.gameObject != null)
+            {
+                if (!viewerIsGhost)
+                {
+                    // Living player cannot see ghost name tags
+                    if (nameTagTMP.gameObject.activeSelf) nameTagTMP.gameObject.SetActive(false);
+                }
+                else
+                {
+                    // Ghost viewer sees other ghosts with an ethereal cyan tag (local ghost hides its own tag)
+                    bool isThisLocal = IsLocal || IsOwner || IsLocalPlayer || (LocalPlayer == this);
+                    if (isThisLocal)
+                    {
+                        if (nameTagTMP.gameObject.activeSelf) nameTagTMP.gameObject.SetActive(false);
+                    }
+                    else
+                    {
+                        if (!nameTagTMP.gameObject.activeSelf) nameTagTMP.gameObject.SetActive(true);
+                        string dName = playerName != null && !string.IsNullOrEmpty(playerName.Value.ToString()) ? playerName.Value.ToString() : gameObject.name;
+                        nameTagTMP.text = $"{dName}\n<color=#80d4ff>[GHOST]</color>";
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Living player: Always visible to everyone (both living players and ghosts can see living players)
+            bool isThisLocal = IsLocal || IsOwner || IsLocalPlayer || (LocalPlayer == this);
+            if (isThisLocal)
+            {
+                if (nameTagTMP != null && nameTagTMP.gameObject.activeSelf)
+                {
+                    nameTagTMP.gameObject.SetActive(false);
+                }
+            }
+            else
+            {
+                if (nameTagTMP != null)
+                {
+                    if (!nameTagTMP.gameObject.activeSelf) nameTagTMP.gameObject.SetActive(true);
+                    if (!nameTagTMP.enabled) nameTagTMP.enabled = true;
+                }
+            }
+        }
     }
 
     public void DisableGhostMode()
@@ -1605,12 +2041,18 @@ public class PlayerController : NetworkBehaviour
             playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
         }
 
+        if (IsOwner || IsLocalPlayer)
+        {
+            if (isGhostNet != null && isGhostNet.Value) isGhostNet.Value = false;
+        }
+
         if (IsLocal)
         {
             if (MobileInputManager.Instance != null) MobileInputManager.Instance.SetGhostUI(false);
             if (HUDManager.Instance != null) HUDManager.Instance.SetGhostUI(false);
         }
 
+        UpdateGhostVisibility();
         Debug.Log($"[PlayerController] Ghost mode disabled on '{gameObject.name}'. Player is alive.");
     }
 
@@ -1673,23 +2115,32 @@ public class PlayerController : NetworkBehaviour
         ghostVisualContainer = ghostChild;
         ghostInitialVisualLocalPos = Vector3.zero;
 
-        // 4. Show translucent floating ghost sprite ONLY to local ghost player
-        if (IsLocal)
+        // 4. Show translucent floating ghost sprite on the GhostVisualContainer
+        Sprite s = null;
+        if (ghostSprite != null && !ghostSprite.name.ToLower().Contains("skin") && !ghostSprite.texture.name.ToLower().Contains("skin") && (ghostSprite.name.ToLower().Contains("ghost") || ghostSprite.texture.name.ToLower().Contains("ghost")))
         {
-            SpriteRenderer ghostSR = ghostChild.GetComponent<SpriteRenderer>();
-            if (ghostSR == null) ghostSR = ghostChild.gameObject.AddComponent<SpriteRenderer>();
-
-            Sprite s = (ghostSprite != null) ? ghostSprite : GetFallbackGhostSprite();
-            ghostSR.sprite = s;
-            ghostSR.color = new Color(0.8f, 0.95f, 1.0f, 0.85f); // Translucent blue-white ghost
-            ghostSR.sortingOrder = 110;
-            ghostChild.gameObject.SetActive(true);
+            s = ghostSprite;
         }
         else
         {
-            // Remote ghost: completely invisible to living players
-            ghostChild.gameObject.SetActive(false);
+            s = GetProceduralGhostSprite();
         }
+
+        SpriteRenderer ghostSR = ghostChild.GetComponent<SpriteRenderer>();
+        if (ghostSR == null) ghostSR = ghostChild.gameObject.AddComponent<SpriteRenderer>();
+
+        ghostSR.sprite = s;
+        ghostSR.color = new Color(0.92f, 0.98f, 1.0f, 0.92f);
+        ghostSR.sortingLayerName = "player"; // Render on "player" layer
+        ghostSR.sortingOrder = 1000;         // Render in front of ground and objects
+        ghostChild.localScale = new Vector3(0.95f, 0.95f, 1f);
+
+        if (IsOwner || IsLocalPlayer)
+        {
+            if (isGhostNet != null && !isGhostNet.Value) isGhostNet.Value = true;
+        }
+
+        UpdateGhostVisibility();
 
         // 5. Hide name tag — ghosts have no overhead name
         if (nameTagTMP != null)

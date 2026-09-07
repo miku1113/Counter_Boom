@@ -10,7 +10,7 @@ public class MainGateController : NetworkBehaviour
     [Header("Gate Settings")]
     public Vector3 groundFloorGatePosition = new Vector3(0f, -10f, 0f);
     public bool isUnlocked = false;
-    public int requiredKeyCount = 2;
+    public int requiredKeyCount = 1;
 
     [Header("Visual References")]
     [SerializeField] private SpriteRenderer gateSpriteRenderer;
@@ -42,11 +42,27 @@ public class MainGateController : NetworkBehaviour
         if (MatchRoleManager.Instance != null)
         {
             MatchRoleManager.Instance.KeysCollected.OnValueChanged += OnKeysCollectedChanged;
-            UpdateGateStatus(MatchRoleManager.Instance.KeysCollected.Value);
+            MatchRoleManager.Instance.IsGateUnlocked.OnValueChanged += OnGateUnlockedNetChanged;
+            if (MatchRoleManager.Instance.IsGateUnlocked.Value)
+            {
+                SetGateUnlocked();
+            }
+            else
+            {
+                UpdateGateStatus(MatchRoleManager.Instance.KeysCollected.Value);
+            }
         }
         else
         {
             UpdateGateStatus(0);
+        }
+    }
+
+    private void OnGateUnlockedNetChanged(bool oldVal, bool newVal)
+    {
+        if (newVal)
+        {
+            SetGateUnlocked();
         }
     }
 
@@ -68,6 +84,7 @@ public class MainGateController : NetworkBehaviour
         if (MatchRoleManager.Instance != null)
         {
             MatchRoleManager.Instance.KeysCollected.OnValueChanged -= OnKeysCollectedChanged;
+            MatchRoleManager.Instance.IsGateUnlocked.OnValueChanged -= OnGateUnlockedNetChanged;
         }
         if (buttonGO != null) Destroy(buttonGO);
     }
@@ -207,35 +224,68 @@ public class MainGateController : NetworkBehaviour
         }
     }
 
+    public void SetGateUnlocked()
+    {
+        isUnlocked = true;
+        if (solidGateCollider != null) solidGateCollider.enabled = false;
+        int currentKeys = MatchRoleManager.Instance != null ? MatchRoleManager.Instance.KeysCollected.Value : 1;
+        UpdateGateStatus(currentKeys);
+
+        if (HUDManager.Instance != null)
+        {
+            HUDManager.Instance.ShowNotification("<color=green>🔓 MAIN GATE UNLOCKED! Walk through to Escape!</color>");
+        }
+        Debug.Log("[MainGateController] Main Gate is now UNLOCKED across the network!");
+        SetButtonVisible(true);
+    }
+
     private void OnGateButtonPressed()
     {
         if (localPlayer == null) return;
 
-        int currentKeys = MatchRoleManager.Instance != null ? MatchRoleManager.Instance.KeysCollected.Value : 0;
-
         if (!isUnlocked)
         {
-            if (currentKeys >= requiredKeyCount)
-            {
-                isUnlocked = true;
-                if (solidGateCollider != null) solidGateCollider.enabled = false;
-                UpdateGateStatus(currentKeys);
+            var bag = localPlayer.GetComponent<BagManager>() ?? localPlayer.GetComponentInChildren<BagManager>() ?? BagManager.Instance;
+            bool hasMaster = (bag != null && bag.hasMasterGateKey);
+            int keysInBag = (bag != null) ? bag.keysInBag : 0;
 
+            // Also check if any key in bag matches MasterGateKeyIndex
+            if (!hasMaster && bag != null && bag.collectedKeyIndices != null && MatchRoleManager.Instance != null)
+            {
+                if (bag.collectedKeyIndices.Contains(MatchRoleManager.Instance.MasterGateKeyIndex.Value))
+                {
+                    hasMaster = true;
+                }
+            }
+
+            if (hasMaster)
+            {
+                if (MatchRoleManager.Instance != null && NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+                {
+                    MatchRoleManager.Instance.UnlockMainGateServerRpc();
+                }
+                else
+                {
+                    SetGateUnlocked();
+                }
+                return;
+            }
+            else if (keysInBag > 0)
+            {
                 if (HUDManager.Instance != null)
                 {
-                    HUDManager.Instance.ShowNotification("<color=green>🔓 MAIN GATE UNLOCKED! Walk through to Escape!</color>");
+                    HUDManager.Instance.ShowNotification($"<color=orange>❌ WRONG KEY! This key does not fit the Main Gate. Keep searching the rooms with your team ({keysInBag}/7 keys found)!</color>");
                 }
-                Debug.Log("[MainGateController] Player manually pressed button to UNLOCK Main Gate!");
-                SetButtonVisible(true); // Updates label to ESCAPE
+                return;
             }
             else
             {
                 if (HUDManager.Instance != null)
                 {
-                    HUDManager.Instance.ShowNotification($"<color=red>🔒 MAIN GATE IS LOCKED! NEED ALL KEYS ({currentKeys}/{requiredKeyCount}) TO OPEN!</color>");
+                    HUDManager.Instance.ShowNotification("<color=red>🔒 MAIN GATE IS LOCKED! Search the rooms for the Main Gate Key (1 of 7 keys)!</color>");
                 }
+                return;
             }
-            return;
         }
 
         // Handle Escape when gate is unlocked
@@ -270,10 +320,16 @@ public class MainGateController : NetworkBehaviour
     {
         if (player == null) return;
 
+        SetButtonVisible(false);
+
         if (player.playerRole.Value == PlayerRole.Hostage)
         {
-            Debug.Log($"[MainGateController] Hostage '{player.playerName.Value}' escaped through Main Gate! ESCAPE SUCCESSFUL!");
-            if (HUDManager.Instance != null)
+            Debug.Log($"[MainGateController] Hostage '{player.playerName.Value}' escaped through Main Gate!");
+            if (MatchRoleManager.Instance != null)
+            {
+                MatchRoleManager.Instance.ReportHostageEscaped(player.OwnerClientId);
+            }
+            else if (HUDManager.Instance != null)
             {
                 HUDManager.Instance.ShowNotification("<color=yellow>🏆 ESCAPE SUCCESSFUL! Hostages Win!</color>");
             }
@@ -284,9 +340,20 @@ public class MainGateController : NetworkBehaviour
             if (treasureStolen)
             {
                 Debug.Log($"[MainGateController] Thief '{player.playerName.Value}' escaped with Treasure! ESCAPE SUCCESSFUL!");
-                if (HUDManager.Instance != null)
+                if (MatchRoleManager.Instance != null)
+                {
+                    MatchRoleManager.Instance.ReportThiefEscapedWithTreasure(player.OwnerClientId);
+                }
+                else if (HUDManager.Instance != null)
                 {
                     HUDManager.Instance.ShowNotification("<color=gold>🏆 ESCAPE SUCCESSFUL! Thief Escaped with Treasure! Thieves Win!</color>");
+                }
+            }
+            else
+            {
+                if (HUDManager.Instance != null)
+                {
+                    HUDManager.Instance.ShowNotification("<color=orange>🔒 YOU MUST CRACK THE SAFE & STEAL THE TREASURE BEFORE ESCAPING!</color>");
                 }
             }
         }

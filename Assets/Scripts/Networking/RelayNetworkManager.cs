@@ -16,12 +16,18 @@ public class RelayNetworkManager : MonoBehaviour
     public static RelayNetworkManager Instance { get; private set; }
 
     [Header("Configuration")]
-    [SerializeField] private int maxConnections = 2; // 2 connections = 3 players max in Main Menu Lobby (1 Host + 2 Clients)
+    [SerializeField] private int maxConnections = 3; // 3 connections = 4 players max in Main Menu Lobby (1 Host + 3 Clients)
     [SerializeField] private string lobbySceneName = "CustomLobby";
     [SerializeField] private string gameplaySceneName = "GameScene";
 
     public int MaxPlayers => maxConnections + 1;
-    public string CurrentJoinCode { get; private set; }
+    private string currentJoinCodeInternal = "";
+    public string CurrentJoinCode
+    {
+        get => !string.IsNullOrEmpty(currentJoinCodeInternal) ? currentJoinCodeInternal : lastValidJoinCode;
+        set => currentJoinCodeInternal = value;
+    }
+    public string LastValidJoinCode => !string.IsNullOrEmpty(currentJoinCodeInternal) ? currentJoinCodeInternal : lastValidJoinCode;
     public string CurrentLobbyId => currentLobby != null ? currentLobby.Id : null;
 
     // Holds the position, name and amount of a single world item pickup
@@ -48,6 +54,8 @@ public class RelayNetworkManager : MonoBehaviour
         public bool       facingRight;        // CharacterAssembler sprite flip direction
         public Dictionary<AmmoType, int>    ammoCounts;
         public Dictionary<GrenadeType, int> grenadeCounts;
+        public PlayerRole role;
+        public int        skinIndex;
         // Equipped weapon prefab names per slot (index 0 and 1)
         public string[]             weaponSlotNames;
         // All live world item pickups at time of snapshot
@@ -58,6 +66,7 @@ public class RelayNetworkManager : MonoBehaviour
     public static bool HasSnapshot = false;
 
     public static bool IsMigrating { get; private set; } = false;
+    public static string LastKickedOrLeftRoomCode = "";
 
     public static event System.Action<bool> OnMigrationStateChanged;
     public static event System.Action<string> OnMigrationStatusChanged;
@@ -74,6 +83,7 @@ public class RelayNetworkManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            GetPlayerPrefab();
         }
         else
         {
@@ -154,10 +164,34 @@ public class RelayNetworkManager : MonoBehaviour
             AssignLobbySlotIndices();
         }
 
-        // If we are a client in an active lobby and our host connection drops, start Host Migration!
-        if (!NetworkManager.Singleton.IsServer && !IsMigrating && currentLobby != null)
+        // If we are a client in an active lobby and our host connection drops (or we were kicked/disconnected):
+        if (!NetworkManager.Singleton.IsServer && !IsMigrating)
         {
-            Debug.Log("[RelayManager] Host connection lost! Triggering Host Migration...");
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "MainMenuScene")
+            {
+                Debug.Log("[RelayManager] Client disconnected from room in MainMenuScene -> Disbanding room and returning to solo.");
+                Disconnect();
+
+                var allPCs = Object.FindObjectsOfType<PlayerController>();
+                foreach (var pc in allPCs)
+                {
+                    if (pc != null && pc.gameObject != null)
+                    {
+                        Object.Destroy(pc.gameObject);
+                    }
+                }
+
+                if (MainMenuController.Instance != null)
+                {
+                    MainMenuController.Instance.SetupPreviewPlayer();
+                    MainMenuController.Instance.ResetPreviewToEquippedSkin();
+                    MainMenuController.Instance.UpdateLobbyButtonsState();
+                    MainMenuController.Instance.UpdatePlayStatus("<color=yellow>Room disbanded or disconnected</color>");
+                }
+                return;
+            }
+
+            Debug.Log("[RelayManager] Host connection lost in match! Triggering Host Migration...");
             StartHostMigration();
         }
     }
@@ -245,14 +279,41 @@ public class RelayNetworkManager : MonoBehaviour
                             started = lobby.Data["MatchStarted"].Value == "true";
                         }
 
+                        // Protect Main Menu rooms: Never join a room that was created under Main Menu!
+                        bool isMainMenuRoom = false;
+                        if (lobby.Data != null)
+                        {
+                            if (lobby.Data.ContainsKey("IsMainMenu") && lobby.Data["IsMainMenu"].Value == "true")
+                            {
+                                isMainMenuRoom = true;
+                            }
+                            if (lobby.Data.ContainsKey("LobbyType") && lobby.Data["LobbyType"].Value == "MainMenuParty")
+                            {
+                                isMainMenuRoom = true;
+                            }
+                        }
+
+                        if (isMainMenuRoom)
+                        {
+                            Debug.Log($"[RelayManager] QuickPlay skipping Main Menu party lobby '{lobby.Name}' ({lobby.Id})");
+                            continue;
+                        }
+
                         if (!started && lobby.Data != null && lobby.Data.ContainsKey("JoinCode"))
                         {
                             string joinCode = lobby.Data["JoinCode"].Value;
                             if (!string.IsNullOrEmpty(joinCode))
                             {
+                                // Skip rooms the player was kicked from or recently left
+                                if (!string.IsNullOrEmpty(LastKickedOrLeftRoomCode) && joinCode.Equals(LastKickedOrLeftRoomCode, System.StringComparison.OrdinalIgnoreCase))
+                                {
+                                    Debug.Log($"[RelayManager] QuickPlay skipping recently kicked/left room code '{joinCode}'");
+                                    continue;
+                                }
+
                                 try
                                 {
-                                    Debug.Log($"[RelayManager] Found active lobby '{lobby.Name}'. Joining UGS Lobby & Relay ({joinCode})...");
+                                    Debug.Log($"[RelayManager] Found active game match lobby '{lobby.Name}'. Joining UGS Lobby & Relay ({joinCode})...");
                                     Lobby joinedLobby = await LobbyService.Instance.JoinLobbyByIdAsync(lobby.Id);
                                     currentLobby = joinedLobby;
 
@@ -320,6 +381,18 @@ public class RelayNetworkManager : MonoBehaviour
                                 visibility: DataObject.VisibilityOptions.Public,
                                 value: joinCode
                             )
+                        },
+                        {
+                            "LobbyType", new DataObject(
+                                visibility: DataObject.VisibilityOptions.Public,
+                                value: "QuickPlayMatch"
+                            )
+                        },
+                        {
+                            "IsMainMenu", new DataObject(
+                                visibility: DataObject.VisibilityOptions.Public,
+                                value: "false"
+                            )
                         }
                     }
                 };
@@ -373,13 +446,25 @@ public class RelayNetworkManager : MonoBehaviour
                 int maxPlayers = maxConnections + 1;
                 CreateLobbyOptions options = new CreateLobbyOptions
                 {
-                    IsPrivate = false,
+                    IsPrivate = true, // Private so UGS queryLobbies (QuickPlay) will NEVER return Main Menu party rooms
                     Data = new Dictionary<string, DataObject>
                     {
                         {
                             "JoinCode", new DataObject(
                                 visibility: DataObject.VisibilityOptions.Public,
                                 value: joinCode
+                            )
+                        },
+                        {
+                            "LobbyType", new DataObject(
+                                visibility: DataObject.VisibilityOptions.Public,
+                                value: "MainMenuParty"
+                            )
+                        },
+                        {
+                            "IsMainMenu", new DataObject(
+                                visibility: DataObject.VisibilityOptions.Public,
+                                value: "true"
                             )
                         }
                     }
@@ -570,6 +655,24 @@ public class RelayNetworkManager : MonoBehaviour
         ExecuteSceneLoad(!string.IsNullOrEmpty(lobbySceneName) ? lobbySceneName : "CustomLobby");
     }
 
+    public async Task TransferLobbyHostAsync(string newHostPlayerId)
+    {
+        if (currentLobby == null || string.IsNullOrEmpty(newHostPlayerId)) return;
+
+        try
+        {
+            Debug.Log($"[RelayManager] Transferring UGS Lobby '{currentLobby.Id}' HostId to player '{newHostPlayerId}'...");
+            currentLobby = await LobbyService.Instance.UpdateLobbyAsync(currentLobby.Id, new UpdateLobbyOptions
+            {
+                HostId = newHostPlayerId
+            });
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[RelayManager] Failed to transfer UGS Lobby HostId: {ex.Message}");
+        }
+    }
+
     public async void StartMatchFromLobby()
     {
         if (currentLobby != null)
@@ -758,10 +861,12 @@ public class RelayNetworkManager : MonoBehaviour
                         : null;
 
                     bool isHost = currentLobby.HostId == myId;
+                    bool isMainMenu = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "MainMenuScene";
 
                     if (isHost)
                     {
-                        if (nextPlayer != null)
+                        // In Main Menu, host leaving always disbands the room completely (no host migration in lobby)
+                        if (!isMainMenu && nextPlayer != null)
                         {
                             Debug.Log($"[RelayManager] Host leaving active match: transferring HostId to next player '{nextPlayer.Id}'...");
                             try
@@ -785,7 +890,7 @@ public class RelayNetworkManager : MonoBehaviour
                         }
                         else
                         {
-                            Debug.Log($"[RelayManager] Host alone: Deleting empty Lobby '{currentLobby.Id}'...");
+                            Debug.Log($"[RelayManager] Host leaving in Main Menu (or alone): Deleting Lobby '{currentLobby.Id}'...");
                             await LobbyService.Instance.DeleteLobbyAsync(currentLobby.Id);
                         }
                     }
@@ -803,7 +908,13 @@ public class RelayNetworkManager : MonoBehaviour
             currentLobby = null;
         }
 
+        if (!string.IsNullOrEmpty(CurrentJoinCode))
+        {
+            LastKickedOrLeftRoomCode = CurrentJoinCode;
+        }
+
         CurrentJoinCode = "";
+        lastValidJoinCode = "";
 
         if (heartbeatCoroutine != null)
         {
@@ -828,7 +939,7 @@ public class RelayNetworkManager : MonoBehaviour
     {
         HasSnapshot = false;
         IsMigrating = false;
-        LastPlayerSnapshot = null; // nullable struct, this is valid
+        LastPlayerSnapshot = null;
 
         PlayerPrefs.DeleteKey("Snapshot_PosX");
         PlayerPrefs.DeleteKey("Snapshot_PosY");
@@ -836,9 +947,26 @@ public class RelayNetworkManager : MonoBehaviour
         PlayerPrefs.DeleteKey("Snapshot_Health");
         PlayerPrefs.DeleteKey("Snapshot_IsGhost");
         PlayerPrefs.DeleteKey("Snapshot_Slot");
+        PlayerPrefs.DeleteKey("Snapshot_Role");
+        PlayerPrefs.DeleteKey("Snapshot_Skin");
+        PlayerPrefs.DeleteKey("Snapshot_FacingRight");
+        PlayerPrefs.DeleteKey("Snapshot_Medikits");
+        PlayerPrefs.DeleteKey("Snapshot_Shakes");
+        PlayerPrefs.DeleteKey("Snapshot_Scopes");
+        PlayerPrefs.DeleteKey("Snapshot_Weapon0");
+        PlayerPrefs.DeleteKey("Snapshot_Weapon1");
+
+        foreach (AmmoType at in System.Enum.GetValues(typeof(AmmoType)))
+        {
+            PlayerPrefs.DeleteKey("Snapshot_Ammo_" + at);
+        }
+        foreach (GrenadeType gt in System.Enum.GetValues(typeof(GrenadeType)))
+        {
+            PlayerPrefs.DeleteKey("Snapshot_Grenade_" + gt);
+        }
         PlayerPrefs.Save();
 
-        Debug.Log("[RelayNetworkManager] Cleared local player snapshot & persistent ghost state.");
+        Debug.Log("[RelayNetworkManager] Cleared local player snapshot & persistent state.");
     }
 
     /// <summary>
@@ -849,6 +977,18 @@ public class RelayNetworkManager : MonoBehaviour
         var localPlayerObj = NetworkManager.Singleton != null && NetworkManager.Singleton.LocalClient != null 
             ? NetworkManager.Singleton.LocalClient.PlayerObject 
             : null;
+
+        if (localPlayerObj == null)
+        {
+            foreach (var pc in FindObjectsOfType<PlayerController>())
+            {
+                if (pc != null && (pc.IsOwner || pc.IsLocal))
+                {
+                    localPlayerObj = pc.GetComponent<NetworkObject>();
+                    break;
+                }
+            }
+        }
 
         if (localPlayerObj == null)
         {
@@ -875,6 +1015,28 @@ public class RelayNetworkManager : MonoBehaviour
             int hp = PlayerPrefs.GetInt("Snapshot_Health", 100);
             bool ghost = PlayerPrefs.GetInt("Snapshot_IsGhost", 0) == 1;
             int slot = PlayerPrefs.GetInt("Snapshot_Slot", 0);
+            PlayerRole role = (PlayerRole)PlayerPrefs.GetInt("Snapshot_Role", 0);
+            int skin = PlayerPrefs.GetInt("Snapshot_Skin", 0);
+            bool facing = PlayerPrefs.GetInt("Snapshot_FacingRight", 1) == 1;
+            int medikits = PlayerPrefs.GetInt("Snapshot_Medikits", 0);
+            int shakes = PlayerPrefs.GetInt("Snapshot_Shakes", 0);
+            int scopes = PlayerPrefs.GetInt("Snapshot_Scopes", 0);
+            string w0 = PlayerPrefs.GetString("Snapshot_Weapon0", "");
+            string w1 = PlayerPrefs.GetString("Snapshot_Weapon1", "");
+
+            var ammoDict = new Dictionary<AmmoType, int>();
+            foreach (AmmoType at in System.Enum.GetValues(typeof(AmmoType)))
+            {
+                string key = "Snapshot_Ammo_" + at;
+                if (PlayerPrefs.HasKey(key)) ammoDict[at] = PlayerPrefs.GetInt(key);
+            }
+
+            var grenadeDict = new Dictionary<GrenadeType, int>();
+            foreach (GrenadeType gt in System.Enum.GetValues(typeof(GrenadeType)))
+            {
+                string key = "Snapshot_Grenade_" + gt;
+                if (PlayerPrefs.HasKey(key)) grenadeDict[gt] = PlayerPrefs.GetInt(key);
+            }
 
             LastPlayerSnapshot = new PlayerMigrationSnapshot
             {
@@ -882,10 +1044,20 @@ public class RelayNetworkManager : MonoBehaviour
                 rotation = Quaternion.identity,
                 health = hp,
                 isGhost = ghost,
-                currentWeaponIndex = slot
+                currentWeaponIndex = slot,
+                role = role,
+                skinIndex = skin,
+                facingRight = facing,
+                medikitCount = medikits,
+                proteinShakeCount = shakes,
+                scopeCount = scopes,
+                weaponSlotNames = new string[] { w0, w1 },
+                ammoCounts = ammoDict,
+                grenadeCounts = grenadeDict,
+                worldItems = new List<WorldItemState>()
             };
             HasSnapshot = true;
-            Debug.Log($"[RelayManager] Restored local player snapshot from PlayerPrefs storage at ({px}, {py}, {pz}), IsGhost: {ghost}");
+            Debug.Log($"[RelayManager] Restored local player snapshot from PlayerPrefs storage at ({px}, {py}, {pz}), Role: {role}, IsGhost: {ghost}");
         }
     }
 
@@ -901,6 +1073,8 @@ public class RelayNetworkManager : MonoBehaviour
         int hp         = PlayerHealth.Instance != null ? PlayerHealth.Instance.GetCurrentHealth() : 100;
         bool ghost     = player.IsGhost;
         int slot       = WeaponController.Instance != null ? WeaponController.Instance.GetCurrentSlot() : 0;
+        PlayerRole role = player.playerRole.Value;
+        int skin = player.skinIndex.Value;
 
         Dictionary<AmmoType, int>    ammo     = null;
         Dictionary<GrenadeType, int> grenades = null;
@@ -918,7 +1092,7 @@ public class RelayNetworkManager : MonoBehaviour
         }
 
         // ── Snapshot equipped weapons (slot 0 and slot 1 prefab names) ──────────
-        string[] weaponNames = new string[2];
+        string[] weaponNames = new string[2] { "", "" };
         if (WeaponController.Instance != null)
         {
             string[] names = WeaponController.Instance.GetEquippedWeaponNames();
@@ -956,6 +1130,8 @@ public class RelayNetworkManager : MonoBehaviour
             health             = hp,
             isGhost            = ghost,
             currentWeaponIndex = slot,
+            role               = role,
+            skinIndex          = skin,
             ammoCounts         = ammo,
             grenadeCounts      = grenades,
             medikitCount       = medikits,
@@ -967,13 +1143,36 @@ public class RelayNetworkManager : MonoBehaviour
         };
         HasSnapshot = true;
 
-        // Persist core state to PlayerPrefs (position, health, ghost, slot) for resilience
+        // Persist core state to PlayerPrefs for resilience
         PlayerPrefs.SetFloat("Snapshot_PosX", pos.x);
         PlayerPrefs.SetFloat("Snapshot_PosY", pos.y);
         PlayerPrefs.SetFloat("Snapshot_PosZ", pos.z);
         PlayerPrefs.SetInt("Snapshot_Health", hp);
         PlayerPrefs.SetInt("Snapshot_IsGhost", ghost ? 1 : 0);
         PlayerPrefs.SetInt("Snapshot_Slot", slot);
+        PlayerPrefs.SetInt("Snapshot_Role", (int)role);
+        PlayerPrefs.SetInt("Snapshot_Skin", skin);
+        PlayerPrefs.SetInt("Snapshot_FacingRight", facingRight ? 1 : 0);
+        PlayerPrefs.SetInt("Snapshot_Medikits", medikits);
+        PlayerPrefs.SetInt("Snapshot_Shakes", shakes);
+        PlayerPrefs.SetInt("Snapshot_Scopes", scopes);
+        PlayerPrefs.SetString("Snapshot_Weapon0", weaponNames[0] ?? "");
+        PlayerPrefs.SetString("Snapshot_Weapon1", weaponNames[1] ?? "");
+
+        if (ammo != null)
+        {
+            foreach (var kvp in ammo)
+            {
+                PlayerPrefs.SetInt("Snapshot_Ammo_" + kvp.Key, kvp.Value);
+            }
+        }
+        if (grenades != null)
+        {
+            foreach (var kvp in grenades)
+            {
+                PlayerPrefs.SetInt("Snapshot_Grenade_" + kvp.Key, kvp.Value);
+            }
+        }
         PlayerPrefs.Save();
     }
 
@@ -1088,18 +1287,6 @@ public class RelayNetworkManager : MonoBehaviour
                 updatedHostId = updatedLobby.HostId;
 
                 Debug.Log($"[HostMigration] Lobby Host ID: {updatedHostId}, My Player ID: {myPlayerId}");
-
-                // Check if remaining player count in room is <= 1 (meaning host left a 2-player room and only 1 client remains)
-                if (updatedLobby.Players != null && updatedLobby.Players.Count <= 1)
-                {
-                    Debug.Log("[HostMigration] Only 1 player remaining after host left. Destroying room...");
-                    OnMigrationStatusChanged?.Invoke("Host left. Room closed.");
-                    yield return new WaitForSecondsRealtime(1.5f);
-                    IsMigrating = false;
-                    OnMigrationStateChanged?.Invoke(false);
-                    Disconnect();
-                    yield break;
-                }
 
                 // Scenario 1: UGS promoted us to Host
                 if (updatedHostId == myPlayerId)
@@ -1226,10 +1413,11 @@ public class RelayNetworkManager : MonoBehaviour
 
         OnMigrationStatusChanged?.Invoke("Reconnected! Spawning Player & Restoring State...");
 
-        float timeout = 10.0f;
+        float timeout = 8.0f;
         float elapsed = 0f;
         while ((NetworkManager.Singleton.LocalClient == null || NetworkManager.Singleton.LocalClient.PlayerObject == null) && elapsed < timeout)
         {
+            if (PlayerController.LocalPlayer != null) break;
             elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
@@ -1265,25 +1453,12 @@ public class RelayNetworkManager : MonoBehaviour
             yield break;
         }
 
-        // ── Wait one extra frame so all MonoBehaviour Start() methods run first ──
-        // WeaponController.Start() calls ClearAttachPointChildren() and
-        // BagManager.Start() calls ClearInventory() — both on the first frame.
-        // RestorePlayerFromSnapshot must run AFTER those clears, not before.
         yield return null;
 
-        // Only the host restores world pickups — using the snapshot so exact positions and
-        // item types are preserved, rather than randomly re-spawning new items.
+        // In GameScene: Restore match objects & world items on the new host
         if (NetworkManager.Singleton.IsServer && GameManager.Instance != null)
         {
-            if (HasSnapshot && LastPlayerSnapshot.HasValue && LastPlayerSnapshot.Value.worldItems != null && LastPlayerSnapshot.Value.worldItems.Count > 0)
-            {
-                GameManager.Instance.RestoreWorldItemsFromSnapshot(LastPlayerSnapshot.Value.worldItems);
-            }
-            else
-            {
-                // Fallback: no world item snapshot available — spawn fresh items
-                GameManager.Instance.SpawnItemsOnFloor();
-            }
+            GameManager.Instance.EnsureMatchObjectsForMigration();
         }
 
         // Notify GameManager to restore snapshot & set camera target & spawn player object if needed
@@ -1312,40 +1487,71 @@ public class RelayNetworkManager : MonoBehaviour
         Debug.Log("[HostMigration] Host migration successfully completed!");
     }
 
-    private GameObject GetPlayerPrefab()
+    private static GameObject cachedPlayerPrefab = null;
+
+    public GameObject GetPlayerPrefab()
     {
+        if (cachedPlayerPrefab != null) return cachedPlayerPrefab;
+
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.NetworkConfig != null && NetworkManager.Singleton.NetworkConfig.PlayerPrefab != null)
         {
-            return NetworkManager.Singleton.NetworkConfig.PlayerPrefab;
+            cachedPlayerPrefab = NetworkManager.Singleton.NetworkConfig.PlayerPrefab;
+            return cachedPlayerPrefab;
         }
-        GameObject loaded = Resources.Load<GameObject>("Player");
-        if (loaded == null) loaded = Resources.Load<GameObject>("Prefabs/Player");
-        return loaded;
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.NetworkConfig != null && NetworkManager.Singleton.NetworkConfig.Prefabs != null)
+        {
+            foreach (var list in NetworkManager.Singleton.NetworkConfig.Prefabs.NetworkPrefabsLists)
+            {
+                if (list != null && list.PrefabList != null)
+                {
+                    foreach (var np in list.PrefabList)
+                    {
+                        if (np != null && np.Prefab != null && np.Prefab.name.ToLower().Contains("player"))
+                        {
+                            cachedPlayerPrefab = np.Prefab;
+                            return cachedPlayerPrefab;
+                        }
+                    }
+                }
+            }
+        }
+
+        cachedPlayerPrefab = Resources.Load<GameObject>("Player");
+        if (cachedPlayerPrefab == null) cachedPlayerPrefab = Resources.Load<GameObject>("Prefabs/Player");
+        return cachedPlayerPrefab;
     }
 
     private void SpawnHostPlayerForMigration()
     {
         if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
 
+        Vector3 spawnPos = HasSnapshot && LastPlayerSnapshot.HasValue ? LastPlayerSnapshot.Value.position : Vector3.zero;
+        Quaternion spawnRot = HasSnapshot && LastPlayerSnapshot.HasValue ? LastPlayerSnapshot.Value.rotation : Quaternion.identity;
+
         if (NetworkManager.Singleton.LocalClient != null && NetworkManager.Singleton.LocalClient.PlayerObject != null)
         {
-            Debug.Log("[HostMigration] Host player object already exists!");
+            Debug.Log("[HostMigration] Host player object already exists -> Repositioning to snapshot!");
+            var pObj = NetworkManager.Singleton.LocalClient.PlayerObject.gameObject;
+            pObj.transform.position = spawnPos;
+            pObj.transform.rotation = spawnRot;
+            var rb = pObj.GetComponent<Rigidbody2D>();
+            if (rb != null) { rb.position = spawnPos; rb.velocity = Vector2.zero; }
+            if (CameraController.Instance != null) CameraController.Instance.SetTarget(pObj.transform);
             return;
         }
 
         GameObject playerPrefab = GetPlayerPrefab();
         if (playerPrefab != null)
         {
-            Vector3 spawnPos = HasSnapshot && LastPlayerSnapshot.HasValue ? LastPlayerSnapshot.Value.position : Vector3.zero;
-            Quaternion spawnRot = HasSnapshot && LastPlayerSnapshot.HasValue ? LastPlayerSnapshot.Value.rotation : Quaternion.identity;
-
             GameObject playerObj = Instantiate(playerPrefab, spawnPos, spawnRot);
             NetworkObject netObj = playerObj.GetComponent<NetworkObject>();
             if (netObj != null)
             {
-                netObj.SpawnWithOwnership(NetworkManager.Singleton.LocalClientId, true);
-                Debug.Log($"[HostMigration] Server manually spawned Host player object ({netObj.NetworkObjectId}) at {spawnPos}");
+                netObj.SpawnAsPlayerObject(NetworkManager.Singleton.LocalClientId, true);
+                Debug.Log($"[HostMigration] Server manually spawned Host player as PlayerObject ({netObj.NetworkObjectId}) at {spawnPos}");
             }
+            if (CameraController.Instance != null) CameraController.Instance.SetTarget(playerObj.transform);
         }
         else
         {
@@ -1372,7 +1578,7 @@ public class RelayNetworkManager : MonoBehaviour
             NetworkObject netObj = playerObj.GetComponent<NetworkObject>();
             if (netObj != null)
             {
-                netObj.SpawnWithOwnership(clientId, true);
+                netObj.SpawnAsPlayerObject(clientId, true);
                 Debug.Log($"[HostMigration] Server spawned player object for reconnected client {clientId}");
             }
         }

@@ -168,6 +168,31 @@ public class BagItemSlot : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndD
                 BagManager.Instance.DropScope(itemData);
             else if (itemData.itemType == ItemType.Weapon)
                 BagManager.Instance.DropWeapon(weaponSlotIndex != -1 ? weaponSlotIndex : 0);
+            else if (itemData.itemType == ItemType.Key)
+            {
+                if (BagManager.Instance.collectedKeyIndices != null && BagManager.Instance.collectedKeyIndices.Count > 0)
+                {
+                    int kIdx = BagManager.Instance.collectedKeyIndices[BagManager.Instance.collectedKeyIndices.Count - 1];
+                    BagManager.Instance.collectedKeyIndices.RemoveAt(BagManager.Instance.collectedKeyIndices.Count - 1);
+                    BagManager.Instance.keysInBag = BagManager.Instance.collectedKeyIndices.Count;
+                    bool isMaster = (MatchRoleManager.Instance != null && kIdx == MatchRoleManager.Instance.MasterGateKeyIndex.Value);
+                    if (isMaster) BagManager.Instance.hasMasterGateKey = false;
+                    
+                    GameObject kObj = new GameObject($"Dropped_Key_{kIdx}", typeof(KeyItemPickup));
+                    kObj.transform.position = BagManager.Instance.transform.position + new Vector3(0.5f, 0f, 0f);
+                    var pickup = kObj.GetComponent<KeyItemPickup>();
+                    if (pickup != null) { pickup.keyIndex = kIdx; pickup.isMasterKey = isMaster; }
+                    BagManager.Instance.OnBagUpdated?.Invoke();
+                }
+            }
+            else if (itemData.itemType == ItemType.SafeKey)
+            {
+                BagManager.Instance.RemoveSafeKey();
+                if (MatchRoleManager.Instance != null)
+                {
+                    MatchRoleManager.Instance.DropSafeKey(BagManager.Instance.transform.position + new Vector3(0.5f, 0f, 0f));
+                }
+            }
         }
 
         BagUI.Instance?.RefreshUI();

@@ -146,7 +146,11 @@ namespace CounterBoom.UI
             Action onDeclineClicked,
             Action<Button> onInviteClicked,
             Action onRemoveClicked,
-            Action onRowClicked = null)
+            Action onRowClicked = null,
+            string statusSuffix = "",
+            string inviteButtonText = "INVITE",
+            bool inviteButtonInteractable = true,
+            Color? inviteButtonColor = null)
         {
             AutoWireMissingFields();
 
@@ -163,11 +167,12 @@ namespace CounterBoom.UI
 
             if (nameText != null)
             {
-                nameText.text = displayName;
+                string formatted = string.IsNullOrEmpty(statusSuffix) ? displayName : $"{displayName} {statusSuffix}";
+                nameText.text = formatted;
                 var tmps = nameText.GetComponentsInChildren<TextMeshProUGUI>(true);
                 foreach (var t in tmps)
                 {
-                    t.text = displayName;
+                    t.text = formatted;
                 }
             }
 
@@ -238,8 +243,23 @@ namespace CounterBoom.UI
                 if (inviteButton != null)
                 {
                     inviteButton.gameObject.SetActive(true);
+                    inviteButton.interactable = inviteButtonInteractable;
+                    var tmp = inviteButton.GetComponentInChildren<TextMeshProUGUI>();
+                    if (tmp != null)
+                    {
+                        tmp.text = inviteButtonText;
+                    }
+                    if (inviteButtonColor.HasValue)
+                    {
+                        var img = inviteButton.GetComponent<Image>();
+                        if (img != null) img.color = inviteButtonColor.Value;
+                    }
+
                     inviteButton.onClick.RemoveAllListeners();
-                    if (onInviteClicked != null) inviteButton.onClick.AddListener(() => onInviteClicked.Invoke(inviteButton));
+                    if (inviteButtonInteractable && onInviteClicked != null)
+                    {
+                        inviteButton.onClick.AddListener(() => onInviteClicked.Invoke(inviteButton));
+                    }
                 }
 
                 if (removeButton != null)

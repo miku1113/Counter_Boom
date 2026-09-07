@@ -166,6 +166,14 @@ public class PlayerAiming : NetworkBehaviour
     public Vector2 RawAimInput => aimInput;
     public Vector2 GetAimDirection()  => lastAimDirection;
 
+    public void SetAimDirectionExternal(Vector2 dir)
+    {
+        if (dir.sqrMagnitude > 0.01f)
+        {
+            lastAimDirection = dir.normalized;
+        }
+    }
+
     public Vector3 GetFirePoint()
     {
         if (currentWeapon != null && currentWeapon.gameObject.activeSelf)
@@ -336,15 +344,37 @@ public class PlayerAiming : NetworkBehaviour
         }
         else
         {
-            // Unarmed mode: Keep light front arm (leftArm) at rest pose (with dip animation on unequip), rotate & move ONLY dark back arm (rightArm)
+            // Unarmed mode: Dynamic two-arm boxing punch animation
             if (leftArm != null && grenadeThrowTimer <= 0f)
             {
-                float leftArmRot = 0f;
-                if (weaponSwitchOffsetTimer > 0f)
+                if (!punchRightArm && punchAnimTimer > 0f)
                 {
-                    leftArmRot = weaponSwitchOffsetTimer * -25f;
+                    float lightArmRot = angle;
+                    if (facingRight)
+                    {
+                        lightArmRot += leftArmAngleOffset;
+                    }
+                    else
+                    {
+                        lightArmRot = (angle - 180f) - leftArmAngleOffset;
+                    }
+                    lightArmRot += punchAnimTimer * (facingRight ? 18f : -18f);
+
+                    leftArm.rotation = Quaternion.Euler(0, 0, lightArmRot);
+                    leftArm.position += (Vector3)(lastAimDirection * (punchAnimTimer * 0.75f));
+                    float scaleFactor = 1f + (punchAnimTimer * 0.22f);
+                    leftArm.localScale = new Vector3(scaleFactor, scaleFactor, 1f);
                 }
-                leftArm.localRotation = Quaternion.Euler(0, 0, leftArmRot);
+                else
+                {
+                    float leftArmRot = 0f;
+                    if (weaponSwitchOffsetTimer > 0f)
+                    {
+                        leftArmRot = weaponSwitchOffsetTimer * -25f;
+                    }
+                    leftArm.localRotation = Quaternion.Euler(0, 0, leftArmRot);
+                    leftArm.localScale = Vector3.one;
+                }
             }
 
             if (rightArm != null)
@@ -359,25 +389,17 @@ public class PlayerAiming : NetworkBehaviour
                     darkArmRotation = (angle - 180f) - rightArmAngleOffset;
                 }
 
-                // Add dynamic wrist rotation snap when striking
-                if (punchAnimTimer > 0f)
+                if (punchRightArm && punchAnimTimer > 0f)
                 {
                     darkArmRotation += punchAnimTimer * (facingRight ? 18f : -18f);
-                }
-
-                rightArm.rotation = Quaternion.Euler(0, 0, darkArmRotation);
-
-                // Punch animation: ONLY move the dark back arm (rightArm) forward along aim direction!
-                if (punchAnimTimer > 0f)
-                {
+                    rightArm.rotation = Quaternion.Euler(0, 0, darkArmRotation);
                     rightArm.position += (Vector3)(lastAimDirection * (punchAnimTimer * 0.75f));
-
-                    // Scale impact pop at peak extension
                     float scaleFactor = 1f + (punchAnimTimer * 0.22f);
                     rightArm.localScale = new Vector3(scaleFactor, scaleFactor, 1f);
                 }
                 else
                 {
+                    rightArm.rotation = Quaternion.Euler(0, 0, darkArmRotation);
                     rightArm.localScale = Vector3.one;
                 }
             }
@@ -677,6 +699,8 @@ public class PlayerAiming : NetworkBehaviour
 
         Transform rArm = GetRightArmTransform();
         if (rArm != null) rArm.localScale = Vector3.one;
+        Transform lArm = GetLeftArmTransform();
+        if (lArm != null) lArm.localScale = Vector3.one;
         punchAnimTimer = 0f;
         punchCoroutine = null;
     }
@@ -687,5 +711,13 @@ public class PlayerAiming : NetworkBehaviour
         if (r == null) r = transform.Find("Arms/RightArm");
         if (r == null) r = transform.Find("Body/RightArm");
         return r;
+    }
+
+    private Transform GetLeftArmTransform()
+    {
+        Transform l = characterAssembler != null ? characterAssembler.GetLeftArmTransform() : null;
+        if (l == null) l = transform.Find("Arms/LeftArm");
+        if (l == null) l = transform.Find("Body/LeftArm");
+        return l;
     }
 }

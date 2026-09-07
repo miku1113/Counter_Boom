@@ -105,7 +105,12 @@ public class InteractiveLobbyController : MonoBehaviour
         if (localPC != null)
         {
             localPC.RestoreGameplayComponents();
-            Debug.Log("[InteractiveLobby] Restored gameplay components on local player for CustomLobby.");
+            localPC.SetMoveInput(Vector2.zero);
+            var rb = localPC.GetComponent<Rigidbody2D>();
+            if (rb != null) rb.velocity = Vector2.zero;
+            localPC.transform.position = new Vector3(0f, 0.58f, 0f);
+            if (rb != null) rb.position = new Vector2(0f, 0.58f);
+            Debug.Log("[InteractiveLobby] Restored gameplay components and zeroed movement input on local player for CustomLobby.");
         }
         else
         {
@@ -139,6 +144,14 @@ public class InteractiveLobbyController : MonoBehaviour
                     pObj.transform.localScale = new Vector3(2f, 2f, 2f);
                     Debug.Log("[InteractiveLobby] Spawned offline Player avatar for CustomLobby.");
                 }
+            }
+        }
+
+        foreach (var p in FindObjectsOfType<PlayerController>())
+        {
+            if (p != null)
+            {
+                p.UpdateLobbyNameTag();
             }
         }
     }

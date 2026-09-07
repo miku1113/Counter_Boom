@@ -207,7 +207,11 @@ public class HandheldWeapon : MonoBehaviour
                  b.Initialize(direction, speed, damage, shooter);
              }
 
-             // Visual Fire Effect
+             // Visual Muzzle Flash and Gun Smoke at weapon FirePoint
+             Vector3 muzzlePos = (firePoint != null) ? firePoint.position : position;
+             ProceduralEffectsGenerator.CreateMuzzleFlashAndSmoke(muzzlePos, direction, firePoint);
+
+             // Optional custom fire effect prefab
              if (fireEffectPrefab != null && firePoint != null)
              {
                  GameObject effect = Instantiate(fireEffectPrefab, position, rotation, firePoint);

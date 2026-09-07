@@ -414,6 +414,7 @@ GameObject:
   - component: {fileID: 2048975288}
   - component: {fileID: 2048975287}
   - component: {fileID: 2048975286}
+  - component: {fileID: 2048975290}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -450,17 +451,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_UiScaleMode: 0
+  m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
+  m_ReferenceResolution: {x: 1920, y: 1080}
   m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
+  m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
   m_PresetInfoIsWorld: 0
+--- !u!114 &2048975290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2048975285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e492090c1d0d74bf8aa5322ddb8fb491, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  loadingBackgroundImage: {fileID: 0}
+  loadingSpinnerImage: {fileID: 0}
+  loadingStatusText: {fileID: 0}
 --- !u!223 &2048975288
 Canvas:
   m_ObjectHideFlags: 0

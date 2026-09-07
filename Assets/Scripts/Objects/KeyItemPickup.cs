@@ -6,6 +6,7 @@ public class KeyItemPickup : NetworkBehaviour
 {
     [Header("Key Info")]
     public int keyIndex = 1;
+    public bool isMasterKey = false;
     [SerializeField] private float bobbingSpeed = 2.5f;
     [SerializeField] private float bobbingHeight = 0.15f;
     [SerializeField] private Color keyGlowColor = new Color(1f, 0.85f, 0.2f, 1f);
@@ -253,24 +254,39 @@ public class KeyItemPickup : NetworkBehaviour
             PlayerController.LocalPlayer.PlayPickupSound(pickupSound);
         }
 
+        bool isMaster = isMasterKey || (MatchRoleManager.Instance != null && keyIndex == MatchRoleManager.Instance.MasterGateKeyIndex.Value);
+
+        // Add to Player's Bag
+        var bag = player.GetComponent<BagManager>() ?? player.GetComponentInChildren<BagManager>() ?? BagManager.Instance;
+        if (bag != null)
+        {
+            bag.AddKey(keyIndex, isMaster);
+        }
+
         if (MatchRoleManager.Instance != null)
         {
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || IsServer)
             {
-                if (MatchRoleManager.Instance.KeysCollected.Value < 2)
-                {
-                    MatchRoleManager.Instance.KeysCollected.Value++;
-                }
+                MatchRoleManager.Instance.KeysCollected.Value++;
+                MatchRoleManager.Instance.DespawnKeyClientRpc(keyIndex);
             }
             else
             {
                 MatchRoleManager.Instance.CollectKeyServerRpc();
+                MatchRoleManager.Instance.DespawnKeyServerRpc(keyIndex);
             }
         }
 
         if (HUDManager.Instance != null)
         {
-            HUDManager.Instance.ShowNotification($"🔑 KEY #{keyIndex} COLLECTED! Bring keys to Main Gate!");
+            if (isMaster)
+            {
+                HUDManager.Instance.ShowNotification("<color=gold>🗝️ YOU FOUND THE MASTER GATE KEY! Bring it to the Main Gate to escape!</color>");
+            }
+            else
+            {
+                HUDManager.Instance.ShowNotification($"<color=yellow>🗝️ KEY #{keyIndex} COLLECTED! Added to Bag. Keep searching with your team!</color>");
+            }
         }
 
         // Network Despawn or Disable
@@ -284,6 +300,6 @@ public class KeyItemPickup : NetworkBehaviour
             }
         }
 
-        gameObject.SetActive(false);
+        Destroy(gameObject);
     }
 }

@@ -1117,6 +1117,10 @@ MonoBehaviour:
     m_InternalValue: 0
   skinIndex:
     m_InternalValue: 0
+  isInGame:
+    m_InternalValue: 0
+  isGhostNet:
+    m_InternalValue: 0
   nameTagFontSize: 1.4
   moveSpeed: 5
   rb: {fileID: 1111370383705521264}
@@ -1334,6 +1338,10 @@ MonoBehaviour:
   scopeCount: 0
   medikitCount: 0
   proteinShakeCount: 0
+  keysInBag: 0
+  hasMasterGateKey: 0
+  hasSafeKey: 0
+  collectedKeyIndices: 
   activeGrenadeType: 1
   weaponController: {fileID: 8437809977635606970}
 --- !u!114 &4344337568211794913

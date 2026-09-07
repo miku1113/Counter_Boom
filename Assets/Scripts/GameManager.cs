@@ -137,42 +137,44 @@ public class GameManager : MonoBehaviour
 
         if (FindObjectsOfType<KeyItemPickup>().Length == 0 && IsServerAuthority())
         {
-            Vector3 pos1, pos2;
-            GetRandomRoomKeySpawnPositions(out pos1, out pos2);
+            const int totalKeysToSpawn = 7;
+            List<Vector3> spawnPositions = GetMultipleKeySpawnPositions(totalKeysToSpawn);
 
-            GameObject k1, k2;
-            if (customKeyPrefab != null)
+            int luckyKeyIndex = Random.Range(1, totalKeysToSpawn + 1);
+            if (MatchRoleManager.Instance != null && (IsServerAuthority() || MatchRoleManager.Instance.IsServer))
             {
-                k1 = Instantiate(customKeyPrefab, pos1, Quaternion.identity);
-                k1.name = "Key_1";
-                k2 = Instantiate(customKeyPrefab, pos2, Quaternion.identity);
-                k2.name = "Key_2";
-            }
-            else
-            {
-                k1 = new GameObject("Key_1", typeof(KeyItemPickup));
-                k1.transform.position = pos1;
-                k1.transform.localScale = new Vector3(0.4f, 0.4f, 1f); // Smaller, clean realistic key size
-
-                k2 = new GameObject("Key_2", typeof(KeyItemPickup));
-                k2.transform.position = pos2;
-                k2.transform.localScale = new Vector3(0.4f, 0.4f, 1f); // Smaller, clean realistic key size
+                MatchRoleManager.Instance.MasterGateKeyIndex.Value = luckyKeyIndex;
             }
 
-            var key1Comp = k1.GetComponent<KeyItemPickup>();
-            if (key1Comp == null) key1Comp = k1.AddComponent<KeyItemPickup>();
-            key1Comp.keyIndex = 1;
-
-            var key2Comp = k2.GetComponent<KeyItemPickup>();
-            if (key2Comp == null) key2Comp = k2.AddComponent<KeyItemPickup>();
-            key2Comp.keyIndex = 2;
-
-            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+            for (int i = 0; i < spawnPositions.Count; i++)
             {
-                var no1 = k1.GetComponent<Unity.Netcode.NetworkObject>(); if (no1 != null) no1.Spawn(true);
-                var no2 = k2.GetComponent<Unity.Netcode.NetworkObject>(); if (no2 != null) no2.Spawn(true);
+                int kIndex = i + 1;
+                Vector3 pos = spawnPositions[i];
+                GameObject kObj;
+                if (customKeyPrefab != null)
+                {
+                    kObj = Instantiate(customKeyPrefab, pos, Quaternion.identity);
+                    kObj.name = $"Key_{kIndex}";
+                }
+                else
+                {
+                    kObj = new GameObject($"Key_{kIndex}", typeof(KeyItemPickup));
+                    kObj.transform.position = pos;
+                    kObj.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
+                }
+
+                var keyComp = kObj.GetComponent<KeyItemPickup>() ?? kObj.AddComponent<KeyItemPickup>();
+                keyComp.keyIndex = kIndex;
+                keyComp.isMasterKey = (kIndex == luckyKeyIndex);
+
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                {
+                    var netObj = kObj.GetComponent<Unity.Netcode.NetworkObject>();
+                    if (netObj != null && !netObj.IsSpawned) netObj.Spawn(true);
+                }
             }
-            Debug.Log($"[GameManager] Spawned Key 1 at {pos1} and Key 2 at {pos2} in distinct room walk spaces.");
+
+            Debug.Log($"[GameManager] 🗝️ Spawned {totalKeysToSpawn} keys across rooms! Master Key is Key #{luckyKeyIndex}.");
         }
 
         // ── Safe Selection & Spawning Logic ───────────────────────────────────────
@@ -509,6 +511,74 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Finds up to 'count' distinct random spawn positions for keys across rooms and floor zones.
+    /// </summary>
+    private List<Vector3> GetMultipleKeySpawnPositions(int count)
+    {
+        List<Vector3> results = new List<Vector3>();
+        WalkableFloorZone[] allZones = FindObjectsOfType<WalkableFloorZone>();
+        List<WalkableFloorZone> candidateZones = new List<WalkableFloorZone>();
+
+        // Prioritize rooms
+        foreach (var zone in allZones)
+        {
+            if (zone != null && zone.isRoom && zone.zoneCollider != null)
+            {
+                candidateZones.Add(zone);
+            }
+        }
+
+        // If fewer rooms than requested keys, add other floor zones
+        if (candidateZones.Count < count)
+        {
+            foreach (var zone in allZones)
+            {
+                if (zone != null && !candidateZones.Contains(zone) && zone.zoneCollider != null)
+                {
+                    candidateZones.Add(zone);
+                }
+            }
+        }
+
+        if (candidateZones.Count == 0)
+        {
+            Vector3[] defaults = new Vector3[]
+            {
+                new Vector3(-4.5f, -7.5f, 0f),
+                new Vector3(4.5f, -5.5f, 0f),
+                new Vector3(-5.0f, -2.5f, 0f),
+                new Vector3(5.0f, -2.5f, 0f),
+                new Vector3(-3.5f, 2.5f, 0f),
+                new Vector3(3.5f, 2.5f, 0f),
+                new Vector3(0.0f, 6.0f, 0f)
+            };
+            for (int i = 0; i < count; i++)
+            {
+                results.Add(defaults[i % defaults.Length] + new Vector3(Random.Range(-0.4f, 0.4f), Random.Range(-0.3f, 0.3f), 0f));
+            }
+            return results;
+        }
+
+        int zoneIndex = 0;
+        for (int i = 0; i < count; i++)
+        {
+            WalkableFloorZone zone = candidateZones[zoneIndex % candidateZones.Count];
+            zoneIndex++;
+            Vector3 pos;
+            if (TryFindPointInZone(zone, out pos))
+            {
+                results.Add(pos);
+            }
+            else
+            {
+                results.Add(zone.zoneCollider.bounds.center + new Vector3(Random.Range(-0.5f, 0.5f), Random.Range(-0.4f, 0.4f), 0f));
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Finds 2 random spawn positions in 2 DIFFERENT room walk spaces (WalkableFloorZone where isRoom = true).
     /// Both keys will never spawn in the same room.
     /// Falls back to default positions if room zones are missing.
@@ -639,14 +709,150 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Restores the local player's position, health, and weapon state following a Host Migration.
+    /// Spawns and authoritatively ensures all essential match objects (Safe, Keys, Gate, Roles, Items)
+    /// on the newly promoted host machine during Host Migration.
+    /// </summary>
+    public void EnsureMatchObjectsForMigration()
+    {
+        if (!IsServerAuthority()) return;
+
+        Debug.Log("[GameManager] Running EnsureMatchObjectsForMigration on newly promoted host...");
+
+        // 1. Ensure MatchRoleManager is running and networked
+        if (MatchRoleManager.Instance == null && FindObjectOfType<MatchRoleManager>() == null)
+        {
+            GameObject mrmGO = new GameObject("MatchRoleManager", typeof(MatchRoleManager));
+        }
+        if (MatchRoleManager.Instance != null)
+        {
+            var netObj = MatchRoleManager.Instance.GetComponent<Unity.Netcode.NetworkObject>();
+            if (netObj != null && !netObj.IsSpawned)
+            {
+                netObj.Spawn(true);
+            }
+            if (groundHallTransform != null) MatchRoleManager.Instance.groundHallTransform = groundHallTransform;
+            if (mainGateTransform != null) MatchRoleManager.Instance.mainGateTransform = mainGateTransform;
+            if (liftTransform != null) MatchRoleManager.Instance.liftTransform = liftTransform;
+            if (roomTransforms != null && roomTransforms.Length > 0) MatchRoleManager.Instance.roomTransforms = roomTransforms;
+            if (floorTransforms != null && floorTransforms.Length > 0) MatchRoleManager.Instance.floorTransforms = floorTransforms;
+            if (stairTransforms != null && stairTransforms.Length > 0) MatchRoleManager.Instance.stairTransforms = stairTransforms;
+        }
+
+        // 2. Ensure Ground Floor Main Gate
+        if (MainGateController.Instance == null && FindObjectOfType<MainGateController>() == null)
+        {
+            GameObject gateGO = new GameObject("GroundFloorMainGate", typeof(MainGateController));
+            if (mainGateTransform != null) gateGO.transform.position = mainGateTransform.position;
+            Debug.Log("[GameManager] Spawned GroundFloorMainGate for migration.");
+        }
+
+        // 3. Ensure Safe
+        SafeController existingSafe = FindObjectOfType<SafeController>();
+        if (existingSafe == null)
+        {
+            GameObject prefabToSpawn = customSafePrefab != null ? customSafePrefab : safePrefab;
+            if (prefabToSpawn == null) prefabToSpawn = Resources.Load<GameObject>("safe_fill_0");
+            if (prefabToSpawn == null) prefabToSpawn = Resources.Load<GameObject>("Safe");
+
+            Vector3 safePos = Vector3.zero;
+            Quaternion safeRot = Quaternion.identity;
+            bool foundPoint = false;
+
+            if (safeSpawnPoints != null && safeSpawnPoints.Count > 0)
+            {
+                var pt = safeSpawnPoints[Random.Range(0, safeSpawnPoints.Count)];
+                if (pt != null) { safePos = pt.position; safeRot = pt.rotation; foundPoint = true; }
+            }
+            if (!foundPoint && roomTransforms != null && roomTransforms.Length > 0)
+            {
+                var r = roomTransforms[Random.Range(0, roomTransforms.Length)];
+                if (r != null) { safePos = r.position; safeRot = r.rotation; foundPoint = true; }
+            }
+
+            if (prefabToSpawn != null)
+            {
+                GameObject sObj = Instantiate(prefabToSpawn, safePos, safeRot);
+                var netObj = sObj.GetComponent<Unity.Netcode.NetworkObject>();
+                if (netObj != null && !netObj.IsSpawned) netObj.Spawn(true);
+                Debug.Log($"[GameManager] Spawned Safe at {safePos} for host migration.");
+            }
+        }
+        else
+        {
+            var netObj = existingSafe.GetComponent<Unity.Netcode.NetworkObject>();
+            if (netObj != null && !netObj.IsSpawned) netObj.Spawn(true);
+        }
+
+        // 4. Ensure Room Keys (7 Keys, 1 Master Key)
+        KeyItemPickup[] existingKeys = FindObjectsOfType<KeyItemPickup>();
+        if (existingKeys.Length == 0)
+        {
+            const int totalKeysToSpawn = 7;
+            List<Vector3> spawnPositions = GetMultipleKeySpawnPositions(totalKeysToSpawn);
+
+            int luckyKeyIndex = Random.Range(1, totalKeysToSpawn + 1);
+            if (MatchRoleManager.Instance != null && (IsServerAuthority() || MatchRoleManager.Instance.IsServer))
+            {
+                MatchRoleManager.Instance.MasterGateKeyIndex.Value = luckyKeyIndex;
+            }
+
+            for (int i = 0; i < spawnPositions.Count; i++)
+            {
+                int kIndex = i + 1;
+                Vector3 pos = spawnPositions[i];
+                GameObject kObj;
+                if (customKeyPrefab != null)
+                {
+                    kObj = Instantiate(customKeyPrefab, pos, Quaternion.identity);
+                    kObj.name = $"Key_{kIndex}";
+                }
+                else
+                {
+                    kObj = new GameObject($"Key_{kIndex}", typeof(KeyItemPickup));
+                    kObj.transform.position = pos;
+                    kObj.transform.localScale = new Vector3(0.4f, 0.4f, 1f);
+                }
+
+                var keyComp = kObj.GetComponent<KeyItemPickup>() ?? kObj.AddComponent<KeyItemPickup>();
+                keyComp.keyIndex = kIndex;
+                keyComp.isMasterKey = (kIndex == luckyKeyIndex);
+
+                var netObj = kObj.GetComponent<Unity.Netcode.NetworkObject>();
+                if (netObj != null && !netObj.IsSpawned && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                {
+                    netObj.Spawn(true);
+                }
+            }
+            Debug.Log($"[GameManager] Spawned {totalKeysToSpawn} keys across rooms for host migration. Master Key is #{luckyKeyIndex}.");
+        }
+
+        // 5. Ensure Floor Item Pickups
+        if (RelayNetworkManager.HasSnapshot && RelayNetworkManager.LastPlayerSnapshot.HasValue && 
+            RelayNetworkManager.LastPlayerSnapshot.Value.worldItems != null && 
+            RelayNetworkManager.LastPlayerSnapshot.Value.worldItems.Count > 0)
+        {
+            RestoreWorldItemsFromSnapshot(RelayNetworkManager.LastPlayerSnapshot.Value.worldItems);
+        }
+        else
+        {
+            SpawnItemsOnFloor();
+        }
+    }
+
+    /// <summary>
+    /// Restores the local player's position, health, weapons, bag, and role following a Host Migration.
     /// </summary>
     public void RestorePlayerFromSnapshot()
     {
+        if (!RelayNetworkManager.HasSnapshot && !PlayerPrefs.HasKey("Snapshot_PosX")) return;
+        if (!RelayNetworkManager.HasSnapshot && RelayNetworkManager.Instance != null)
+        {
+            RelayNetworkManager.Instance.SaveLocalPlayerSnapshot();
+        }
         if (!RelayNetworkManager.HasSnapshot || !RelayNetworkManager.LastPlayerSnapshot.HasValue) return;
 
         var snapshot = RelayNetworkManager.LastPlayerSnapshot.Value;
-        Debug.Log($"[GameManager] Restoring player from snapshot: Position={snapshot.position}, HP={snapshot.health}");
+        Debug.Log($"[GameManager] Restoring player from snapshot: Position={snapshot.position}, HP={snapshot.health}, Role={snapshot.role}");
 
         GameObject pObj = null;
         if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.LocalClient != null && Unity.Netcode.NetworkManager.Singleton.LocalClient.PlayerObject != null)
@@ -659,7 +865,7 @@ public class GameManager : MonoBehaviour
             PlayerController[] controllers = FindObjectsOfType<PlayerController>();
             foreach (var pc in controllers)
             {
-                if (pc != null && pc.IsOwner)
+                if (pc != null && (pc.IsOwner || pc.IsLocal))
                 {
                     pObj = pc.gameObject;
                     break;
@@ -674,15 +880,21 @@ public class GameManager : MonoBehaviour
         // If pObj is STILL null and we are server/host, manually spawn player prefab for host
         if (pObj == null && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
         {
-            if (Unity.Netcode.NetworkManager.Singleton.NetworkConfig != null && Unity.Netcode.NetworkManager.Singleton.NetworkConfig.PlayerPrefab != null)
+            GameObject playerPrefab = RelayNetworkManager.Instance != null ? RelayNetworkManager.Instance.GetPlayerPrefab() : null;
+            if (playerPrefab == null && Unity.Netcode.NetworkManager.Singleton.NetworkConfig != null)
             {
-                GameObject spawned = Instantiate(Unity.Netcode.NetworkManager.Singleton.NetworkConfig.PlayerPrefab, snapshot.position, snapshot.rotation);
+                playerPrefab = Unity.Netcode.NetworkManager.Singleton.NetworkConfig.PlayerPrefab;
+            }
+
+            if (playerPrefab != null)
+            {
+                GameObject spawned = Instantiate(playerPrefab, snapshot.position, snapshot.rotation);
                 var netObj = spawned.GetComponent<Unity.Netcode.NetworkObject>();
                 if (netObj != null)
                 {
-                    netObj.SpawnWithOwnership(Unity.Netcode.NetworkManager.Singleton.LocalClientId, true);
+                    netObj.SpawnAsPlayerObject(Unity.Netcode.NetworkManager.Singleton.LocalClientId, true);
                     pObj = spawned;
-                    Debug.Log("[GameManager] Server manually spawned player object for Host migration!");
+                    Debug.Log("[GameManager] Server manually spawned player object via SpawnAsPlayerObject for Host migration!");
                 }
             }
         }
@@ -691,6 +903,13 @@ public class GameManager : MonoBehaviour
         {
             pObj.transform.position = snapshot.position;
             pObj.transform.rotation = snapshot.rotation;
+
+            var rb = pObj.GetComponent<Rigidbody2D>();
+            if (rb != null)
+            {
+                rb.position = snapshot.position;
+                rb.velocity = Vector2.zero;
+            }
 
             // Restore character facing direction (sprite flip)
             var assembler = pObj.GetComponentInChildren<CharacterAssembler>();
@@ -705,19 +924,31 @@ public class GameManager : MonoBehaviour
                 CameraController.Instance.SetTarget(pObj.transform);
             }
 
+            var pc = pObj.GetComponent<PlayerController>();
+            if (pc != null)
+            {
+                pc.SetSkin(snapshot.skinIndex);
+                pc.playerRole.Value = snapshot.role;
+                if (MatchRoleManager.Instance != null && Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                {
+                    MatchRoleManager.Instance.SetRoleForClient(Unity.Netcode.NetworkManager.Singleton.LocalClientId, snapshot.role);
+                }
+            }
 
-            var health = pObj.GetComponent<PlayerHealth>();
-            if (health == null) health = PlayerHealth.Instance;
+            if (HUDManager.Instance != null)
+            {
+                HUDManager.Instance.UpdateRoleBadgeDisplay();
+            }
+
+            var health = pObj.GetComponent<PlayerHealth>() ?? PlayerHealth.Instance;
             if (health != null && snapshot.health > 0)
             {
                 health.RestoreHealthFromSnapshot(snapshot.health);
             }
 
-            var weaponCtrl = pObj.GetComponent<WeaponController>();
-            if (weaponCtrl == null) weaponCtrl = WeaponController.Instance;
+            var weaponCtrl = pObj.GetComponent<WeaponController>() ?? WeaponController.Instance;
             if (weaponCtrl != null)
             {
-                // Re-equip weapons from snapshot (slot names) then switch to the active slot
                 if (snapshot.weaponSlotNames != null)
                 {
                     for (int i = 0; i < snapshot.weaponSlotNames.Length; i++)
@@ -734,8 +965,7 @@ public class GameManager : MonoBehaviour
                 weaponCtrl.SwitchToSlot(snapshot.currentWeaponIndex);
             }
 
-            var bag = pObj.GetComponent<BagManager>();
-            if (bag == null) bag = BagManager.Instance;
+            var bag = pObj.GetComponent<BagManager>() ?? BagManager.Instance;
             if (bag != null)
             {
                 bag.RestoreFromSnapshot(snapshot);
@@ -743,7 +973,6 @@ public class GameManager : MonoBehaviour
 
             if (snapshot.isGhost)
             {
-                var pc = pObj.GetComponent<PlayerController>();
                 if (pc != null)
                 {
                     pc.EnableGhostMode();
@@ -760,7 +989,7 @@ public class GameManager : MonoBehaviour
                 Debug.Log("[GameManager] Restored ghost mode & ghost UI controls on local player!");
             }
 
-            Debug.Log($"[GameManager] Player state restored successfully at position {snapshot.position}, IsGhost: {snapshot.isGhost}");
+            Debug.Log($"[GameManager] Player state restored successfully at position {snapshot.position}, Role: {snapshot.role}, IsGhost: {snapshot.isGhost}");
         }
         else
         {

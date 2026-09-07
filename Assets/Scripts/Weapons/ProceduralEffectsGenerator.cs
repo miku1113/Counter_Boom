@@ -283,6 +283,223 @@ public static class ProceduralEffectsGenerator
 
         return smokeParent;
     }
+
+    // ─── Gun Muzzle Flash and Smoke ──────────────────────────────────────────
+
+    public static void CreateMuzzleFlashAndSmoke(Vector3 firePos, Vector2 direction, Transform parent = null)
+    {
+        GameObject root = new GameObject("ProceduralMuzzleFlash");
+        root.transform.position = firePos;
+        if (parent != null)
+        {
+            root.transform.SetParent(parent, true);
+        }
+
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        root.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+
+        // 1. Core Flash Spark
+        GameObject flashCore = new GameObject("FlashCore");
+        flashCore.transform.SetParent(root.transform, false);
+        flashCore.transform.localPosition = Vector3.zero;
+        var coreSr = flashCore.AddComponent<SpriteRenderer>();
+        coreSr.sprite = GetSoftCircleSprite();
+        coreSr.color = new Color(1f, 0.98f, 0.65f, 1f); // Bright yellow-white incandescent flash
+        coreSr.sortingLayerName = "explotion";
+        coreSr.sortingOrder = 1005;
+
+        // 2. Outer Flash Halo
+        GameObject flashHalo = new GameObject("FlashHalo");
+        flashHalo.transform.SetParent(root.transform, false);
+        flashHalo.transform.localPosition = (Vector3)(direction.normalized * 0.08f);
+        var haloSr = flashHalo.AddComponent<SpriteRenderer>();
+        haloSr.sprite = GetSoftCircleSprite();
+        haloSr.color = new Color(1f, 0.6f, 0.15f, 0.85f); // Fiery orange halo
+        haloSr.sortingLayerName = "explotion";
+        haloSr.sortingOrder = 1004;
+
+        var flashAnim = root.AddComponent<MuzzleFlashAnimator>();
+        flashAnim.Animate(flashCore.transform, flashHalo.transform, 0.07f);
+
+        // 3. Gun Barrel Smoke Puffs (spawned in world space so smoke drifts naturally)
+        int smokeCount = Random.Range(2, 4);
+        for (int i = 0; i < smokeCount; i++)
+        {
+            GameObject smoke = new GameObject($"GunSmoke_{i}");
+            smoke.transform.position = firePos + (Vector3)(direction.normalized * (0.05f + i * 0.06f));
+
+            var smokeSr = smoke.AddComponent<SpriteRenderer>();
+            smokeSr.sprite = GetSoftCircleSprite();
+            float grey = Random.Range(0.75f, 0.88f);
+            smokeSr.color = new Color(grey, grey, grey, Random.Range(0.45f, 0.65f));
+            smokeSr.sortingLayerName = "explotion";
+            smokeSr.sortingOrder = 1002 - i;
+
+            Vector2 driftVelocity = direction.normalized * Random.Range(2.0f, 3.8f) + Random.insideUnitCircle * 0.6f;
+            float startScale = Random.Range(0.12f, 0.18f);
+            float endScale = Random.Range(0.32f, 0.48f);
+            float lifetime = Random.Range(0.22f, 0.35f);
+
+            var smokeAnim = smoke.AddComponent<GunSmokeAnimator>();
+            smokeAnim.Animate(driftVelocity, startScale, endScale, lifetime);
+        }
+
+        Object.Destroy(root, 0.12f);
+    }
+
+    // ─── Bullet Body Hit Effect (Blood/Impact for Opponent, Deflection for Teammate) ─
+
+    public static void CreateBulletBodyHitEffect(Vector3 hitPoint, Vector2 hitNormal, bool isTeammate)
+    {
+        GameObject hitRoot = new GameObject("BulletBodyHitEffect");
+        hitRoot.transform.position = hitPoint;
+
+        float normalAngle = Mathf.Atan2(hitNormal.y, hitNormal.x) * Mathf.Rad2Deg;
+
+        if (!isTeammate)
+        {
+            // === OPPONENT HIT: Crimson blood splash & bright kinetic impact flash ===
+            
+            // 1. Central Impact Flash
+            GameObject flashObj = new GameObject("HitFlash");
+            flashObj.transform.SetParent(hitRoot.transform, false);
+            var flashSr = flashObj.AddComponent<SpriteRenderer>();
+            flashSr.sprite = GetSoftCircleSprite();
+            flashSr.color = new Color(1f, 0.2f, 0.15f, 0.95f); // Crimson impact flash
+            flashSr.sortingLayerName = "explotion";
+            flashSr.sortingOrder = 1006;
+            var flashAnim = flashObj.AddComponent<QuickScaleFadeAnimator>();
+            flashAnim.Animate(0.42f, 0.09f, true);
+
+            // 2. Expanding Impact Ring
+            GameObject ringObj = new GameObject("HitRing");
+            ringObj.transform.SetParent(hitRoot.transform, false);
+            var ringSr = ringObj.AddComponent<SpriteRenderer>();
+            ringSr.sprite = GetSoftCircleSprite();
+            ringSr.color = new Color(1f, 0.4f, 0.1f, 0.8f);
+            ringSr.sortingLayerName = "explotion";
+            ringSr.sortingOrder = 1004;
+            var ringAnim = ringObj.AddComponent<QuickScaleFadeAnimator>();
+            ringAnim.Animate(0.65f, 0.14f, false);
+
+            // 3. 6-8 Blood & Spark Droplets bursting along hitNormal
+            int particleCount = Random.Range(6, 9);
+            for (int i = 0; i < particleCount; i++)
+            {
+                GameObject drop = new GameObject($"BloodDroplet_{i}");
+                drop.transform.position = hitPoint;
+                var dropSr = drop.AddComponent<SpriteRenderer>();
+                dropSr.sprite = GetSoftCircleSprite();
+
+                bool isSpark = Random.value > 0.4f;
+                dropSr.color = isSpark 
+                    ? new Color(1f, Random.Range(0.3f, 0.6f), 0.1f, 1f) 
+                    : new Color(Random.Range(0.75f, 0.95f), 0.05f, 0.08f, 0.95f);
+                dropSr.sortingLayerName = "explotion";
+                dropSr.sortingOrder = 1005;
+
+                float spreadAngle = (normalAngle + Random.Range(-55f, 55f)) * Mathf.Deg2Rad;
+                Vector2 burstDir = new Vector2(Mathf.Cos(spreadAngle), Mathf.Sin(spreadAngle)) * Random.Range(3.5f, 8.0f);
+
+                float dropScale = Random.Range(0.08f, 0.16f);
+                float dropLifetime = Random.Range(0.18f, 0.32f);
+
+                var particleAnim = drop.AddComponent<ImpactParticleAnimator>();
+                particleAnim.Animate(burstDir, dropScale, dropLifetime);
+            }
+        }
+        else
+        {
+            // === TEAMMATE HIT: Electric Cyan Deflection & Energy Shield Absorption ===
+            
+            // 1. Deflection Flash
+            GameObject shieldFlash = new GameObject("ShieldFlash");
+            shieldFlash.transform.SetParent(hitRoot.transform, false);
+            var flashSr = shieldFlash.AddComponent<SpriteRenderer>();
+            flashSr.sprite = GetSoftCircleSprite();
+            flashSr.color = new Color(0.15f, 0.88f, 1f, 0.95f); // Vivid electric cyan
+            flashSr.sortingLayerName = "explotion";
+            flashSr.sortingOrder = 1006;
+            var flashAnim = shieldFlash.AddComponent<QuickScaleFadeAnimator>();
+            flashAnim.Animate(0.48f, 0.11f, true);
+
+            // 2. Deflection Wave Ring
+            GameObject waveObj = new GameObject("ShieldWave");
+            waveObj.transform.SetParent(hitRoot.transform, false);
+            var waveSr = waveObj.AddComponent<SpriteRenderer>();
+            waveSr.sprite = GetSoftCircleSprite();
+            waveSr.color = new Color(0.4f, 0.95f, 1f, 0.75f);
+            waveSr.sortingLayerName = "explotion";
+            waveSr.sortingOrder = 1004;
+            var waveAnim = waveObj.AddComponent<QuickScaleFadeAnimator>();
+            waveAnim.Animate(0.75f, 0.16f, false);
+
+            // 3. 4-6 Cyan Deflection Glints radiating outward
+            int glintCount = Random.Range(4, 7);
+            for (int i = 0; i < glintCount; i++)
+            {
+                GameObject glint = new GameObject($"DeflectionGlint_{i}");
+                glint.transform.position = hitPoint;
+                var glintSr = glint.AddComponent<SpriteRenderer>();
+                glintSr.sprite = GetSoftCircleSprite();
+                glintSr.color = new Color(0.6f, 0.98f, 1f, 0.9f);
+                glintSr.sortingLayerName = "explotion";
+                glintSr.sortingOrder = 1005;
+
+                float spreadAngle = (normalAngle + Random.Range(-65f, 65f)) * Mathf.Deg2Rad;
+                Vector2 burstDir = new Vector2(Mathf.Cos(spreadAngle), Mathf.Sin(spreadAngle)) * Random.Range(2.5f, 5.5f);
+
+                float glintScale = Random.Range(0.07f, 0.13f);
+                float glintLifetime = Random.Range(0.14f, 0.24f);
+
+                var particleAnim = glint.AddComponent<ImpactParticleAnimator>();
+                particleAnim.Animate(burstDir, glintScale, glintLifetime);
+            }
+        }
+
+        Object.Destroy(hitRoot, 0.35f);
+    }
+
+    // ─── Bullet Environment Surface Hit Effect ──────────────────────────────
+
+    public static void CreateBulletSurfaceHitEffect(Vector3 hitPoint, Vector2 hitNormal)
+    {
+        GameObject hitRoot = new GameObject("BulletSurfaceHitEffect");
+        hitRoot.transform.position = hitPoint;
+
+        float normalAngle = Mathf.Atan2(hitNormal.y, hitNormal.x) * Mathf.Rad2Deg;
+
+        // 1. Surface Impact Flash
+        GameObject flash = new GameObject("SurfaceFlash");
+        flash.transform.SetParent(hitRoot.transform, false);
+        var flashSr = flash.AddComponent<SpriteRenderer>();
+        flashSr.sprite = GetSoftCircleSprite();
+        flashSr.color = new Color(1f, 0.85f, 0.4f, 0.9f);
+        flashSr.sortingLayerName = "explotion";
+        flashSr.sortingOrder = 1005;
+        var flashAnim = flash.AddComponent<QuickScaleFadeAnimator>();
+        flashAnim.Animate(0.35f, 0.08f, true);
+
+        // 2. 4 Wall Ricochet Sparks & Dust
+        for (int i = 0; i < 4; i++)
+        {
+            GameObject spark = new GameObject($"WallSpark_{i}");
+            spark.transform.position = hitPoint;
+            var sparkSr = spark.AddComponent<SpriteRenderer>();
+            sparkSr.sprite = GetSoftCircleSprite();
+            sparkSr.color = new Color(1f, Random.Range(0.7f, 0.95f), 0.2f, 1f);
+            sparkSr.sortingLayerName = "explotion";
+            sparkSr.sortingOrder = 1004;
+
+            float angle = (normalAngle + Random.Range(-45f, 45f)) * Mathf.Deg2Rad;
+            Vector2 burstDir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(3.0f, 6.5f);
+
+            var anim = spark.AddComponent<ImpactParticleAnimator>();
+            anim.Animate(burstDir, Random.Range(0.06f, 0.12f), Random.Range(0.12f, 0.22f));
+        }
+
+        Object.Destroy(hitRoot, 0.25f);
+    }
 }
 
 
@@ -467,3 +684,137 @@ public class SmokePuffAnimator : MonoBehaviour
         Destroy(gameObject);
     }
 }
+
+// ─── Gun Muzzle Flash & Smoke Animator ───────────────────────────────────────
+
+public class MuzzleFlashAnimator : MonoBehaviour
+{
+    public void Animate(Transform core, Transform halo, float duration)
+    {
+        StartCoroutine(Routine(core, halo, duration));
+    }
+
+    private System.Collections.IEnumerator Routine(Transform core, Transform halo, float duration)
+    {
+        float elapsed = 0f;
+        Vector3 startCore = Vector3.one * 0.35f;
+        Vector3 startHalo = Vector3.one * 0.55f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+
+            if (core != null) core.localScale = Vector3.Lerp(startCore, Vector3.zero, t);
+            if (halo != null) halo.localScale = Vector3.Lerp(startHalo, Vector3.zero, t);
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+}
+
+// ─── Gun Smoke Puff Animator ─────────────────────────────────────────────────
+
+public class GunSmokeAnimator : MonoBehaviour
+{
+    public void Animate(Vector2 velocity, float startScale, float endScale, float lifetime)
+    {
+        StartCoroutine(Routine(velocity, startScale, endScale, lifetime));
+    }
+
+    private System.Collections.IEnumerator Routine(Vector2 velocity, float startScale, float endScale, float lifetime)
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color startColor = sr != null ? sr.color : Color.white;
+        float elapsed = 0f;
+
+        while (elapsed < lifetime)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / lifetime;
+
+            transform.position += (Vector3)(velocity * (1f - t * 0.5f) * Time.deltaTime);
+            float curScale = Mathf.Lerp(startScale, endScale, Mathf.SmoothStep(0f, 1f, t));
+            transform.localScale = Vector3.one * curScale;
+
+            if (sr != null)
+            {
+                sr.color = new Color(startColor.r, startColor.g, startColor.b, Mathf.Lerp(startColor.a, 0f, t));
+            }
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+}
+
+// ─── Quick Scale Fade Animator (Hit Flash & Rings) ───────────────────────────
+
+public class QuickScaleFadeAnimator : MonoBehaviour
+{
+    public void Animate(float maxScale, float duration, bool shrinkOnExit)
+    {
+        StartCoroutine(Routine(maxScale, duration, shrinkOnExit));
+    }
+
+    private System.Collections.IEnumerator Routine(float maxScale, float duration, bool shrinkOnExit)
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color startColor = sr != null ? sr.color : Color.white;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+
+            float curScale = shrinkOnExit ? Mathf.Lerp(maxScale, 0f, t) : Mathf.Lerp(0.1f, maxScale, t);
+            transform.localScale = Vector3.one * curScale;
+
+            if (sr != null)
+            {
+                sr.color = new Color(startColor.r, startColor.g, startColor.b, Mathf.Lerp(startColor.a, 0f, t));
+            }
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+}
+
+// ─── Impact Particle Droplet & Spark Animator ────────────────────────────────
+
+public class ImpactParticleAnimator : MonoBehaviour
+{
+    public void Animate(Vector2 velocity, float startScale, float lifetime)
+    {
+        StartCoroutine(Routine(velocity, startScale, lifetime));
+    }
+
+    private System.Collections.IEnumerator Routine(Vector2 velocity, float startScale, float lifetime)
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color startColor = sr != null ? sr.color : Color.white;
+        float elapsed = 0f;
+
+        while (elapsed < lifetime)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / lifetime;
+
+            transform.position += (Vector3)(velocity * (1f - t * 0.7f) * Time.deltaTime);
+            float curScale = Mathf.Lerp(startScale, startScale * 0.2f, t);
+            transform.localScale = Vector3.one * curScale;
+
+            if (sr != null)
+            {
+                sr.color = new Color(startColor.r, startColor.g, startColor.b, Mathf.Lerp(startColor.a, 0f, t));
+            }
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+}
+

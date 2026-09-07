@@ -76,8 +76,17 @@ public class UniversalButtonAudio : MonoBehaviour
         }
     }
 
+    private static float lastGlobalClickSFXTime = -1f;
+    private const float GLOBAL_CLICK_COOLDOWN = 0.08f;
+
     public static void PlayClickSFX()
     {
+        if (Time.unscaledTime - lastGlobalClickSFXTime < GLOBAL_CLICK_COOLDOWN)
+        {
+            return;
+        }
+        lastGlobalClickSFXTime = Time.unscaledTime;
+
         if (MainMenuController.Instance != null)
         {
             MainMenuController.Instance.PlayButtonClickSFX();

@@ -22,6 +22,8 @@ public class BagUI : MonoBehaviour
     public Sprite grenadeIcon;
     public Sprite medikitIcon;
     public Sprite proteinShakeIcon;
+    public Sprite keyIcon;
+    public Sprite safeKeyIcon;
 
     private void Awake()
     {
@@ -418,9 +420,47 @@ public class BagUI : MonoBehaviour
                 CreateSlot(data, BagManager.Instance.scopeCount, -1);
                 totalSlots++;
             }
+
+            // ── 7. Keys ────────────────────────────────────────────────────────────
+            if (BagManager.Instance.keysInBag > 0)
+            {
+                if (BagManager.Instance.collectedKeyIndices != null && BagManager.Instance.collectedKeyIndices.Count > 0)
+                {
+                    foreach (int kIdx in BagManager.Instance.collectedKeyIndices)
+                    {
+                        InventoryItemData data = ScriptableObject.CreateInstance<InventoryItemData>();
+                        bool isMaster = (MatchRoleManager.Instance != null && kIdx == MatchRoleManager.Instance.MasterGateKeyIndex.Value);
+                        data.itemName = isMaster ? "Master Gate Key" : $"Room Key #{kIdx}";
+                        data.itemType = ItemType.Key;
+                        data.icon     = keyIcon ?? CreateProceduralKeyIcon();
+                        CreateSlot(data, 1, -1);
+                        totalSlots++;
+                    }
+                }
+                else
+                {
+                    InventoryItemData data = ScriptableObject.CreateInstance<InventoryItemData>();
+                    data.itemName = BagManager.Instance.hasMasterGateKey ? "Master Gate Key" : "Room Key";
+                    data.itemType = ItemType.Key;
+                    data.icon     = keyIcon ?? CreateProceduralKeyIcon();
+                    CreateSlot(data, BagManager.Instance.keysInBag, -1);
+                    totalSlots++;
+                }
+            }
+
+            // ── 8. Safe Key ────────────────────────────────────────────────────────
+            if (BagManager.Instance.hasSafeKey)
+            {
+                InventoryItemData data = ScriptableObject.CreateInstance<InventoryItemData>();
+                data.itemName = "Safe Key";
+                data.itemType = ItemType.SafeKey;
+                data.icon     = safeKeyIcon ?? CreateProceduralSafeKeyIcon();
+                CreateSlot(data, 1, -1);
+                totalSlots++;
+            }
         }
 
-        // ── 7. Weight display ──────────────────────────────────────────────────
+        // ── 9. Weight display ──────────────────────────────────────────────────
         if (weightText != null)
         {
             if (BagManager.Instance != null)
@@ -579,5 +619,70 @@ public class BagUI : MonoBehaviour
         eTmp.text = "<size=30>🎒</size>\n<size=16><b>Backpack is Empty</b></size>\n<size=12><color=#88aacc>Scavenge rooms & floors to pick up\nweapons, ammo & supplies!</color></size>";
         eTmp.alignment = TextAlignmentOptions.Center;
         eTmp.color = Color.white;
+    }
+
+    private Sprite CreateProceduralKeyIcon()
+    {
+        if (keyIcon != null) return keyIcon;
+        Texture2D tex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+        Color clear = new Color(0, 0, 0, 0);
+        Color gold = new Color(1f, 0.85f, 0.2f, 1f);
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+                tex.SetPixel(x, y, clear);
+
+        // Ring
+        Vector2 center = new Vector2(10, 22);
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x, y), center);
+                if (d <= 7f && d >= 3.5f) tex.SetPixel(x, y, gold);
+            }
+        // Shaft
+        for (int i = 0; i < 18; i++)
+        {
+            int px = 14 + i, py = 18 - i;
+            if (px >= 0 && px < 32 && py >= 0 && py < 32)
+            {
+                tex.SetPixel(px, py, gold);
+                tex.SetPixel(px, py + 1, gold);
+            }
+        }
+        tex.Apply();
+        keyIcon = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f));
+        return keyIcon;
+    }
+
+    private Sprite CreateProceduralSafeKeyIcon()
+    {
+        if (safeKeyIcon != null) return safeKeyIcon;
+        Texture2D tex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+        Color clear = new Color(0, 0, 0, 0);
+        Color crimson = new Color(1f, 0.2f, 0.2f, 1f);
+        Color gold = new Color(1f, 0.85f, 0.2f, 1f);
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+                tex.SetPixel(x, y, clear);
+
+        Vector2 center = new Vector2(10, 22);
+        for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x, y), center);
+                if (d <= 7f && d >= 3.5f) tex.SetPixel(x, y, crimson);
+            }
+        for (int i = 0; i < 18; i++)
+        {
+            int px = 14 + i, py = 18 - i;
+            if (px >= 0 && px < 32 && py >= 0 && py < 32)
+            {
+                tex.SetPixel(px, py, gold);
+                tex.SetPixel(px, py + 1, gold);
+            }
+        }
+        tex.Apply();
+        safeKeyIcon = Sprite.Create(tex, new Rect(0, 0, 32, 32), new Vector2(0.5f, 0.5f));
+        return safeKeyIcon;
     }
 }

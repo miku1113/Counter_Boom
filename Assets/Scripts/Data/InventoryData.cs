@@ -1,7 +1,7 @@
 using UnityEngine;
 
 public enum AmmoType { None, Type1, Type2, Type3 }
-public enum ItemType { Weapon, Ammo, Grenade, Medikit, ProteinShake, Scope }
+public enum ItemType { Weapon, Ammo, Grenade, Medikit, ProteinShake, Scope, Key, SafeKey }
 public enum GrenadeType { None, Explosive, Stun, Smoke }
 
 [CreateAssetMenu(fileName = "NewItemData", menuName = "Inventory/Item Data")]

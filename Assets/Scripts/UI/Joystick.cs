@@ -17,10 +17,24 @@ public class Joystick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPoint
     private Vector2 joystickPosition;
     private Canvas canvas;
     
+    private void Awake()
+    {
+        inputVector = Vector2.zero;
+        if (handle != null) handle.anchoredPosition = Vector2.zero;
+    }
+
+    private void OnEnable()
+    {
+        inputVector = Vector2.zero;
+        if (handle != null) handle.anchoredPosition = Vector2.zero;
+    }
+
     private void Start()
     {
+        inputVector = Vector2.zero;
         if (background == null) background = GetComponent<RectTransform>();
         if (handle == null && transform.childCount > 0) handle = transform.GetChild(0).GetComponent<RectTransform>();
+        if (handle != null) handle.anchoredPosition = Vector2.zero;
         
         canvas = GetComponentInParent<Canvas>();
         if (background != null)

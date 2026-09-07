@@ -135,8 +135,23 @@ public class MainMenuController : MonoBehaviour
     private GameObject previewPlayerInstance;
     private readonly HashSet<Button> registeredButtons = new HashSet<Button>();
 
-    // Search Scroll Pagination Variables
+    // Search Scroll Pagination & Friends Panel Caching Variables
     private List<CounterBoom.Networking.FirebaseUserData> cachedSearchPlayers = new List<CounterBoom.Networking.FirebaseUserData>();
+    private List<CounterBoom.Networking.FirebaseUserData> filteredSearchPlayers = new List<CounterBoom.Networking.FirebaseUserData>();
+    private List<CounterBoom.Networking.FriendProfile> cachedRequestsList = null;
+    private List<CounterBoom.Networking.FriendProfile> cachedFriendsList = null;
+
+    private float lastSearchFetchTime = -999f;
+    private float lastRequestsFetchTime = -999f;
+    private float lastFriendsFetchTime = -999f;
+    private const float FRIENDS_TAB_CACHE_DURATION = 60f; // Cache data for 60 seconds per tab
+
+    // Real-Time Presence & Join Request Caching
+    private Dictionary<string, CounterBoom.Networking.FirebaseManager.PlayerPresenceData> cachedPresences = new Dictionary<string, CounterBoom.Networking.FirebaseManager.PlayerPresenceData>();
+    private float lastPresenceFetchTime = -999f;
+    private const float PRESENCE_CACHE_DURATION = 4f; // Refresh presence every 4 seconds
+    private GameObject activeJoinRequestModal;
+
     private int currentSearchDisplayedCount = 0;
     private const int PLAYERS_PER_PAGE = 10;
     private bool isLoadingMoreSearchPlayers = false;
@@ -206,9 +221,6 @@ public class MainMenuController : MonoBehaviour
 
     public void UpdateLobbyButtonsState()
     {
-        Button targetPlayBtn = navPlayButton;
-        if (targetPlayBtn == null) return;
-
         bool isRoomLobbyActive = Unity.Netcode.NetworkManager.Singleton != null && 
                                  Unity.Netcode.NetworkManager.Singleton.IsListening &&
                                  Unity.Netcode.NetworkManager.Singleton.ConnectedClientsIds.Count > 1;
@@ -226,21 +238,75 @@ public class MainMenuController : MonoBehaviour
         bool isRoomHost = isRoomLobbyActive && (localPlayer != null && localPlayer.lobbySlotIndex.Value == 0);
         bool isRoomClient = isRoomLobbyActive && !isRoomHost;
 
-        var playBtnTmp = targetPlayBtn.GetComponentInChildren<TMPro.TextMeshProUGUI>();
-
-        if (isRoomClient)
+        // Client in room: navPlayButton shows "READY" or "CANCEL". Host or solo: shows "PLAY"
+        if (navPlayButton != null)
         {
-            bool ready = localPlayer != null && localPlayer.isReady.Value;
+            var playBtnTmp = navPlayButton.GetComponentInChildren<TMPro.TextMeshProUGUI>();
             if (playBtnTmp != null)
             {
-                playBtnTmp.text = ready ? "CANCEL" : "READY";
+                if (isRoomClient)
+                {
+                    bool ready = localPlayer != null && localPlayer.isReady.Value;
+                    playBtnTmp.text = ready ? "CANCEL" : "READY";
+                }
+                else
+                {
+                    playBtnTmp.text = "PLAY";
+                }
             }
         }
-        else
+
+        // If client in room, playPanel must not be open!
+        if (isRoomClient && playPanel != null && playPanel.activeSelf)
         {
-            if (playBtnTmp != null)
+            playPanel.SetActive(false);
+            if (mainPanel != null) mainPanel.SetActive(true);
+        }
+
+        // Inside playPanel: If connected with friends, disable other buttons, only enable "play online" (hostButton)
+        if (playPanel != null && playPanel.activeSelf)
+        {
+            if (isRoomLobbyActive)
             {
-                playBtnTmp.text = "PLAY";
+                if (generateCodeButton != null) generateCodeButton.interactable = false;
+                if (joinButton != null) joinButton.interactable = false;
+                if (joinCodeInputField != null) joinCodeInputField.interactable = false;
+                if (offlineModeButton != null) offlineModeButton.interactable = false;
+
+                if (hostButton != null)
+                {
+                    hostButton.interactable = true;
+                    var hostTmp = hostButton.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+                    if (hostTmp != null)
+                    {
+                        if (isRoomClient)
+                        {
+                            bool ready = localPlayer != null && localPlayer.isReady.Value;
+                            hostTmp.text = ready ? "CANCEL READY" : "READY (PLAY ONLINE)";
+                        }
+                        else
+                        {
+                            hostTmp.text = "START MATCH";
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (generateCodeButton != null) generateCodeButton.interactable = true;
+                if (joinButton != null) joinButton.interactable = true;
+                if (joinCodeInputField != null) joinCodeInputField.interactable = true;
+                if (offlineModeButton != null) offlineModeButton.interactable = true;
+
+                if (hostButton != null)
+                {
+                    hostButton.interactable = true;
+                    var hostTmp = hostButton.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+                    if (hostTmp != null)
+                    {
+                        hostTmp.text = "play online";
+                    }
+                }
             }
         }
     }
@@ -268,28 +334,20 @@ public class MainMenuController : MonoBehaviour
 
         if (isRoomClient)
         {
+            // Client in room: Clicking the button toggles READY / CANCEL directly! Does NOT open playPanel.
             if (localPlayer != null)
             {
                 localPlayer.isReady.Value = !localPlayer.isReady.Value;
                 localPlayer.RefreshLobbyPositionAndState();
                 UpdateLobbyButtonsState();
-                Debug.Log($"[MainMenuController] Client toggled Ready state -> {localPlayer.isReady.Value}");
+                Debug.Log($"[MainMenuController] Client toggled Ready to {localPlayer.isReady.Value}");
+                UpdatePlayStatus(localPlayer.isReady.Value ? "<color=green>Ready for match!</color>" : "<color=yellow>Not Ready</color>");
             }
+            return;
         }
-        else
-        {
-            if (isRoomLobbyActive)
-            {
-                if (RelayNetworkManager.Instance != null)
-                {
-                    RelayNetworkManager.Instance.TransitionToCustomLobbyScene();
-                }
-            }
-            else
-            {
-                ShowPanel(playPanel);
-            }
-        }
+
+        // Host or solo: Opens the play panel
+        ShowPanel(playPanel);
     }
 
     private void Start()
@@ -308,6 +366,10 @@ public class MainMenuController : MonoBehaviour
 
         // 2. Setup Player Prefab Preview & Fetch Available Skins
         SetupPreviewPlayer();
+        if (skins != null && skins.Length > 0)
+        {
+            CharacterAssembler.SetGlobalSkins(skins);
+        }
 
         // 2b. Initialize Player Profile Header UI & Settings Panel UI
         UpdatePlayerProfileUI();
@@ -339,8 +401,14 @@ public class MainMenuController : MonoBehaviour
             navFriendsButton.onClick.AddListener(ShowFriendsPanel);
         }
 
-        // 4. Start polling for real-time game invites
+        // 4. Start polling for real-time game invites & room join requests
         InvokeRepeating(nameof(PollGameInvitesTask), 2f, 3f);
+        InvokeRepeating(nameof(PollJoinRoomRequestsTask), 2.5f, 3f);
+
+        PlayerPrefs.DeleteKey("LastPartyFriendName");
+        PlayerPrefs.DeleteKey("LastPartyFriendUid");
+        PlayerPrefs.DeleteKey("LastPartyFriendSkin");
+        PlayerPrefs.Save();
 
         if (navSettingsButton == null && mainPanel != null)
         {
@@ -405,9 +473,17 @@ public class MainMenuController : MonoBehaviour
             closeFriendsButton.onClick.AddListener(CloseFriendsPanel);
         }
 
-        // Quick Play Matchmaking (using hostButton) & Manual Join (using joinButton) & Generate Code
-        if (hostButton != null) hostButton.onClick.AddListener(OnQuickPlayClicked);
-        if (joinButton != null) joinButton.onClick.AddListener(OnManualJoinClicked);
+        // Quick Play Matchmaking (using hostButton / "play online") & Manual Join (using joinButton) & Generate Code
+        if (hostButton != null)
+        {
+            hostButton.onClick.RemoveAllListeners();
+            hostButton.onClick.AddListener(OnQuickPlayClicked);
+        }
+        if (joinButton != null)
+        {
+            joinButton.onClick.RemoveAllListeners();
+            joinButton.onClick.AddListener(OnManualJoinClicked);
+        }
 
         // Auto-find Generate Code button if unassigned
         if (generateCodeButton == null && playPanel != null)
@@ -428,7 +504,11 @@ public class MainMenuController : MonoBehaviour
                 }
             }
         }
-        if (generateCodeButton != null) generateCodeButton.onClick.AddListener(OnGenerateCodeClicked);
+        if (generateCodeButton != null)
+        {
+            generateCodeButton.onClick.RemoveAllListeners();
+            generateCodeButton.onClick.AddListener(OnGenerateCodeClicked);
+        }
 
         // Ensure Offline Mode button on Play Panel
         EnsureOfflineModeButton();
@@ -540,12 +620,7 @@ public class MainMenuController : MonoBehaviour
         }
 
         // Per-panel refresh logic
-        if (panelToShow == mainPanel || panelToShow == null)
-        {
-            ResetPreviewToEquippedSkin();
-            UpdatePlayerProfileUI();
-        }
-        else if (panelToShow == cabinetPanel)
+        if (panelToShow == cabinetPanel)
         {
             List<int> unlocked = GetUnlockedSkinIndices();
             int equippedRealIndex = PlayerPrefs.GetInt("EquippedSkinIndex", 0);
@@ -558,20 +633,36 @@ public class MainMenuController : MonoBehaviour
             shopSelectedIndex = 0;
             UpdateShopUI();
         }
-        else if (panelToShow == playPanel)
+        else
         {
+            // For mainPanel, playPanel, friendsPanel, settingsPanel, or any other panel:
+            // Always reset preview avatar back to the player's equipped skin!
             ResetPreviewToEquippedSkin();
-            UpdatePlayStatus("Ready to search or host lobby");
-            if (generatedCodeText != null) generatedCodeText.text = "JOIN CODE: -";
-            SetPlayInputInteractable(true);
+            UpdatePlayerProfileUI();
+
+            if (panelToShow == playPanel)
+            {
+                UpdatePlayStatus("Ready to search or host lobby");
+                if (generatedCodeText != null) generatedCodeText.text = "JOIN CODE: -";
+                UpdateLobbyButtonsState();
+            }
         }
 
         // Re-scan for any newly activated or instantiated UI buttons
         RegisterButtonClickSounds();
     }
 
+    private float lastClickSFXTime = -1f;
+    private const float CLICK_SFX_COOLDOWN = 0.08f;
+
     public void PlayButtonClickSFX()
     {
+        if (Time.unscaledTime - lastClickSFXTime < CLICK_SFX_COOLDOWN)
+        {
+            return;
+        }
+        lastClickSFXTime = Time.unscaledTime;
+
         if (buttonClickSFX != null)
         {
             if (audioSource == null)
@@ -620,15 +711,7 @@ public class MainMenuController : MonoBehaviour
 
         if (localPlayer != null)
         {
-            if (localPlayer.IsOwner && localPlayer.skinIndex != null)
-            {
-                localPlayer.skinIndex.Value = equippedIndex;
-            }
-            var localCA = localPlayer.GetComponentInChildren<CharacterAssembler>();
-            if (localCA != null)
-            {
-                localCA.ApplySkinByIndex(equippedIndex);
-            }
+            localPlayer.SetSkin(equippedIndex);
             return;
         }
 
@@ -841,6 +924,7 @@ public class MainMenuController : MonoBehaviour
         }
     }
 
+
     private void OnDestroy()
     {
         CleanupPreviewPlayer();
@@ -894,15 +978,7 @@ public class MainMenuController : MonoBehaviour
 
         if (localPlayer != null)
         {
-            if (localPlayer.IsOwner && localPlayer.skinIndex != null)
-            {
-                localPlayer.skinIndex.Value = realIndex;
-            }
-            var localCA = localPlayer.GetComponentInChildren<CharacterAssembler>();
-            if (localCA != null)
-            {
-                localCA.ApplySkinByIndex(realIndex);
-            }
+            localPlayer.SetSkin(realIndex);
         }
         else if (previewAssembler != null && skins != null && realIndex >= 0 && realIndex < skins.Length)
         {
@@ -931,29 +1007,6 @@ public class MainMenuController : MonoBehaviour
         // Apply skin to assembler preview model
         previewAssembler.SetCharacterSkin(skins[realIndex]);
 
-        // Sync skin over network in real-time so other players in the room lobby see your character change skin!
-        PlayerController localPlayer = PlayerController.LocalPlayer;
-        if (localPlayer == null)
-        {
-            foreach (var p in FindObjectsOfType<PlayerController>())
-            {
-                if (p != null && (p.IsOwner || p.IsLocal)) { localPlayer = p; break; }
-            }
-        }
-
-        if (localPlayer != null)
-        {
-            if (localPlayer.IsOwner && localPlayer.skinIndex != null)
-            {
-                localPlayer.skinIndex.Value = realIndex;
-            }
-            var localCA = localPlayer.GetComponentInChildren<CharacterAssembler>();
-            if (localCA != null)
-            {
-                localCA.ApplySkinByIndex(realIndex);
-            }
-        }
-
         // Render details
         if (cabinetSkinNameText != null)
         {
@@ -964,15 +1017,21 @@ public class MainMenuController : MonoBehaviour
 
         if (cabinetSkinStatusText != null)
         {
-            if (isEquipped)
+            cabinetSkinStatusText.text = isEquipped ? "<color=green>EQUIPPED</color>" : "<color=yellow>SELECT</color>";
+        }
+
+        if (cabinetEquipButton != null)
+        {
+            cabinetEquipButton.interactable = !isEquipped;
+            var btnTmp = cabinetEquipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (btnTmp != null)
             {
-                cabinetSkinStatusText.text = "<color=green>EQUIPPED</color>";
-                if (cabinetEquipButton != null) cabinetEquipButton.interactable = false;
+                btnTmp.text = isEquipped ? "EQUIPPED" : "SELECT";
             }
-            else
+            var btnTxt = cabinetEquipButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            if (btnTxt != null)
             {
-                cabinetSkinStatusText.text = "<color=yellow>SELECT</color>";
-                if (cabinetEquipButton != null) cabinetEquipButton.interactable = true;
+                btnTxt.text = isEquipped ? "EQUIPPED" : "SELECT";
             }
         }
     }
@@ -1169,7 +1228,10 @@ public class MainMenuController : MonoBehaviour
 
         foreach (var btn in rootSearch.GetComponentsInChildren<Button>(true))
         {
-            // Do NOT auto-wire internal buttons inside overlay panels!
+            // Do NOT auto-wire internal buttons inside ANY sub-panels!
+            if (playPanel != null && btn.transform.IsChildOf(playPanel.transform)) continue;
+            if (cabinetPanel != null && btn.transform.IsChildOf(cabinetPanel.transform)) continue;
+            if (shopPanel != null && btn.transform.IsChildOf(shopPanel.transform)) continue;
             if (friendsPanel != null && btn.transform.IsChildOf(friendsPanel.transform)) continue;
             if (userProfileModal != null && btn.transform.IsChildOf(userProfileModal.transform)) continue;
             if (settingsPanel != null && btn.transform.IsChildOf(settingsPanel.transform)) continue;
@@ -1774,9 +1836,84 @@ public class MainMenuController : MonoBehaviour
     #region Automatic Quick Play & Matchmaking Logic
     private void OnQuickPlayClicked()
     {
-        CleanupPreviewPlayer();
-        LoadingGameController.TargetMode = LoadingGameController.MatchMode.QuickPlay;
-        UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
+        bool isConnectedWithFriends = Unity.Netcode.NetworkManager.Singleton != null && 
+                                     Unity.Netcode.NetworkManager.Singleton.IsListening &&
+                                     Unity.Netcode.NetworkManager.Singleton.ConnectedClientsIds.Count > 1;
+
+        if (isConnectedWithFriends)
+        {
+            PlayerController localPlayer = PlayerController.LocalPlayer;
+            if (localPlayer == null)
+            {
+                foreach (var p in FindObjectsOfType<PlayerController>())
+                {
+                    if (p != null && (p.IsOwner || p.IsLocal)) { localPlayer = p; break; }
+                }
+            }
+
+            bool isRoomHost = localPlayer != null && localPlayer.lobbySlotIndex.Value == 0;
+
+            if (isRoomHost)
+            {
+                Debug.Log("[MainMenuController] Room Host (slot 0) clicked Start Match -> Transitioning party to LoadingGame -> CustomLobby!");
+                if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsServer)
+                {
+                    LoadingGameController.TargetMode = LoadingGameController.MatchMode.PartyToLobby;
+                    if (localPlayer != null)
+                    {
+                        localPlayer.NotifyPartyTargetModeClientRpc(LoadingGameController.MatchMode.PartyToLobby);
+                    }
+
+                    if (Unity.Netcode.NetworkManager.Singleton.SceneManager != null)
+                    {
+                        Unity.Netcode.NetworkManager.Singleton.SceneManager.LoadScene("LoadingGame", UnityEngine.SceneManagement.LoadSceneMode.Single);
+                    }
+                    else if (RelayNetworkManager.Instance != null)
+                    {
+                        RelayNetworkManager.Instance.ExecuteSceneLoad("LoadingGame");
+                    }
+                    else
+                    {
+                        UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
+                    }
+                }
+                else
+                {
+                    // Promoted client host (e.g. Android device) -> Request server to transition party together!
+                    if (localPlayer != null)
+                    {
+                        localPlayer.RequestPartyStartMatchServerRpc();
+                    }
+                }
+            }
+            else
+            {
+                if (localPlayer != null)
+                {
+                    localPlayer.isReady.Value = !localPlayer.isReady.Value;
+                    localPlayer.RefreshLobbyPositionAndState();
+                    UpdateLobbyButtonsState();
+                    Debug.Log($"[MainMenuController] Client clicked Play Online inside room -> toggled Ready to {localPlayer.isReady.Value}");
+                    UpdatePlayStatus(localPlayer.isReady.Value ? "<color=green>Ready for match!</color>" : "<color=yellow>Not Ready</color>");
+                }
+            }
+        }
+        else
+        {
+            // Solo QuickPlay: Fully shut down any lingering network connections or lobbies!
+            if (RelayNetworkManager.Instance != null)
+            {
+                _ = RelayNetworkManager.Instance.LeaveMatchGracefully();
+            }
+            if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+            {
+                Unity.Netcode.NetworkManager.Singleton.Shutdown();
+            }
+
+            CleanupPreviewPlayer();
+            LoadingGameController.TargetMode = LoadingGameController.MatchMode.QuickPlay;
+            UnityEngine.SceneManagement.SceneManager.LoadScene("LoadingGame");
+        }
     }
 
     private void OnManualJoinClicked()
@@ -1913,6 +2050,7 @@ public class MainMenuController : MonoBehaviour
             friendsPanel.SetActive(true);
             friendsPanel.transform.SetAsLastSibling();
         }
+        ResetPreviewToEquippedSkin();
         SwitchFriendsTab(FriendsTabType.Search);
     }
 
@@ -2002,7 +2140,7 @@ public class MainMenuController : MonoBehaviour
         if (friendsSearchButton != null)
         {
             friendsSearchButton.onClick.RemoveAllListeners();
-            friendsSearchButton.onClick.AddListener(() => RefreshFriendsTabContent());
+            friendsSearchButton.onClick.AddListener(() => RefreshFriendsTabContent(forceApi: true));
             friendsSearchButton.onClick.AddListener(PlayButtonClickSFX);
         }
 
@@ -2018,9 +2156,9 @@ public class MainMenuController : MonoBehaviour
             friendsSearchFilterInput.onValueChanged.RemoveAllListeners();
             friendsSearchFilterInput.onValueChanged.AddListener(OnFriendsSearchFilterChanged);
             friendsSearchFilterInput.onSubmit.RemoveAllListeners();
-            friendsSearchFilterInput.onSubmit.AddListener((val) => RefreshFriendsTabContent());
+            friendsSearchFilterInput.onSubmit.AddListener((val) => ApplyLocalFriendsFilter());
             friendsSearchFilterInput.onEndEdit.RemoveAllListeners();
-            friendsSearchFilterInput.onEndEdit.AddListener((val) => RefreshFriendsTabContent());
+            friendsSearchFilterInput.onEndEdit.AddListener((val) => ApplyLocalFriendsFilter());
         }
     }
 
@@ -2034,6 +2172,8 @@ public class MainMenuController : MonoBehaviour
         {
             mainPanel.SetActive(true);
         }
+        ResetPreviewToEquippedSkin();
+        UpdatePlayerProfileUI();
     }
 
     public void SwitchFriendsTab(int tabIndex)
@@ -2045,7 +2185,7 @@ public class MainMenuController : MonoBehaviour
     {
         currentFriendsTab = tab;
         UpdateFriendsTabVisuals();
-        RefreshFriendsTabContent();
+        RefreshFriendsTabContent(forceApi: false);
     }
 
     private void UpdateFriendsTabVisuals()
@@ -2086,7 +2226,8 @@ public class MainMenuController : MonoBehaviour
 
     private void OnFriendsSearchFilterChanged(string text)
     {
-        RefreshFriendsTabContent();
+        // Pure local in-memory filter: 0 network/API requests to Firebase!
+        ApplyLocalFriendsFilter();
     }
 
     private void ClearScrollViewContent()
@@ -2098,11 +2239,10 @@ public class MainMenuController : MonoBehaviour
         }
     }
 
-    private void RefreshFriendsTabContent()
+    private void EnsureFriendsScrollViewLayout()
     {
         if (friendsScrollViewContent == null) return;
 
-        // Ensure VerticalLayoutGroup and ContentSizeFitter exist on friendsScrollViewContent to layout children vertically
         var vlg = friendsScrollViewContent.GetComponent<VerticalLayoutGroup>();
         if (vlg == null)
         {
@@ -2122,8 +2262,116 @@ public class MainMenuController : MonoBehaviour
         }
         csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+    }
 
+    private void ApplyLocalFriendsFilter()
+    {
+        if (friendsScrollViewContent == null) return;
+
+        EnsureFriendsScrollViewLayout();
         ClearScrollViewContent();
+
+        string filter = friendsSearchFilterInput != null ? friendsSearchFilterInput.text.Trim() : "";
+        string cleanFilter = filter.ToLower();
+
+        if (currentFriendsTab == FriendsTabType.Search)
+        {
+            if (string.IsNullOrEmpty(cleanFilter))
+            {
+                filteredSearchPlayers.Clear();
+                currentSearchDisplayedCount = 0;
+                CreateFriendsInfoCard("Type a player name or ID to search.");
+                return;
+            }
+
+            if (cachedSearchPlayers == null || cachedSearchPlayers.Count == 0)
+            {
+                RefreshFriendsTabContent(forceApi: false);
+                return;
+            }
+
+            filteredSearchPlayers = cachedSearchPlayers.FindAll(p => (!string.IsNullOrEmpty(p.displayName) && p.displayName.ToLower().Contains(cleanFilter)) ||
+                                                               (!string.IsNullOrEmpty(p.uid) && p.uid.ToLower().Contains(cleanFilter)));
+
+            currentSearchDisplayedCount = 0;
+
+            if (filteredSearchPlayers.Count == 0)
+            {
+                CreateFriendsInfoCard($"No players found matching '{filter}'");
+                return;
+            }
+
+            LoadMoreSearchPlayersBatch();
+        }
+        else if (currentFriendsTab == FriendsTabType.Requests)
+        {
+            if (cachedRequestsList == null)
+            {
+                RefreshFriendsTabContent(forceApi: false);
+                return;
+            }
+
+            var filtered = string.IsNullOrEmpty(cleanFilter)
+                ? cachedRequestsList
+                : cachedRequestsList.FindAll(r => (!string.IsNullOrEmpty(r.displayName) && r.displayName.ToLower().Contains(cleanFilter)) ||
+                                                  (!string.IsNullOrEmpty(r.uid) && r.uid.ToLower().Contains(cleanFilter)));
+
+            if (filtered.Count == 0)
+            {
+                CreateFriendsInfoCard(!string.IsNullOrEmpty(filter) ? $"No pending requests found matching '{filter}'" : "No pending friend requests.");
+                return;
+            }
+
+            foreach (var req in filtered)
+            {
+                CreatePlayerRowItem(friendsScrollViewContent, req.uid, req.displayName, req.level, req.selectedSkinIndex, 1000, FriendsTabType.Requests);
+            }
+        }
+        else if (currentFriendsTab == FriendsTabType.Friends)
+        {
+            if (cachedFriendsList == null)
+            {
+                RefreshFriendsTabContent(forceApi: false);
+                return;
+            }
+
+            // Check if presences need a fresh fetch
+            if (Time.time - lastPresenceFetchTime >= PRESENCE_CACHE_DURATION && CounterBoom.Networking.FirebaseManager.Instance != null)
+            {
+                lastPresenceFetchTime = Time.time;
+                CounterBoom.Networking.FirebaseManager.Instance.FetchAllPresences((presences) =>
+                {
+                    cachedPresences = presences ?? new Dictionary<string, CounterBoom.Networking.FirebaseManager.PlayerPresenceData>();
+                    if (currentFriendsTab == FriendsTabType.Friends)
+                    {
+                        ApplyLocalFriendsFilter();
+                    }
+                });
+            }
+
+            var filtered = string.IsNullOrEmpty(cleanFilter)
+                ? cachedFriendsList
+                : cachedFriendsList.FindAll(f => (!string.IsNullOrEmpty(f.displayName) && f.displayName.ToLower().Contains(cleanFilter)) ||
+                                                 (!string.IsNullOrEmpty(f.uid) && f.uid.ToLower().Contains(cleanFilter)));
+
+            if (filtered.Count == 0)
+            {
+                CreateFriendsInfoCard(!string.IsNullOrEmpty(filter) ? $"No friends found matching '{filter}'" : "No friends added yet. Go to SEARCH tab to add players!");
+                return;
+            }
+
+            foreach (var friend in filtered)
+            {
+                CreatePlayerRowItem(friendsScrollViewContent, friend.uid, friend.displayName, friend.level, friend.selectedSkinIndex, 1000, FriendsTabType.Friends);
+            }
+        }
+    }
+
+    private void RefreshFriendsTabContent(bool forceApi = false)
+    {
+        if (friendsScrollViewContent == null) return;
+
+        EnsureFriendsScrollViewLayout();
 
         // Wire ScrollRect scroll listener for infinite scroll pagination
         if (activeFriendsScrollRect == null && friendsScrollViewContent != null)
@@ -2136,11 +2384,9 @@ public class MainMenuController : MonoBehaviour
             activeFriendsScrollRect.onValueChanged.AddListener(OnFriendsScrollValueChanged);
         }
 
-        string filter = friendsSearchFilterInput != null ? friendsSearchFilterInput.text.Trim() : "";
-        string cleanFilter = filter.ToLower();
-
         if (CounterBoom.Networking.FirebaseManager.Instance == null)
         {
+            ClearScrollViewContent();
             CreateFriendsInfoCard("Connecting to Social Services...");
             return;
         }
@@ -2149,99 +2395,73 @@ public class MainMenuController : MonoBehaviour
 
         if (targetTab == FriendsTabType.Search)
         {
-            CreateFriendsInfoCard("Loading players list...", isLoading: true);
-            CounterBoom.Networking.FirebaseManager.Instance.SearchPlayers(cleanFilter, (results) =>
+            string filter = friendsSearchFilterInput != null ? friendsSearchFilterInput.text.Trim() : "";
+            if (string.IsNullOrEmpty(filter) && !forceApi)
+            {
+                ClearScrollViewContent();
+                CreateFriendsInfoCard("Type a player name or ID to search.");
+                return;
+            }
+
+            bool hasValidCache = !forceApi && cachedSearchPlayers != null && cachedSearchPlayers.Count > 0 &&
+                                 (Time.time - lastSearchFetchTime < FRIENDS_TAB_CACHE_DURATION);
+            if (hasValidCache)
+            {
+                ApplyLocalFriendsFilter();
+                return;
+            }
+
+            ClearScrollViewContent();
+            CreateFriendsInfoCard("Searching players...", isLoading: true);
+            CounterBoom.Networking.FirebaseManager.Instance.SearchPlayers("", (results) =>
             {
                 if (currentFriendsTab != FriendsTabType.Search) return;
 
-                ClearScrollViewContent();
-
-                if (results == null || results.Count == 0)
-                {
-                    cachedSearchPlayers.Clear();
-                    currentSearchDisplayedCount = 0;
-                    if (!string.IsNullOrEmpty(filter))
-                    {
-                        CreateFriendsInfoCard($"No players found matching '{filter}'");
-                    }
-                    else
-                    {
-                        CreateFriendsInfoCard("No players available in the game.");
-                    }
-                    return;
-                }
-
-                cachedSearchPlayers = results;
-                currentSearchDisplayedCount = 0;
-
-                // Load initial batch of 10 players
-                LoadMoreSearchPlayersBatch();
-            });
+                cachedSearchPlayers = results ?? new List<CounterBoom.Networking.FirebaseUserData>();
+                lastSearchFetchTime = Time.time;
+                ApplyLocalFriendsFilter();
+            }, forceRefresh: forceApi);
         }
         else if (targetTab == FriendsTabType.Requests)
         {
+            bool hasValidCache = !forceApi && cachedRequestsList != null &&
+                                 (Time.time - lastRequestsFetchTime < FRIENDS_TAB_CACHE_DURATION);
+            if (hasValidCache)
+            {
+                ApplyLocalFriendsFilter();
+                return;
+            }
+
+            ClearScrollViewContent();
             CreateFriendsInfoCard("Loading friend requests...", isLoading: true);
             CounterBoom.Networking.FirebaseManager.Instance.FetchPendingRequestsList((requests) =>
             {
                 if (currentFriendsTab != FriendsTabType.Requests) return;
 
-                ClearScrollViewContent();
-
-                if (requests == null || requests.Count == 0)
-                {
-                    CreateFriendsInfoCard("No pending friend requests.");
-                    return;
-                }
-
-                var filtered = requests;
-                if (!string.IsNullOrEmpty(cleanFilter))
-                {
-                    filtered = requests.FindAll(r => r.displayName.ToLower().Contains(cleanFilter) || r.uid.ToLower().Contains(cleanFilter));
-                }
-
-                if (filtered == null || filtered.Count == 0)
-                {
-                    CreateFriendsInfoCard($"No pending requests found matching '{filter}'");
-                    return;
-                }
-
-                foreach (var req in filtered)
-                {
-                    CreatePlayerRowItem(friendsScrollViewContent, req.uid, req.displayName, req.level, req.selectedSkinIndex, 1000, FriendsTabType.Requests);
-                }
+                cachedRequestsList = requests ?? new List<CounterBoom.Networking.FriendProfile>();
+                lastRequestsFetchTime = Time.time;
+                ApplyLocalFriendsFilter();
             });
         }
         else if (targetTab == FriendsTabType.Friends)
         {
+            bool hasValidCache = !forceApi && cachedFriendsList != null &&
+                                 (Time.time - lastFriendsFetchTime < FRIENDS_TAB_CACHE_DURATION);
+            if (hasValidCache)
+            {
+                ApplyLocalFriendsFilter();
+                return;
+            }
+
+            ClearScrollViewContent();
             CreateFriendsInfoCard("Loading friends list...", isLoading: true);
             CounterBoom.Networking.FirebaseManager.Instance.FetchFriendsList((friends) =>
             {
                 if (currentFriendsTab != FriendsTabType.Friends) return;
 
-                ClearScrollViewContent();
-
-                if (friends == null || friends.Count == 0)
-                {
-                    CreateFriendsInfoCard("No friends added yet. Go to SEARCH tab to add players!");
-                    return;
-                }
-
-                var filtered = friends;
-                if (!string.IsNullOrEmpty(cleanFilter))
-                {
-                    filtered = friends.FindAll(f => f.displayName.ToLower().Contains(cleanFilter) || f.uid.ToLower().Contains(cleanFilter));
-                }
-
-                if (filtered == null || filtered.Count == 0)
-                {
-                    CreateFriendsInfoCard($"No friends found matching '{filter}'");
-                    return;
-                }
-
-                foreach (var friend in filtered)
-                {
-                    CreatePlayerRowItem(friendsScrollViewContent, friend.uid, friend.displayName, friend.level, friend.selectedSkinIndex, 1000, FriendsTabType.Friends);
-                }
+                cachedFriendsList = friends ?? new List<CounterBoom.Networking.FriendProfile>();
+                lastFriendsFetchTime = Time.time;
+                ApplyLocalFriendsFilter();
             });
         }
     }
@@ -2250,7 +2470,9 @@ public class MainMenuController : MonoBehaviour
     {
         if (currentFriendsTab != FriendsTabType.Search) return;
         if (isLoadingMoreSearchPlayers) return;
-        if (cachedSearchPlayers == null || currentSearchDisplayedCount >= cachedSearchPlayers.Count) return;
+
+        var listToUse = (filteredSearchPlayers != null && filteredSearchPlayers.Count > 0) ? filteredSearchPlayers : cachedSearchPlayers;
+        if (listToUse == null || currentSearchDisplayedCount >= listToUse.Count) return;
 
         // When user scrolls near the bottom of the ScrollRect (y <= 0.08f)
         if (scrollPos.y <= 0.08f)
@@ -2262,14 +2484,16 @@ public class MainMenuController : MonoBehaviour
     private void LoadMoreSearchPlayersBatch()
     {
         if (isLoadingMoreSearchPlayers) return;
-        if (cachedSearchPlayers == null || currentSearchDisplayedCount >= cachedSearchPlayers.Count) return;
+
+        var listToUse = (filteredSearchPlayers != null && filteredSearchPlayers.Count > 0) ? filteredSearchPlayers : cachedSearchPlayers;
+        if (listToUse == null || currentSearchDisplayedCount >= listToUse.Count) return;
 
         isLoadingMoreSearchPlayers = true;
 
-        int countToLoad = Mathf.Min(PLAYERS_PER_PAGE, cachedSearchPlayers.Count - currentSearchDisplayedCount);
+        int countToLoad = Mathf.Min(PLAYERS_PER_PAGE, listToUse.Count - currentSearchDisplayedCount);
         for (int i = 0; i < countToLoad; i++)
         {
-            var p = cachedSearchPlayers[currentSearchDisplayedCount + i];
+            var p = listToUse[currentSearchDisplayedCount + i];
             CreatePlayerRowItem(friendsScrollViewContent, p.uid, p.displayName, p.level, p.selectedSkinIndex, p.coins, FriendsTabType.Search);
         }
 
@@ -2856,7 +3080,7 @@ public class MainMenuController : MonoBehaviour
         backBtn.onClick.AddListener(() =>
         {
             PlayButtonClickSFX();
-            RefreshFriendsTabContent();
+            RefreshFriendsTabContent(forceApi: false);
         });
 
         GameObject titleGO = new GameObject("TitleText", typeof(RectTransform), typeof(TextMeshProUGUI));
@@ -2893,10 +3117,78 @@ public class MainMenuController : MonoBehaviour
         dVlg.childControlWidth = false;
         dVlg.childControlHeight = false;
 
+        CounterBoom.Networking.FirebaseManager.PlayerPresenceData pData = null;
+        if (cachedPresences != null)
+        {
+            if (!cachedPresences.TryGetValue(uid, out pData) && !string.IsNullOrEmpty(displayName))
+            {
+                cachedPresences.TryGetValue(displayName, out pData);
+            }
+        }
+
+        var status = pData != null ? pData.GetStatusEnum() : CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.Offline;
+        bool friendInRoom = IsFriendInCurrentRoom(uid, displayName);
+
+        string statusSuffix = "";
+        string inviteBtnText = "INVITE";
+        bool inviteBtnInteractable = true;
+        Color inviteBtnColor = new Color(0.9f, 0.6f, 0.15f, 1f);
+        bool isRequestToJoin = false;
+
+        if (friendInRoom)
+        {
+            statusSuffix = "<color=#00E676>(In Room)</color>";
+            inviteBtnText = "IN ROOM";
+            inviteBtnInteractable = false;
+            inviteBtnColor = new Color(0.2f, 0.65f, 0.32f, 1f);
+        }
+        else
+        {
+            switch (status)
+            {
+                case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.Online:
+                    statusSuffix = "<color=#00E676>(Online)</color>";
+                    inviteBtnText = "INVITE";
+                    inviteBtnInteractable = true;
+                    inviteBtnColor = new Color(0.9f, 0.6f, 0.15f, 1f);
+                    break;
+
+                case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.InRoom:
+                    statusSuffix = "<color=#FFD54F>(In Room)</color>";
+                    inviteBtnText = "REQUEST";
+                    inviteBtnInteractable = true;
+                    inviteBtnColor = new Color(0.2f, 0.65f, 0.9f, 1f);
+                    isRequestToJoin = true;
+                    break;
+
+                case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.RoomFull:
+                    statusSuffix = "<color=#FF5252>(Room Full)</color>";
+                    inviteBtnText = "ROOM FULL";
+                    inviteBtnInteractable = false;
+                    inviteBtnColor = new Color(0.4f, 0.45f, 0.55f, 1f);
+                    break;
+
+                case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.InGame:
+                    statusSuffix = "<color=#40C4FF>(In Game)</color>";
+                    inviteBtnText = "IN GAME";
+                    inviteBtnInteractable = false;
+                    inviteBtnColor = new Color(0.4f, 0.45f, 0.55f, 1f);
+                    break;
+
+                default: // Offline
+                    statusSuffix = "<color=#888888>(Offline)</color>";
+                    inviteBtnText = "OFFLINE";
+                    inviteBtnInteractable = false;
+                    inviteBtnColor = new Color(0.35f, 0.35f, 0.35f, 1f);
+                    break;
+            }
+        }
+
         GameObject nameGO = new GameObject("NameText", typeof(RectTransform), typeof(TextMeshProUGUI));
         nameGO.transform.SetParent(detailsCol.transform, false);
         TextMeshProUGUI nTmp = nameGO.GetComponent<TextMeshProUGUI>();
-        nTmp.text = displayName;
+        string titleText = string.IsNullOrEmpty(statusSuffix) ? displayName : $"{displayName} {statusSuffix}";
+        nTmp.text = titleText;
         nTmp.fontSize = 20;
         nTmp.fontStyle = FontStyles.Bold;
         nTmp.color = Color.white;
@@ -2930,20 +3222,37 @@ public class MainMenuController : MonoBehaviour
 
         if (isFriend)
         {
-            GameObject inviteBtnGO = CreateActionButton(actionsRow.transform, "INVITE", new Color(0.18f, 0.65f, 0.3f, 1f), null);
+            GameObject inviteBtnGO = CreateActionButton(actionsRow.transform, inviteBtnText, inviteBtnColor, null, enabled: inviteBtnInteractable);
             Button inviteBtn = inviteBtnGO.GetComponent<Button>();
-            inviteBtn.onClick.AddListener(async () =>
+            if (inviteBtnInteractable)
             {
-                PlayButtonClickSFX();
-                await SendInviteToFriendAsync(uid, displayName, inviteBtn);
-            });
+                inviteBtn.onClick.AddListener(async () =>
+                {
+                    PlayButtonClickSFX();
+                    if (isRequestToJoin)
+                    {
+                        await SendJoinRequestToFriendAsync(uid, displayName, inviteBtn);
+                    }
+                    else
+                    {
+                        await SendInviteToFriendAsync(uid, displayName, inviteBtn);
+                    }
+                });
+            }
 
             CreateActionButton(actionsRow.transform, "REMOVE FRIEND", new Color(0.75f, 0.2f, 0.2f, 1f), () =>
             {
                 PlayButtonClickSFX();
                 if (CounterBoom.Networking.FirebaseManager.Instance != null)
                 {
-                    CounterBoom.Networking.FirebaseManager.Instance.RemoveFriend(uid, (success) => ShowPlayerDetailsView(uid, displayName, level, skinIndex, coins, originTab));
+                    CounterBoom.Networking.FirebaseManager.Instance.RemoveFriend(uid, (success) =>
+                    {
+                        if (success)
+                        {
+                            if (cachedFriendsList != null) cachedFriendsList.RemoveAll(f => f.uid == uid);
+                            RefreshFriendsTabContent(forceApi: false);
+                        }
+                    });
                 }
             });
         }
@@ -3143,6 +3452,23 @@ public class MainMenuController : MonoBehaviour
 
         UpdatePlayStatus($"Joining {senderName}'s lobby...");
 
+        // Cleanly dismantle existing room instance if we were hosting or connected to one
+        if (RelayNetworkManager.Instance != null)
+        {
+            await RelayNetworkManager.Instance.LeaveMatchGracefully();
+        }
+        if (Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            Unity.Netcode.NetworkManager.Singleton.Shutdown();
+            await System.Threading.Tasks.Task.Delay(150);
+        }
+
+        var priorPCs = FindObjectsOfType<PlayerController>();
+        foreach (var pc in priorPCs)
+        {
+            if (pc != null && pc.gameObject != null) Destroy(pc.gameObject);
+        }
+
         bool joined = false;
         if (RelayNetworkManager.Instance != null && !string.IsNullOrEmpty(roomCode))
         {
@@ -3159,6 +3485,10 @@ public class MainMenuController : MonoBehaviour
         }
         else
         {
+            SetupPreviewPlayer();
+            ResetPreviewToEquippedSkin();
+            UpdateLobbyButtonsState();
+
             if (sTmp != null) sTmp.text = "<color=#FF4444>Failed to connect to lobby.\nRoom may be full or expired.</color>";
             if (dTmp != null) dTmp.text = "";
             UpdatePlayStatus("Failed to join lobby.");
@@ -3261,6 +3591,170 @@ public class MainMenuController : MonoBehaviour
         }
     }
 
+    public async Task SendJoinRequestToFriendAsync(string targetUid, string targetDisplayName, Button requestBtn = null)
+    {
+        if (string.IsNullOrEmpty(targetUid)) return;
+
+        TMP_Text btnText = requestBtn != null ? requestBtn.GetComponentInChildren<TMP_Text>() : null;
+        string originalText = btnText != null ? btnText.text : "REQUEST";
+
+        if (requestBtn != null)
+        {
+            requestBtn.interactable = false;
+            if (btnText != null) btnText.text = "REQUESTING...";
+        }
+
+        UpdatePlayStatus($"Sending join request to {targetDisplayName}...");
+
+        if (CounterBoom.Networking.FirebaseManager.Instance != null)
+        {
+            var tcs = new TaskCompletionSource<bool>();
+            CounterBoom.Networking.FirebaseManager.Instance.SendJoinRoomRequest(targetUid, targetDisplayName, (res) => tcs.TrySetResult(res));
+            await Task.WhenAny(tcs.Task, Task.Delay(4000));
+        }
+
+        UpdatePlayStatus($"<color=#00FF00>Join request sent to {targetDisplayName}!</color>");
+        if (requestBtn != null && btnText != null)
+        {
+            btnText.text = "REQUESTED";
+        }
+    }
+
+    private void PollJoinRoomRequestsTask()
+    {
+        if (CounterBoom.Networking.FirebaseManager.Instance != null)
+        {
+            CounterBoom.Networking.FirebaseManager.Instance.PollJoinRoomRequest((req) =>
+            {
+                if (req != null && !string.IsNullOrEmpty(req.senderUid) && !string.IsNullOrEmpty(req.senderName))
+                {
+                    ShowJoinRoomRequestModal(req.senderUid, req.senderName);
+                }
+            });
+        }
+    }
+
+    public void ShowJoinRoomRequestModal(string senderUid, string senderName)
+    {
+        if (activeJoinRequestModal != null) Destroy(activeJoinRequestModal);
+
+        Canvas canvas = GetComponentInParent<Canvas>() ?? GetComponent<Canvas>() ?? FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        activeJoinRequestModal = new GameObject("JoinRoomRequestModal", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup));
+        activeJoinRequestModal.transform.SetParent(canvas.transform, false);
+
+        RectTransform mRt = activeJoinRequestModal.GetComponent<RectTransform>();
+        mRt.anchorMin = new Vector2(0.5f, 0.5f);
+        mRt.anchorMax = new Vector2(0.5f, 0.5f);
+        mRt.pivot = new Vector2(0.5f, 0.5f);
+        mRt.sizeDelta = new Vector2(400f, 210f);
+
+        Image bg = activeJoinRequestModal.GetComponent<Image>();
+        Sprite cardSprite = invitePopupPanelSprite != null ? invitePopupPanelSprite : GetCardFrameSprite();
+        if (cardSprite != null)
+        {
+            bg.sprite = cardSprite;
+            bg.type = Image.Type.Sliced;
+        }
+        bg.color = invitePopupPanelSprite != null ? Color.white : new Color(0.08f, 0.12f, 0.18f, 0.98f);
+
+        VerticalLayoutGroup vlg = activeJoinRequestModal.GetComponent<VerticalLayoutGroup>();
+        vlg.childAlignment = TextAnchor.MiddleCenter;
+        vlg.spacing = 14f;
+        vlg.padding = new RectOffset(20, 20, 16, 16);
+        vlg.childControlWidth = true;
+        vlg.childForceExpandWidth = true;
+
+        GameObject titleGO = new GameObject("HeaderTitle", typeof(RectTransform), typeof(TextMeshProUGUI));
+        titleGO.transform.SetParent(activeJoinRequestModal.transform, false);
+        TextMeshProUGUI tTmp = titleGO.GetComponent<TextMeshProUGUI>();
+        tTmp.text = "ROOM JOIN REQUEST";
+        tTmp.fontSize = 18;
+        tTmp.fontStyle = FontStyles.Bold;
+        tTmp.alignment = TextAlignmentOptions.Center;
+        tTmp.color = new Color(0.4f, 0.85f, 1f, 1f);
+
+        GameObject msgGO = new GameObject("MessageText", typeof(RectTransform), typeof(TextMeshProUGUI));
+        msgGO.transform.SetParent(activeJoinRequestModal.transform, false);
+        TextMeshProUGUI mTmp = msgGO.GetComponent<TextMeshProUGUI>();
+        mTmp.text = $"<b>{senderName}</b> wants to join your room!";
+        mTmp.fontSize = 14;
+        mTmp.alignment = TextAlignmentOptions.Center;
+        mTmp.color = Color.white;
+
+        GameObject btnRow = new GameObject("ButtonsRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        btnRow.transform.SetParent(activeJoinRequestModal.transform, false);
+        HorizontalLayoutGroup hlg = btnRow.GetComponent<HorizontalLayoutGroup>();
+        hlg.childAlignment = TextAnchor.MiddleCenter;
+        hlg.spacing = 16f;
+        hlg.childControlWidth = false;
+        hlg.childControlHeight = false;
+
+        CreateActionButton(btnRow.transform, "LET IN", new Color(0.18f, 0.65f, 0.3f, 1f), async () =>
+        {
+            PlayButtonClickSFX();
+            if (activeJoinRequestModal != null) Destroy(activeJoinRequestModal);
+
+            if (CounterBoom.Networking.FirebaseManager.Instance != null && CounterBoom.Networking.FirebaseManager.Instance.CurrentUser != null)
+            {
+                CounterBoom.Networking.FirebaseManager.Instance.ClearJoinRoomRequest(CounterBoom.Networking.FirebaseManager.Instance.CurrentUser.uid);
+                if (!string.IsNullOrEmpty(CounterBoom.Networking.FirebaseManager.Instance.CurrentUser.displayName))
+                {
+                    CounterBoom.Networking.FirebaseManager.Instance.ClearJoinRoomRequest(CounterBoom.Networking.FirebaseManager.Instance.CurrentUser.displayName);
+                }
+            }
+
+            // 1. Retrieve active room code from RelayNetworkManager
+            string roomCode = RelayNetworkManager.Instance != null ? RelayNetworkManager.Instance.CurrentJoinCode : "";
+            if (string.IsNullOrEmpty(roomCode) && RelayNetworkManager.Instance != null)
+            {
+                roomCode = RelayNetworkManager.Instance.LastValidJoinCode;
+            }
+
+            // 2. Fallback to UI input field
+            if (string.IsNullOrEmpty(roomCode) && joinCodeInputField != null && !string.IsNullOrEmpty(joinCodeInputField.text))
+            {
+                roomCode = joinCodeInputField.text.Trim().ToUpper();
+            }
+
+            bool isCurrentlyInRoom = Unity.Netcode.NetworkManager.Singleton != null && Unity.Netcode.NetworkManager.Singleton.IsListening;
+
+            // 3. Only create a new private room host if NOT currently in a room!
+            if (string.IsNullOrEmpty(roomCode) && !isCurrentlyInRoom && RelayNetworkManager.Instance != null)
+            {
+                UpdatePlayStatus("Creating room to let player in...");
+                roomCode = await RelayNetworkManager.Instance.StartPrivateHostWithRelay();
+            }
+
+            if (!string.IsNullOrEmpty(roomCode) && CounterBoom.Networking.FirebaseManager.Instance != null)
+            {
+                CounterBoom.Networking.FirebaseManager.Instance.SendGameInvite(senderUid, roomCode, senderName);
+                UpdatePlayStatus($"<color=green>Let in {senderName}! Sent invite to join room.</color>");
+                Debug.Log($"[MainMenuController] Let in '{senderName}' ({senderUid}) with room code '{roomCode}'.");
+            }
+            else
+            {
+                Debug.LogWarning($"[MainMenuController] Could not let in '{senderName}': Room code missing.");
+                UpdatePlayStatus("<color=red>Could not resolve room code to let player in!</color>");
+            }
+        });
+
+        CreateActionButton(btnRow.transform, "DECLINE", new Color(0.75f, 0.2f, 0.2f, 1f), () =>
+        {
+            PlayButtonClickSFX();
+            if (activeJoinRequestModal != null) Destroy(activeJoinRequestModal);
+            if (CounterBoom.Networking.FirebaseManager.Instance != null && CounterBoom.Networking.FirebaseManager.Instance.CurrentUser != null)
+            {
+                CounterBoom.Networking.FirebaseManager.Instance.ClearJoinRoomRequest(CounterBoom.Networking.FirebaseManager.Instance.CurrentUser.uid);
+                if (!string.IsNullOrEmpty(CounterBoom.Networking.FirebaseManager.Instance.CurrentUser.displayName))
+                {
+                    CounterBoom.Networking.FirebaseManager.Instance.ClearJoinRoomRequest(CounterBoom.Networking.FirebaseManager.Instance.CurrentUser.displayName);
+                }
+            }
+        });
+    }
+
     private GameObject CreateActionButton(Transform parent, string label, Color bgCol, Action onClick, bool enabled = true)
     {
         GameObject btnGO = new GameObject("ActionBtn", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -3306,6 +3800,75 @@ public class MainMenuController : MonoBehaviour
     private void CreatePlayerRowItem(Transform parent, string uid, string displayName, int level, int skinIndex, int coins, FriendsTabType tabType)
     {
         Sprite avatarSprite = GetSkinHeadSprite(skinIndex);
+        string statusSuffix = "";
+        string inviteBtnText = "INVITE";
+        bool inviteBtnInteractable = true;
+        Color inviteBtnColor = new Color(0.9f, 0.6f, 0.15f, 1f);
+        bool isRequestToJoin = false;
+
+        if (tabType == FriendsTabType.Friends)
+        {
+            bool friendInRoom = IsFriendInCurrentRoom(uid, displayName);
+            CounterBoom.Networking.FirebaseManager.PlayerPresenceData pData = null;
+            if (cachedPresences != null)
+            {
+                if (!cachedPresences.TryGetValue(uid, out pData) && !string.IsNullOrEmpty(displayName))
+                {
+                    cachedPresences.TryGetValue(displayName, out pData);
+                }
+            }
+
+            var status = pData != null ? pData.GetStatusEnum() : CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.Offline;
+
+            if (friendInRoom)
+            {
+                statusSuffix = "<color=#00E676>(In Room)</color>";
+                inviteBtnText = "IN ROOM";
+                inviteBtnInteractable = false;
+                inviteBtnColor = new Color(0.2f, 0.65f, 0.32f, 1f);
+            }
+            else
+            {
+                switch (status)
+                {
+                    case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.Online:
+                        statusSuffix = "<color=#00E676>(Online)</color>";
+                        inviteBtnText = "INVITE";
+                        inviteBtnInteractable = true;
+                        inviteBtnColor = new Color(0.9f, 0.6f, 0.15f, 1f);
+                        break;
+
+                    case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.InRoom:
+                        statusSuffix = "<color=#FFD54F>(In Room)</color>";
+                        inviteBtnText = "REQUEST";
+                        inviteBtnInteractable = true;
+                        inviteBtnColor = new Color(0.2f, 0.65f, 0.9f, 1f);
+                        isRequestToJoin = true;
+                        break;
+
+                    case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.RoomFull:
+                        statusSuffix = "<color=#FF5252>(Room Full)</color>";
+                        inviteBtnText = "ROOM FULL";
+                        inviteBtnInteractable = false;
+                        inviteBtnColor = new Color(0.4f, 0.45f, 0.55f, 1f);
+                        break;
+
+                    case CounterBoom.Networking.FirebaseManager.PlayerPresenceStatus.InGame:
+                        statusSuffix = "<color=#40C4FF>(In Game)</color>";
+                        inviteBtnText = "IN GAME";
+                        inviteBtnInteractable = false;
+                        inviteBtnColor = new Color(0.4f, 0.45f, 0.55f, 1f);
+                        break;
+
+                    default: // Offline
+                        statusSuffix = "<color=#888888>(Offline)</color>";
+                        inviteBtnText = "OFFLINE";
+                        inviteBtnInteractable = false;
+                        inviteBtnColor = new Color(0.35f, 0.35f, 0.35f, 1f);
+                        break;
+                }
+            }
+        }
 
         if (playerRowPrefab != null)
         {
@@ -3351,31 +3914,64 @@ public class MainMenuController : MonoBehaviour
                 {
                     if (CounterBoom.Networking.FirebaseManager.Instance != null)
                     {
-                        CounterBoom.Networking.FirebaseManager.Instance.AcceptFriendRequest(uid, (success) => RefreshFriendsTabContent());
+                        CounterBoom.Networking.FirebaseManager.Instance.AcceptFriendRequest(uid, (success) =>
+                        {
+                            if (success)
+                            {
+                                if (cachedRequestsList != null) cachedRequestsList.RemoveAll(r => r.uid == uid);
+                                lastFriendsFetchTime = -999f; // Invalidate friends tab so next time it is visited, it fetches the new friend
+                                ApplyLocalFriendsFilter();
+                            }
+                        });
                     }
                 },
                 onDeclineClicked: () =>
                 {
                     if (CounterBoom.Networking.FirebaseManager.Instance != null)
                     {
-                        CounterBoom.Networking.FirebaseManager.Instance.DeclineFriendRequest(uid, (success) => RefreshFriendsTabContent());
+                        CounterBoom.Networking.FirebaseManager.Instance.DeclineFriendRequest(uid, (success) =>
+                        {
+                            if (success)
+                            {
+                                if (cachedRequestsList != null) cachedRequestsList.RemoveAll(r => r.uid == uid);
+                                ApplyLocalFriendsFilter();
+                            }
+                        });
                     }
                 },
                 onInviteClicked: async (btn) =>
                 {
-                    await SendInviteToFriendAsync(uid, displayName, btn);
+                    if (isRequestToJoin)
+                    {
+                        await SendJoinRequestToFriendAsync(uid, displayName, btn);
+                    }
+                    else
+                    {
+                        await SendInviteToFriendAsync(uid, displayName, btn);
+                    }
                 },
                 onRemoveClicked: () =>
                 {
                     if (CounterBoom.Networking.FirebaseManager.Instance != null)
                     {
-                        CounterBoom.Networking.FirebaseManager.Instance.RemoveFriend(uid, (success) => RefreshFriendsTabContent());
+                        CounterBoom.Networking.FirebaseManager.Instance.RemoveFriend(uid, (success) =>
+                        {
+                            if (success)
+                            {
+                                if (cachedFriendsList != null) cachedFriendsList.RemoveAll(f => f.uid == uid);
+                                ApplyLocalFriendsFilter();
+                            }
+                        });
                     }
                 },
                 onRowClicked: () =>
                 {
                     ShowPlayerDetailsView(uid, displayName, level, skinIndex, coins, tabType);
-                }
+                },
+                statusSuffix: statusSuffix,
+                inviteButtonText: inviteBtnText,
+                inviteButtonInteractable: inviteBtnInteractable,
+                inviteButtonColor: inviteBtnColor
             );
             return;
         }
@@ -3422,7 +4018,8 @@ public class MainMenuController : MonoBehaviour
         tRt.offsetMin = new Vector2(62f, 0f); tRt.offsetMax = Vector2.zero;
 
         TextMeshProUGUI tmp = txtGO.GetComponent<TextMeshProUGUI>();
-        tmp.text = $"<b>{displayName}</b>\n<size=12><color=#fbbc05>Level {level}</color> | ID: {uid}</size>";
+        string titleText = string.IsNullOrEmpty(statusSuffix) ? displayName : $"{displayName} {statusSuffix}";
+        tmp.text = $"<b>{titleText}</b>\n<size=12><color=#fbbc05>Level {level}</color> | ID: {uid}</size>";
         tmp.fontSize = 15; tmp.alignment = TextAlignmentOptions.MidlineLeft; tmp.color = Color.white;
         tmp.raycastTarget = false;
 
@@ -3476,7 +4073,12 @@ public class MainMenuController : MonoBehaviour
                 {
                     CounterBoom.Networking.FirebaseManager.Instance.AcceptFriendRequest(uid, (success) =>
                     {
-                        Destroy(row);
+                        if (success)
+                        {
+                            if (cachedRequestsList != null) cachedRequestsList.RemoveAll(r => r.uid == uid);
+                            lastFriendsFetchTime = -999f;
+                            Destroy(row);
+                        }
                     });
                 }
             });
@@ -3491,52 +4093,34 @@ public class MainMenuController : MonoBehaviour
                 {
                     CounterBoom.Networking.FirebaseManager.Instance.DeclineFriendRequest(uid, (success) =>
                     {
-                        Destroy(row);
+                        if (success)
+                        {
+                            if (cachedRequestsList != null) cachedRequestsList.RemoveAll(r => r.uid == uid);
+                            Destroy(row);
+                        }
                     });
                 }
             });
         }
         else if (tabType == FriendsTabType.Friends)
         {
-            bool friendInRoom = IsFriendInCurrentRoom(uid, displayName);
-            int currentFriendsInRoom = GetFriendsCountInRoom();
-            bool roomFull = currentFriendsInRoom >= 2;
-            bool isPendingInvite = activeInviteProcessingUids.Contains(uid);
-
-            string btnText = "INVITE";
-            Color btnColor = new Color(0.9f, 0.6f, 0.15f, 1f);
-            bool canClick = true;
-
-            if (friendInRoom)
-            {
-                btnText = "IN ROOM";
-                btnColor = new Color(0.2f, 0.65f, 0.32f, 1f);
-                canClick = false;
-            }
-            else if (roomFull)
-            {
-                btnText = "ROOM FULL";
-                btnColor = new Color(0.4f, 0.45f, 0.55f, 1f);
-                canClick = false;
-            }
-            else if (isPendingInvite)
-            {
-                btnText = "INVITED";
-                btnColor = new Color(0.4f, 0.45f, 0.55f, 1f);
-                canClick = false;
-            }
-
-            // Invite to Room Button
-            GameObject inviteBtnGO = CreateButton(actionRow, btnText, btnColor, 95f);
+            // Invite to Room / Request Join Button
+            GameObject inviteBtnGO = CreateButton(actionRow, inviteBtnText, inviteBtnColor, 95f);
             Button inviteBtn = inviteBtnGO.GetComponent<Button>();
-            inviteBtn.interactable = canClick;
-            if (canClick)
+            inviteBtn.interactable = inviteBtnInteractable;
+            if (inviteBtnInteractable)
             {
                 inviteBtn.onClick.AddListener(async () =>
                 {
                     PlayButtonClickSFX();
-                    await SendInviteToFriendAsync(uid, displayName, inviteBtn);
-                    RefreshFriendsTabContent();
+                    if (isRequestToJoin)
+                    {
+                        await SendJoinRequestToFriendAsync(uid, displayName, inviteBtn);
+                    }
+                    else
+                    {
+                        await SendInviteToFriendAsync(uid, displayName, inviteBtn);
+                    }
                 });
             }
 
@@ -3550,7 +4134,11 @@ public class MainMenuController : MonoBehaviour
                 {
                     CounterBoom.Networking.FirebaseManager.Instance.RemoveFriend(uid, (success) =>
                     {
-                        Destroy(row);
+                        if (success)
+                        {
+                            if (cachedFriendsList != null) cachedFriendsList.RemoveAll(f => f.uid == uid);
+                            Destroy(row);
+                        }
                     });
                 }
             });

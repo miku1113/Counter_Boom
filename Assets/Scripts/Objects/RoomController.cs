@@ -249,7 +249,14 @@ public class RoomController : MonoBehaviour
 
     private void BuildButton()
     {
-        Canvas canvas = FindObjectOfType<Canvas>();
+        if (buttonGO != null) Destroy(buttonGO);
+
+        Canvas canvas = null;
+        if (HUDManager.Instance != null)
+        {
+            canvas = HUDManager.Instance.GetComponentInParent<Canvas>() ?? HUDManager.Instance.GetComponent<Canvas>();
+        }
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
         if (canvas == null) return;
 
         buttonGO = new GameObject($"RoomExitBtn_{gameObject.name}", typeof(RectTransform));
@@ -257,20 +264,21 @@ public class RoomController : MonoBehaviour
         buttonGO.layer = LayerMask.NameToLayer("UI");
 
         RectTransform rt  = buttonGO.GetComponent<RectTransform>();
-        rt.sizeDelta        = new Vector2(160f, 60f);
-        rt.anchorMin        = new Vector2(0.5f, 0.18f);
-        rt.anchorMax        = new Vector2(0.5f, 0.18f);
+        rt.sizeDelta        = new Vector2(170f, 58f);
+        rt.anchorMin        = new Vector2(0.5f, 0.22f);
+        rt.anchorMax        = new Vector2(0.5f, 0.22f);
         rt.anchoredPosition = Vector2.zero;
 
         Image bg  = buttonGO.AddComponent<Image>();
-        bg.color  = new Color(0.05f, 0.05f, 0.05f, 0.88f);
+        bg.color  = new Color(0.08f, 0.12f, 0.18f, 0.95f);
 
         button = buttonGO.AddComponent<Button>();
         button.onClick.AddListener(OnExitPressed);
 
         ColorBlock cb       = button.colors;
-        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
-        cb.pressedColor     = new Color(0.5f, 0.5f, 0.5f, 1f);
+        cb.normalColor      = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.95f, 1f, 1f);
+        cb.pressedColor     = new Color(0.5f, 0.7f, 0.9f, 1f);
         button.colors       = cb;
 
         GameObject lblGO = new GameObject("Label", typeof(RectTransform));
@@ -284,11 +292,11 @@ public class RoomController : MonoBehaviour
         lrt.anchoredPosition = Vector2.zero;
 
         buttonLabel           = lblGO.AddComponent<TextMeshProUGUI>();
-        buttonLabel.text      = exitPromptText;
-        buttonLabel.fontSize  = 22f;
+        buttonLabel.text      = !string.IsNullOrEmpty(exitPromptText) ? exitPromptText : "EXIT ROOM";
+        buttonLabel.fontSize  = 20f;
         buttonLabel.fontStyle = FontStyles.Bold;
         buttonLabel.alignment = TextAlignmentOptions.Center;
-        buttonLabel.color     = Color.white;
+        buttonLabel.color     = new Color(1f, 0.45f, 0.2f, 1f);
 
         Outline o        = buttonGO.AddComponent<Outline>();
         o.effectColor    = new Color(1f, 0.35f, 0.1f, 0.9f);   // Orange tint for exit
@@ -318,9 +326,14 @@ public class RoomController : MonoBehaviour
             return;
         }
 
+        if (buttonGO == null && show)
+        {
+            BuildButton();
+        }
+
         if (buttonGO != null)
         {
-            if (show) buttonGO.transform.SetAsLastSibling(); // Always on top of every UI element
+            if (show) buttonGO.transform.SetAsLastSibling();
             buttonGO.SetActive(show);
         }
     }
