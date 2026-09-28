@@ -30,6 +30,8 @@ public class Bullet : MonoBehaviour
         float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
         transform.rotation = Quaternion.Euler(0, 0, angle);
 
+        EnsureTracerTrail();
+
         // Ignore collisions with shooter colliders
         if (shooter != null)
         {
@@ -45,6 +47,39 @@ public class Bullet : MonoBehaviour
         }
 
         Destroy(gameObject, lifetime);
+    }
+
+    private void EnsureTracerTrail()
+    {
+        TrailRenderer trail = GetComponent<TrailRenderer>();
+        if (trail == null)
+        {
+            trail = gameObject.AddComponent<TrailRenderer>();
+            trail.time = 0.12f;
+            trail.startWidth = 0.14f;
+            trail.endWidth = 0.02f;
+            trail.sortingLayerName = "player"; // Below wall layer
+            trail.sortingOrder = 30;
+
+            Material unlitMat = ProceduralEffectsGenerator.GetUnlitMaterial();
+            if (unlitMat != null)
+            {
+                trail.material = unlitMat;
+            }
+
+            Gradient grad = new Gradient();
+            grad.SetKeys(
+                new GradientColorKey[] {
+                    new GradientColorKey(new Color(1f, 0.95f, 0.65f), 0.0f),
+                    new GradientColorKey(new Color(1f, 0.60f, 0.15f), 1.0f)
+                },
+                new GradientAlphaKey[] {
+                    new GradientAlphaKey(0.85f, 0.0f),
+                    new GradientAlphaKey(0.0f, 1.0f)
+                }
+            );
+            trail.colorGradient = grad;
+        }
     }
 
     private void FixedUpdate()
@@ -119,17 +154,21 @@ public class Bullet : MonoBehaviour
             return;
         }
 
-        // Secondary check: destroy on environment colliders
+        // Secondary check: Hit environment (walls, obstacles, doors, etc.)
         int layer = collision.gameObject.layer;
-        if (layer == LayerMask.NameToLayer("Default") || layer == LayerMask.NameToLayer("Obstacle") || layer == LayerMask.NameToLayer("Wall"))
+        bool isWall = collision.CompareTag("Wall") || 
+                      layer == LayerMask.NameToLayer("wall") || 
+                      layer == LayerMask.NameToLayer("Wall") || 
+                      layer == LayerMask.NameToLayer("Obstacle") || 
+                      layer == LayerMask.NameToLayer("Default");
+
+        if (isWall || !collision.isTrigger)
         {
-            if (!collision.isTrigger)
-            {
-                Vector2 hitNormal = ((Vector2)transform.position - hitPoint).normalized;
-                if (hitNormal.sqrMagnitude < 0.001f) hitNormal = -direction;
-                ProceduralEffectsGenerator.CreateBulletSurfaceHitEffect(hitPoint, hitNormal);
-                Destroy(gameObject);
-            }
+            Vector2 hitNormal = ((Vector2)transform.position - hitPoint).normalized;
+            if (hitNormal.sqrMagnitude < 0.001f) hitNormal = -direction;
+            ProceduralEffectsGenerator.CreateBulletSurfaceHitEffect(hitPoint, hitNormal, collision.tag);
+            Destroy(gameObject);
+            return;
         }
     }
 

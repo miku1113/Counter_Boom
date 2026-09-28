@@ -23,6 +23,10 @@ public class WalkableFloorZone : MonoBehaviour
              "Thieves will spawn in NON-ground floor zones.")]
     public bool isGroundFloor = false;
 
+    [Tooltip("Optional custom dust particle color for this floor zone.\n" +
+             "If left transparent (alpha = 0), footstep particles will auto-sample underlying floor sprites/textures.")]
+    public Color floorColor = Color.clear;
+
     [Header("Room Settings")]
     [Tooltip("Check this if this zone represents a ROOM (not a corridor or open hall).\n" +
              "Keys will ONLY spawn in zones where isRoom = true.")]

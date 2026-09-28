@@ -218,6 +218,11 @@ public class SafeController : NetworkBehaviour
                 child.gameObject.SetActive(newState == SafeState.OpenEmpty);
         }
 
+        if (newState == SafeState.OpenFilled)
+        {
+            ProceduralEffectsGenerator.CreateSafeUnlockBurst(transform.position);
+        }
+
         if (statusLabel != null)
         {
             switch (newState)

@@ -623,11 +623,6 @@ public class InteractiveLobbyController : MonoBehaviour
 
     private int GetCurrentPingMs()
     {
-        if (Photon.Pun.PhotonNetwork.IsConnected)
-        {
-            return Photon.Pun.PhotonNetwork.GetPing();
-        }
-
         if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient)
         {
             try

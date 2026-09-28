@@ -433,50 +433,69 @@ public class WeaponController : NetworkBehaviour
 
         Vector2 aimDir = playerAiming != null ? playerAiming.GetAimDirection() : (Vector2)transform.right;
 
-        // Replicate punch animation and strike direction across the network
-        if (IsSpawned)
-        {
-            PunchServerRpc(isPunchingRightArm, aimDir);
-        }
+        Vector2 punchDir = aimDir.normalized;
+        Vector2 origin = (Vector2)transform.position;
 
-        Vector2 punchOrigin = (Vector2)transform.position + aimDir * 0.65f;
-        float punchRadius = 0.6f;
+        // Check impact at actual punch contact area in front of the player
+        Collider2D[] hits = Physics2D.OverlapCircleAll(origin + punchDir * 0.55f, 0.45f);
 
-        Collider2D[] hits = Physics2D.OverlapCircleAll(punchOrigin, punchRadius);
+        bool hitEnemy = false;
+        Vector2 impactPoint = Vector2.zero;
+
         foreach (var col in hits)
         {
-            if (col == null || col.gameObject == gameObject) continue;
+            if (col == null || col.gameObject == gameObject || col.transform.root == transform.root) continue;
 
-            var health = col.GetComponent<PlayerHealth>();
-            if (health == null) health = col.GetComponentInParent<PlayerHealth>();
+            var health = col.GetComponent<PlayerHealth>() ?? col.GetComponentInParent<PlayerHealth>();
 
             if (health != null && !health.IsDead)
             {
                 bool isTeammate = Bullet.AreTeammates(gameObject, health.gameObject);
-                Vector2 hitPoint = col.ClosestPoint(punchOrigin);
-                ProceduralEffectsGenerator.CreateBulletBodyHitEffect(hitPoint, aimDir, isTeammate);
+                impactPoint = col.ClosestPoint(origin + punchDir * 0.35f);
 
                 if (!isTeammate)
                 {
+                    hitEnemy = true;
+                    // Spawn VIBRANT RED impact effect right at the impact place!
+                    ProceduralEffectsGenerator.CreateMeleeHitEffect(impactPoint, punchDir, isEnemy: true);
                     health.TakeDamage(25);
-                    Debug.Log($"[MeleePunch] Hit opponent '{col.gameObject.name}' dealing 25 damage!");
+                    Debug.Log($"[MeleePunch] Hit opponent '{col.gameObject.name}' at {impactPoint} with RED impact!");
+                    break;
                 }
                 else
                 {
-                    Debug.Log($"[MeleePunch] Hit teammate '{col.gameObject.name}'. Deflected without damage.");
+                    // Deflected on teammate
+                    ProceduralEffectsGenerator.CreateBulletBodyHitEffect(impactPoint, punchDir, isTeammate: true);
+                    break;
                 }
             }
+            else if (!col.isTrigger)
+            {
+                int colLayer = col.gameObject.layer;
+                if (col.CompareTag("Wall") || colLayer == LayerMask.NameToLayer("wall") || colLayer == LayerMask.NameToLayer("Wall") || colLayer == LayerMask.NameToLayer("Obstacle"))
+                {
+                    impactPoint = col.ClosestPoint(origin);
+                    ProceduralEffectsGenerator.CreateMeleeHitEffect(impactPoint, punchDir, isEnemy: false);
+                    break;
+                }
+            }
+        }
+
+        // Replicate punch animation and impact effect across the network
+        if (IsSpawned)
+        {
+            PunchServerRpc(isPunchingRightArm, aimDir, hitEnemy, impactPoint);
         }
     }
 
     [ServerRpc(RequireOwnership = false)]
-    private void PunchServerRpc(bool useRightArm, Vector2 aimDirection)
+    private void PunchServerRpc(bool useRightArm, Vector2 aimDirection, bool hitEnemy, Vector2 impactPoint)
     {
-        PunchClientRpc(useRightArm, aimDirection);
+        PunchClientRpc(useRightArm, aimDirection, hitEnemy, impactPoint);
     }
 
     [ClientRpc]
-    private void PunchClientRpc(bool useRightArm, Vector2 aimDirection)
+    private void PunchClientRpc(bool useRightArm, Vector2 aimDirection, bool hitEnemy, Vector2 impactPoint)
     {
         if (IsOwner) return; // Local player already executed punch locally for instant feedback
         if (playerAiming == null) playerAiming = GetComponent<PlayerAiming>();
@@ -488,6 +507,12 @@ public class WeaponController : NetworkBehaviour
                 playerAiming.SetAimDirectionExternal(aimDirection);
             }
             playerAiming.PlayMeleePunchAnimation(useRightArm);
+        }
+
+        if (hitEnemy && impactPoint.sqrMagnitude > 0.01f)
+        {
+            Vector2 dir = aimDirection.sqrMagnitude > 0.01f ? aimDirection.normalized : (Vector2)transform.right;
+            ProceduralEffectsGenerator.CreateMeleeHitEffect(impactPoint, dir, isEnemy: true);
         }
     }
 

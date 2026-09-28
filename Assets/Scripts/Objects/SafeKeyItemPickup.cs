@@ -35,15 +35,21 @@ public class SafeKeyItemPickup : NetworkBehaviour
         if (spriteRenderer == null) spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
         spriteRenderer.sprite = CreateProceduralSafeKeySprite();
         spriteRenderer.color = keyGlowColor;
+        spriteRenderer.sortingLayerName = "player";
         spriteRenderer.sortingOrder = 145;
+        Material unlitMat = ProceduralEffectsGenerator.GetUnlitMaterial();
+        if (unlitMat != null) spriteRenderer.sharedMaterial = unlitMat;
 
         EnsureLabel();
+        if (GetComponent<AmbientLootShimmer>() == null) gameObject.AddComponent<AmbientLootShimmer>();
     }
 
     private Sprite CreateProceduralSafeKeySprite()
     {
         Texture2D tex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-        Color clear = new Color(0, 0, 0, 0);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        tex.filterMode = FilterMode.Bilinear;
+        Color clear = new Color(1f, 1f, 1f, 0f);
         Color crimson = new Color(1f, 0.15f, 0.1f, 1f);
         Color gold = new Color(1f, 0.85f, 0.2f, 1f);
 
@@ -220,6 +226,8 @@ public class SafeKeyItemPickup : NetworkBehaviour
     {
         if (isCollected) return;
         isCollected = true;
+
+        ProceduralEffectsGenerator.CreatePickupSparkleBurst(transform.position, new Color(1f, 0.85f, 0.2f, 1f));
 
         if (PlayerController.LocalPlayer != null)
         {

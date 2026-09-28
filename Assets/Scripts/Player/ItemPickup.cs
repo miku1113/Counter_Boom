@@ -14,6 +14,11 @@ public class ItemPickup : NetworkBehaviour
         spawnTime = Time.time;
     }
 
+    private void Start()
+    {
+        if (GetComponent<AmbientLootShimmer>() == null) gameObject.AddComponent<AmbientLootShimmer>();
+    }
+
     [Header("Audio Clips")]
     public AudioClip pickupSound;
     public AudioClip dropSound;
@@ -377,6 +382,11 @@ public class ItemPickup : NetworkBehaviour
     public void TriggerDespawn()
     {
         PlayPickupAudio();
+
+        Color burstColor = itemData != null && itemData.itemType == ItemType.Weapon 
+            ? new Color(1f, 0.65f, 0.15f, 1f) 
+            : new Color(0.2f, 0.90f, 1f, 1f);
+        ProceduralEffectsGenerator.CreatePickupSparkleBurst(transform.position, burstColor);
 
         // Immediately disable colliders and renderers on client so item cannot be picked up multiple times
         foreach (var col in GetComponentsInChildren<Collider2D>(true)) col.enabled = false;

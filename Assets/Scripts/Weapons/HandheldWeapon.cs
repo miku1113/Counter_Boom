@@ -43,9 +43,11 @@ public class HandheldWeapon : MonoBehaviour
     public int burstCount = 3;
     public float burstShotInterval = 0.1f;
 
-    [Header("Audio Clips")]
+    [Header("Audio Settings")]
     public AudioClip shootSound;
     public AudioClip reloadSound;
+    [Tooltip("If enabled, continuously loops the shootSound clip on AudioSource while holding automatic fire, and stops on release. If disabled (default), triggers the single gunshot sound per bullet in exact synchronization with fireRate and burst.")]
+    public bool loopSoundOnAutoFire = false;
 
     [Header("Visual Feedback")]
     public float shakeAmount = 0.05f;
@@ -64,6 +66,7 @@ public class HandheldWeapon : MonoBehaviour
     private bool isReloading = false;
     private float lastFireTime;
     private bool isFiring = false;
+    private AudioSource audioSource;
 
     // Events
     public System.Action<int, int> OnAmmoChanged;
@@ -74,6 +77,24 @@ public class HandheldWeapon : MonoBehaviour
     private void Awake()
     {
         ammoInMag = maxAmmo;
+        EnsureAudioSource();
+    }
+
+    private void EnsureAudioSource()
+    {
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0.25f; // Crisp 2D punch with subtle spatial presence
+            audioSource.minDistance = 5f;
+            audioSource.maxDistance = 25f;
+            audioSource.rolloffMode = AudioRolloffMode.Linear;
+        }
     }
 
     private void OnEnable()
@@ -118,10 +139,19 @@ public class HandheldWeapon : MonoBehaviour
     public void StopFiring()
     {
         isFiring = false;
+        StopLoopingAudio();
+    }
+
+    private void OnDisable()
+    {
+        isFiring = false;
+        StopLoopingAudio();
     }
 
     public void Reload()
     {
+        if (isFiring) StopFiring();
+
         if (!isReloading && ammoInMag < maxAmmo)
         {
             StartCoroutine(ReloadRoutine());
@@ -130,7 +160,14 @@ public class HandheldWeapon : MonoBehaviour
 
     private void TryFire()
     {
-        if (isReloading || ammoInMag <= 0 || Time.time - lastFireTime < fireRate) return;
+        if (isReloading || ammoInMag <= 0 || Time.time - lastFireTime < fireRate)
+        {
+            if (ammoInMag <= 0 && isFiring)
+            {
+                StopLoopingAudio();
+            }
+            return;
+        }
 
         lastFireTime = Time.time;
         Shoot();
@@ -148,7 +185,11 @@ public class HandheldWeapon : MonoBehaviour
     {
         for (int i = 0; i < burstCount; i++)
         {
-            if (ammoInMag <= 0 || isReloading) yield break; // Stop if out of ammo or reloading started
+            if (ammoInMag <= 0 || isReloading)
+            {
+                StopLoopingAudio();
+                yield break; // Stop if out of ammo or reloading started
+            }
             
             Shoot();
             
@@ -211,6 +252,12 @@ public class HandheldWeapon : MonoBehaviour
              Vector3 muzzlePos = (firePoint != null) ? firePoint.position : position;
              ProceduralEffectsGenerator.CreateMuzzleFlashAndSmoke(muzzlePos, direction, firePoint);
 
+             // Eject realistic brass shell casing from weapon receiver/chamber
+             Vector3 casingPos = (firePoint != null) 
+                 ? Vector3.Lerp(transform.position, firePoint.position, 0.32f) 
+                 : position;
+             ProceduralEffectsGenerator.CreateShellCasing(casingPos, direction);
+
              // Optional custom fire effect prefab
              if (fireEffectPrefab != null && firePoint != null)
              {
@@ -218,11 +265,47 @@ public class HandheldWeapon : MonoBehaviour
                  Destroy(effect, fireEffectLifetime);
              }
 
-             // Play Weapon Shoot Sound at fire position in 3D space
-             if (shootSound != null)
-             {
-                 AudioSource.PlayClipAtPoint(shootSound, position, 1.0f);
-             }
+             // Play Weapon Shoot Sound (synchronized 1 sound per bullet in single, 3 in burst, continuous on auto)
+             PlayShootSound(position);
+        }
+    }
+
+    public void PlayShootSound(Vector3 worldPos)
+    {
+        if (shootSound == null) return;
+
+        EnsureAudioSource();
+
+        if (loopSoundOnAutoFire && isFiring && fireMode == FireMode.Automatic)
+        {
+            if (audioSource != null && (!audioSource.isPlaying || !audioSource.loop))
+            {
+                audioSource.clip = shootSound;
+                audioSource.loop = true;
+                audioSource.pitch = 1.0f;
+                audioSource.Play();
+            }
+        }
+        else
+        {
+            if (audioSource != null)
+            {
+                audioSource.pitch = Random.Range(0.97f, 1.03f);
+                audioSource.PlayOneShot(shootSound, 1.0f);
+            }
+            else
+            {
+                AudioSource.PlayClipAtPoint(shootSound, worldPos, 1.0f);
+            }
+        }
+    }
+
+    public void StopLoopingAudio()
+    {
+        if (audioSource != null && audioSource.isPlaying && audioSource.loop)
+        {
+            audioSource.loop = false;
+            audioSource.Stop();
         }
     }
 

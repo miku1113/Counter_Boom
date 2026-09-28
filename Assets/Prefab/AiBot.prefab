@@ -1125,6 +1125,7 @@ MonoBehaviour:
   grenadeThrowClip: {fileID: 8300000, guid: 5478d2654e3a249e3b6088b1bc297540, type: 3}
   defaultPickupClip: {fileID: 8300000, guid: 95fe6f6259628410e8f26b6e80c5236a, type: 3}
   defaultDropClip: {fileID: 8300000, guid: 5478d2654e3a249e3b6088b1bc297540, type: 3}
+  movementDust: {fileID: 0}
   ghostSprite: {fileID: 21300006, guid: e48ddf4fb7304ce4ab48711eb6617a57, type: 3}
   floatSpeed: 3
   floatAmplitude: 0.12

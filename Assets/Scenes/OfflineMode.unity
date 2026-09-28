@@ -169,6 +169,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &626393
@@ -429,6 +430,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &3955509
@@ -4435,6 +4437,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &73768321
@@ -5248,6 +5251,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &82683668
@@ -6918,6 +6922,16 @@ MonoBehaviour:
   shakeCountText: {fileID: 0}
   bagButton: {fileID: 1173615175}
   joinCodeHUDText: {fileID: 1669413394}
+  customLobbyPanel: {fileID: 0}
+  toggleLobbyPanelButton: {fileID: 0}
+  closeLobbyPanelButton: {fileID: 0}
+  copyRoomCodeButton: {fileID: 0}
+  startMatchButton: {fileID: 0}
+  leaveLobbyButton: {fileID: 0}
+  roomIDText: {fileID: 0}
+  playerCountText: {fileID: 0}
+  playerListContainer: {fileID: 0}
+  playerListCardPrefab: {fileID: 0}
   migrationOverlayPanel: {fileID: 305163432}
   migrationStatusText: {fileID: 1922753791}
   spectatorPanel: {fileID: 0}
@@ -7430,6 +7444,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &112894584
@@ -8028,6 +8043,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &126296647
@@ -8199,6 +8215,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &129105359
@@ -9194,6 +9211,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &144727815
@@ -9370,6 +9388,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &148119074
@@ -9990,6 +10009,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &154182901
@@ -10372,6 +10392,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &159023361
@@ -12099,6 +12120,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &185426721
@@ -12438,6 +12460,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &193929627
@@ -13363,6 +13386,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &203825349
@@ -13534,6 +13558,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &205568903
@@ -15101,6 +15126,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &234878620
@@ -15515,6 +15541,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &245324431
@@ -15770,6 +15797,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &250438140
@@ -15941,6 +15969,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &250944437
@@ -16364,6 +16393,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &257492203
@@ -19625,6 +19655,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &311919728
@@ -19803,6 +19834,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &313138358
@@ -21792,6 +21824,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &337642182
@@ -21886,6 +21919,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &337794193
@@ -23991,6 +24025,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &371854025
@@ -24730,6 +24765,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &379656615
@@ -25223,6 +25259,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &386061816
@@ -27323,6 +27360,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &426739167
@@ -27669,6 +27707,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &437246333
@@ -27847,6 +27886,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &437608770
@@ -28935,6 +28975,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &460422722
@@ -29344,6 +29385,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &468367818
@@ -29914,6 +29956,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &481729684
@@ -30496,6 +30539,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &487295852
@@ -30674,6 +30718,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &487477534
@@ -31514,6 +31559,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &500232305
@@ -32184,6 +32230,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &509215966
@@ -32534,6 +32581,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &511756467
@@ -33513,6 +33561,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &523437224
@@ -33691,6 +33740,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &535740651
@@ -35019,6 +35069,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &561342005
@@ -36029,6 +36080,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &577466032
@@ -36200,6 +36252,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &578886658
@@ -36902,6 +36955,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &591225691
@@ -37902,6 +37956,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &620633598
@@ -37996,6 +38051,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &621590188
@@ -38340,6 +38396,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &623749154
@@ -39793,6 +39850,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &639861211
@@ -40861,6 +40919,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &662485766
@@ -41527,6 +41586,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &667407436
@@ -41621,6 +41681,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &668407273
@@ -41921,6 +41982,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &677722789
@@ -42603,6 +42665,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &685527233
@@ -42774,6 +42837,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &687070515
@@ -43395,6 +43459,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &699890211
@@ -43893,6 +43958,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &704851429
@@ -44232,6 +44298,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &706682154
@@ -44485,6 +44552,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &713443763
@@ -44738,6 +44806,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &718149944
@@ -45231,6 +45300,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &726334024
@@ -45729,6 +45799,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &730576798
@@ -45984,6 +46055,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &736235576
@@ -46638,6 +46710,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &747665504
@@ -50579,6 +50652,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &811792343
@@ -50673,6 +50747,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &811892843
@@ -51096,6 +51171,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &816727776
@@ -52260,6 +52336,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &830827028
@@ -52431,6 +52508,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &836049459
@@ -52924,6 +53002,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &840934875
@@ -53272,6 +53351,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &844663018
@@ -54142,6 +54222,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &855067458
@@ -54320,6 +54401,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &856478859
@@ -57400,6 +57482,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &906807739
@@ -58910,6 +58993,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &934221344
@@ -59883,6 +59967,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &948099356
@@ -60554,6 +60639,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &959319271
@@ -60809,6 +60895,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &970058813
@@ -61309,6 +61396,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &977674445
@@ -61595,6 +61683,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &985856490
@@ -62638,6 +62727,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &997204552
@@ -63284,6 +63374,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1009566401
@@ -63700,6 +63791,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1015054217
@@ -64693,6 +64785,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1034561612
@@ -64948,6 +65041,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1039173508
@@ -66176,6 +66270,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1061420868
@@ -66998,6 +67093,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1070146938
@@ -68919,6 +69015,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1101844625
@@ -69508,6 +69605,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1114839647
@@ -71537,6 +71635,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1139996245
@@ -73016,6 +73115,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1161726195
@@ -73435,6 +73535,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1163388457
@@ -73611,6 +73712,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1164064892
@@ -75914,6 +76016,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1211747993
@@ -77080,6 +77183,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1229532676
@@ -77426,6 +77530,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1236169076
@@ -78775,6 +78880,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1255592176
@@ -78946,6 +79052,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1257183095
@@ -80248,7 +80355,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0.0000132016285}
+  m_AnchoredPosition: {x: 0, y: 0.00000015316081}
   m_SizeDelta: {x: 0, y: 300}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &1286403171
@@ -83043,6 +83150,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1330231027
@@ -83221,6 +83329,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1332264789
@@ -83660,6 +83769,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1340431208
@@ -84084,6 +84194,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1351878173
@@ -84178,6 +84289,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1352603923
@@ -84601,6 +84713,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1357931419
@@ -84933,6 +85046,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1360810438
@@ -85027,6 +85141,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1362351041
@@ -85684,6 +85799,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1373365595
@@ -88045,6 +88161,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1421887326
@@ -89299,6 +89416,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1442753364
@@ -90850,6 +90968,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1484245874
@@ -90983,6 +91102,8 @@ MonoBehaviour:
   grenadeIcon: {fileID: 1985928892, guid: aad7f024f033a41e2b6a8074323b7de2, type: 3}
   medikitIcon: {fileID: 0}
   proteinShakeIcon: {fileID: 0}
+  keyIcon: {fileID: 0}
+  safeKeyIcon: {fileID: 0}
 --- !u!114 &1484456671
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -91232,6 +91353,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1486553718
@@ -91326,6 +91448,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1487955990
@@ -92075,6 +92198,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1503519745
@@ -92169,6 +92293,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1503967277
@@ -92345,6 +92470,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1504489977
@@ -93104,6 +93230,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1513271911
@@ -93198,6 +93325,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1516749225
@@ -94974,6 +95102,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1552864467
@@ -95152,6 +95281,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1554735550
@@ -95246,6 +95376,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1556035055
@@ -95340,6 +95471,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1558597714
@@ -96317,6 +96449,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1572820466
@@ -96572,6 +96705,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1582338302
@@ -96750,6 +96884,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1583561362
@@ -98529,6 +98664,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1622333741
@@ -98623,6 +98759,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1623134846
@@ -98921,6 +99058,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1626925533
@@ -99344,6 +99482,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1634731886
@@ -100075,6 +100214,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1649145747
@@ -101974,6 +102114,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1674916806
@@ -104114,6 +104255,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1695273965
@@ -104362,6 +104504,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1700558776
@@ -106765,6 +106908,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1744199668
@@ -107902,6 +108046,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 1
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1758731207
@@ -108821,6 +108966,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1775368490
@@ -110271,6 +110417,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1803568185
@@ -110519,6 +110666,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1808420687
@@ -111013,6 +111161,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &1813283184
@@ -112309,6 +112458,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1828167555
@@ -114084,6 +114234,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1841612501
@@ -114245,7 +114396,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 1146220031}
   m_Direction: 2
   m_Value: 0
-  m_Size: 0.68619245
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -114412,6 +114563,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1847713901
@@ -114506,6 +114658,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1852494287
@@ -114934,6 +115087,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1864430955
@@ -117319,6 +117473,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1901717035
@@ -117574,6 +117729,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1907182598
@@ -117668,6 +117824,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1907562629
@@ -118524,6 +118681,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1928280818
@@ -118618,6 +118776,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &1928326751
@@ -118950,6 +119109,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &1932917120
@@ -119364,6 +119524,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 101
 --- !u!61 &1937889665
@@ -119624,6 +119785,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 105
 --- !u!61 &1941664749
@@ -119879,6 +120041,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &1943302105
@@ -123409,6 +123572,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 103
 --- !u!61 &1995603378
@@ -123875,6 +124039,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &2007184687
@@ -126156,6 +126321,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &2056679567
@@ -126572,6 +126738,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 0
   roomId: 
 --- !u!61 &2068678826
@@ -127399,6 +127566,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &2085186388
@@ -128175,6 +128343,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 104
 --- !u!61 &2101244657
@@ -128673,6 +128842,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 106
 --- !u!61 &2110737285
@@ -129096,6 +129266,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   zoneCollider: {fileID: 0}
   isGroundFloor: 0
+  floorColor: {r: 0, g: 0, b: 0, a: 0}
   isRoom: 1
   roomId: 102
 --- !u!61 &2117200666

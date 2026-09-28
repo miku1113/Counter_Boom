@@ -59,6 +59,9 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private AudioClip defaultPickupClip;
     [SerializeField] private AudioClip defaultDropClip;
 
+    [Header("Movement Dust Effects")]
+    [SerializeField] private PlayerMovementDust movementDust;
+
     [Header("Ghost Settings")]
     [Tooltip("Custom sprite assigned to player when in Ghost Mode")]
     [SerializeField] private Sprite ghostSprite;
@@ -1208,6 +1211,16 @@ public class PlayerController : NetworkBehaviour
             gameObject.AddComponent<PlayerEnergy>();
         }
 
+        // Ensure PlayerMovementDust exists for walking dust particles
+        if (movementDust == null)
+        {
+            movementDust = GetComponent<PlayerMovementDust>();
+            if (movementDust == null)
+            {
+                movementDust = gameObject.AddComponent<PlayerMovementDust>();
+            }
+        }
+
         Debug.Log($"[PlayerController] Initialized on {gameObject.name}");
         defaultMoveSpeed = moveSpeed;
         SetupAudio();
@@ -1295,19 +1308,10 @@ public class PlayerController : NetworkBehaviour
                 }
             }
         }
-        // 2. Check Photon PUN
+        // 2. Offline / Single Player mode
         else 
         {
-            var photonView = GetComponent<Photon.Pun.PhotonView>();
-            if (photonView != null)
-            {
-                if (photonView.IsMine) local = true;
-            }
-            // 3. No Networking (Offline / Single Player)
-            else
-            {
-                local = true;
-            }
+            local = true;
         }
 
         isLocalCached = true;
@@ -1676,6 +1680,24 @@ public class PlayerController : NetworkBehaviour
     /// </summary>
     public void Teleport(Vector3 newPosition)
     {
+        Vector3 oldPosition = transform.position;
+
+        // Visual teleport effects: Depart at old position, arrive at new position
+        ProceduralEffectsGenerator.CreateTeleportDepartEffect(oldPosition);
+        ProceduralEffectsGenerator.CreateTeleportArriveEffect(newPosition);
+
+        if (IsSpawned)
+        {
+            if (IsServer)
+            {
+                TeleportFxClientRpc(oldPosition, newPosition);
+            }
+            else
+            {
+                TeleportFxServerRpc(oldPosition, newPosition);
+            }
+        }
+
         transform.position = new Vector3(newPosition.x, newPosition.y, 0f);
         if (rb != null)
         {
@@ -1688,6 +1710,20 @@ public class PlayerController : NetworkBehaviour
         {
             CameraController.Instance.SetTarget(transform);
         }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    private void TeleportFxServerRpc(Vector3 fromPos, Vector3 toPos)
+    {
+        TeleportFxClientRpc(fromPos, toPos);
+    }
+
+    [ClientRpc]
+    private void TeleportFxClientRpc(Vector3 fromPos, Vector3 toPos)
+    {
+        if (IsOwner) return; // Local player already executed FX locally
+        ProceduralEffectsGenerator.CreateTeleportDepartEffect(fromPos);
+        ProceduralEffectsGenerator.CreateTeleportArriveEffect(toPos);
     }
 
     /// <summary>
@@ -2297,6 +2333,10 @@ public class PlayerController : NetworkBehaviour
             {
                 footstepAudioSource.Stop();
             }
+            if (movementDust != null)
+            {
+                movementDust.SetEmitting(false);
+            }
             return;
         }
 
@@ -2314,19 +2354,27 @@ public class PlayerController : NetworkBehaviour
             catch { }
 
             AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
-            bool isWalkState = stateInfo.IsName("Walk") || stateInfo.IsName("Walking") || stateInfo.IsName("Player_Walk") || stateInfo.IsName("Run");
+            bool isWalkState = stateInfo.IsName("walk") || stateInfo.IsName("Walk") || 
+                               stateInfo.IsName("walking") || stateInfo.IsName("Walking") || 
+                               stateInfo.IsName("Player_Walk") || stateInfo.IsName("run") || 
+                               stateInfo.IsName("Run");
 
             isWalkingAnim = animParam || isWalkState;
         }
         else
         {
-            isWalkingAnim = isMoving;
+            isWalkingAnim = isMoving || (moveInput.sqrMagnitude > 0.01f);
         }
 
-        // Must also have actual physics velocity or move input
-        bool isPhysicallyMoving = isMoving || (rb != null && rb.simulated && rb.velocity.magnitude > 0.08f);
+        // Must also have actual physics velocity, input, or movement flag
+        bool isPhysicallyMoving = isMoving || (moveInput.sqrMagnitude > 0.01f) || (rb != null && rb.simulated && rb.velocity.magnitude > 0.05f);
 
         bool isWalkingAnimationPlaying = isWalkingAnim && isPhysicallyMoving;
+
+        if (movementDust != null)
+        {
+            movementDust.SetEmitting(isWalkingAnimationPlaying);
+        }
 
         if (isWalkingAnimationPlaying && footstepClip != null)
         {

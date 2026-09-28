@@ -2353,21 +2353,14 @@ public class HUDManager : MonoBehaviour
             }
         }
 
-        // Load MainMenuScene (with fallbacks to MainMenu or scene index 0)
+        // Load MainMenuScene (with fallback to scene index 0)
         try
         {
             UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenuScene");
         }
         catch
         {
-            try
-            {
-                UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
-            }
-            catch
-            {
-                UnityEngine.SceneManagement.SceneManager.LoadScene(0);
-            }
+            UnityEngine.SceneManagement.SceneManager.LoadScene(0);
         }
     }
 

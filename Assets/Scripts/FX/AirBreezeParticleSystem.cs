@@ -45,14 +45,23 @@ public class AirBreezeParticleSystem : MonoBehaviour
 
         if (targetParticleSystem == null) return;
 
-        // Apply Material if assigned by user in Inspector
-        if (particleMaterial != null)
+        // Apply Material if assigned by user in Inspector, or fallback to clean unlit material
+        ParticleSystemRenderer psRenderer = targetParticleSystem.GetComponent<ParticleSystemRenderer>();
+        if (psRenderer != null)
         {
-            ParticleSystemRenderer psRenderer = targetParticleSystem.GetComponent<ParticleSystemRenderer>();
-            if (psRenderer != null)
+            if (particleMaterial != null)
             {
                 psRenderer.sharedMaterial = particleMaterial;
             }
+            else if (psRenderer.sharedMaterial == null || psRenderer.sharedMaterial.name.StartsWith("Default-Particle"))
+            {
+                Material unlitMat = ProceduralEffectsGenerator.GetUnlitMaterial();
+                if (unlitMat != null)
+                {
+                    psRenderer.sharedMaterial = unlitMat;
+                }
+            }
+            psRenderer.sortingLayerName = "player";
         }
 
         // Apply Velocity Flow Direction if Velocity Over Lifetime is enabled

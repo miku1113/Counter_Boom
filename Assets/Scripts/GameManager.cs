@@ -692,17 +692,13 @@ public class GameManager : MonoBehaviour
 
     /// <summary>
     /// Returns true if this instance is allowed to spawn authoritative game objects.
-    /// Supports Photon PUN, Unity NGO, and offline (single-player) modes.
+    /// Supports Unity NGO and offline (single-player) modes.
     /// </summary>
     private bool IsServerAuthority()
     {
         // Unity Netcode for GameObjects
         if (Unity.Netcode.NetworkManager.Singleton != null)
             return Unity.Netcode.NetworkManager.Singleton.IsServer;
-
-        // Photon PUN2
-        if (Photon.Pun.PhotonNetwork.IsConnected)
-            return Photon.Pun.PhotonNetwork.IsMasterClient;
 
         // Offline / single-player — always authoritative
         return true;

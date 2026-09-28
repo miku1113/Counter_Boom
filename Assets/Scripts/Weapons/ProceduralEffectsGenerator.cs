@@ -10,9 +10,12 @@ public static class ProceduralEffectsGenerator
 
         int size = 64;
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
         Color[] pixels = new Color[size * size];
         Vector2 center = new Vector2(size / 2f, size / 2f);
         float radius = size / 2f;
+        Color transparentWhite = new Color(1f, 1f, 1f, 0f);
 
         for (int y = 0; y < size; y++)
         {
@@ -28,7 +31,7 @@ public static class ProceduralEffectsGenerator
                 }
                 else
                 {
-                    pixels[y * size + x] = Color.clear;
+                    pixels[y * size + x] = transparentWhite;
                 }
             }
         }
@@ -40,6 +43,132 @@ public static class ProceduralEffectsGenerator
         return softCircleSprite;
     }
 
+    private static Material sharedUnlitMaterial;
+
+    public static Material GetUnlitMaterial()
+    {
+        if (sharedUnlitMaterial == null)
+        {
+            // Sprites/Default is the standard unlit shader with SrcAlpha OneMinusSrcAlpha, Lighting Off, ZWrite Off.
+            // Eliminates any black opaque quad/box background in URP 2D.
+            Shader shader = Shader.Find("Sprites/Default")
+                         ?? Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default")
+                         ?? Shader.Find("Universal Render Pipeline/Particles/Unlit");
+
+            if (shader != null)
+            {
+                sharedUnlitMaterial = new Material(shader);
+                sharedUnlitMaterial.name = "FX_Unlit_Sprite_Material";
+                sharedUnlitMaterial.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            }
+        }
+        return sharedUnlitMaterial;
+    }
+
+    public static SpriteRenderer CreateFxSprite(GameObject go, Sprite sprite, Color color, int sortingOrder = 60)
+    {
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = sprite;
+        sr.color = color;
+        sr.sortingLayerName = "player"; // Below wall layer (wall is index 3, player is index 2)
+        sr.sortingOrder = sortingOrder;
+        Material mat = GetUnlitMaterial();
+        if (mat != null) sr.sharedMaterial = mat;
+        return sr;
+    }
+
+    private static Sprite starSparkleSprite;
+
+    public static Sprite GetStarSparkleSprite()
+    {
+        if (starSparkleSprite != null) return starSparkleSprite;
+
+        int size = 32;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        tex.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[size * size];
+        Vector2 center = new Vector2(size / 2f, size / 2f);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Abs(x - center.x) / (size / 2f);
+                float dy = Mathf.Abs(y - center.y) / (size / 2f);
+                float d = Mathf.Pow(dx, 0.5f) + Mathf.Pow(dy, 0.5f);
+                if (d < 1f)
+                {
+                    float a = Mathf.Pow(1f - d, 1.5f);
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, a);
+                }
+                else
+                {
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, 0f);
+                }
+            }
+        }
+
+        tex.SetPixels(pixels);
+        tex.Apply();
+        starSparkleSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+        return starSparkleSprite;
+    }
+
+    private static Sprite shellCasingSprite;
+
+    public static Sprite GetShellCasingSprite()
+    {
+        if (shellCasingSprite != null) return shellCasingSprite;
+
+        int w = 8, h = 4;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        tex.filterMode = FilterMode.Point;
+
+        Color brassRim = new Color(0.95f, 0.82f, 0.32f, 1f);
+        Color brassDark = new Color(0.55f, 0.38f, 0.08f, 1f);
+        Color brassBase = new Color(0.85f, 0.68f, 0.22f, 1f);
+        Color brassHighlight = new Color(1f, 0.94f, 0.55f, 1f);
+        Color interiorDark = new Color(0.30f, 0.18f, 0.05f, 1f);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (x == 0)
+                {
+                    // Primer / Rim
+                    tex.SetPixel(x, y, (y == 0 || y == h - 1) ? brassDark : brassRim);
+                }
+                else if (x == 1)
+                {
+                    // Extractor groove
+                    tex.SetPixel(x, y, brassDark);
+                }
+                else if (x == w - 1)
+                {
+                    // Open hollow neck
+                    tex.SetPixel(x, y, interiorDark);
+                }
+                else
+                {
+                    // Sleek polished brass cylinder with specular highlight
+                    if (y == 2)
+                        tex.SetPixel(x, y, brassHighlight);
+                    else if (y == 0)
+                        tex.SetPixel(x, y, brassDark);
+                    else
+                        tex.SetPixel(x, y, brassBase);
+                }
+            }
+        }
+
+        tex.Apply();
+        shellCasingSprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
+        return shellCasingSprite;
+    }
+
     private static Sprite realisticFireSprite;
 
     public static Sprite GetRealisticFireSprite()
@@ -48,6 +177,8 @@ public static class ProceduralEffectsGenerator
 
         int size = 64;
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
         Color[] pixels = new Color[size * size];
         Vector2 center = new Vector2(size / 2f, size / 2f);
         float maxRadius = size / 2f;
@@ -92,7 +223,7 @@ public static class ProceduralEffectsGenerator
                 }
                 else
                 {
-                    pixels[y * size + x] = Color.clear;
+                    pixels[y * size + x] = new Color(0.25f, 0.04f, 0.04f, 0f);
                 }
             }
         }
@@ -115,11 +246,7 @@ public static class ProceduralEffectsGenerator
         // 1. Central White-Hot Incandescent Core Flash
         GameObject coreObj = new GameObject("RedCoreFlash");
         coreObj.transform.SetParent(blastParent.transform, false);
-        SpriteRenderer coreSr = coreObj.AddComponent<SpriteRenderer>();
-        coreSr.sprite = GetRealisticFireSprite();
-        coreSr.color = new Color(1f, 0.96f, 0.75f, 1f); // White-yellow thermal core
-        coreSr.sortingLayerName = "explotion";
-        coreSr.sortingOrder = 1001;
+        CreateFxSprite(coreObj, GetRealisticFireSprite(), new Color(1f, 0.96f, 0.75f, 1f), 95);
         var coreAnim = coreObj.AddComponent<BlastEffectAnimator>();
         coreAnim.Animate(blastRadius * 1.5f, 0.18f);
 
@@ -132,9 +259,6 @@ public static class ProceduralEffectsGenerator
 
             Vector2 offset = Random.insideUnitCircle * (blastRadius * 0.35f);
             puff.transform.localPosition = new Vector3(offset.x, offset.y, 0f);
-
-            SpriteRenderer sr = puff.AddComponent<SpriteRenderer>();
-            sr.sprite = GetRealisticFireSprite();
 
             // Concentric Thermal Fire Gradient Layers:
             Color puffColor;
@@ -159,23 +283,17 @@ public static class ProceduralEffectsGenerator
                 puffColor = new Color(0.35f, 0.08f, 0.08f, 0.85f);
             }
 
-            sr.color = puffColor;
-            sr.sortingLayerName = "explotion";
-            sr.sortingOrder = 999 - i;
+            CreateFxSprite(puff, GetRealisticFireSprite(), puffColor, 90 - i);
 
             float puffScale = Random.Range(blastRadius * 1.5f, blastRadius * 2.3f);
             var puffAnim = puff.AddComponent<FirePuffAnimator>();
-            puffAnim.Animate(puffScale, Random.Range(0.45f, 0.70f), sr.color);
+            puffAnim.Animate(puffScale, Random.Range(0.45f, 0.70f), puffColor);
         }
 
         // 3. Neon Red Shockwave Ring (reduced by 30%)
         GameObject shockObj = new GameObject("RedShockwaveRing");
         shockObj.transform.SetParent(blastParent.transform, false);
-        SpriteRenderer shockSr = shockObj.AddComponent<SpriteRenderer>();
-        shockSr.sprite = GetSoftCircleSprite();
-        shockSr.color = new Color(1f, 0.1f, 0.25f, 0.85f); // Bright ruby red shockwave
-        shockSr.sortingLayerName = "explotion";
-        shockSr.sortingOrder = 998;
+        CreateFxSprite(shockObj, GetSoftCircleSprite(), new Color(1f, 0.1f, 0.25f, 0.85f), 88);
         var shockAnim = shockObj.AddComponent<BlastEffectAnimator>();
         shockAnim.Animate(blastRadius * 2.9f, 0.5f);
 
@@ -198,11 +316,8 @@ public static class ProceduralEffectsGenerator
             spark.transform.position = position;
             spark.transform.localScale = Vector3.one * Random.Range(0.18f, 0.38f);
 
-            SpriteRenderer sparkSr = spark.AddComponent<SpriteRenderer>();
-            sparkSr.sprite = GetSoftCircleSprite();
-            sparkSr.color = Random.value > 0.3f ? new Color(1f, 0.05f, 0.1f, 1f) : new Color(1f, 0.3f, 0.02f, 1f);
-            sparkSr.sortingLayerName = "explotion";
-            sparkSr.sortingOrder = 997;
+            Color sCol = Random.value > 0.3f ? new Color(1f, 0.05f, 0.1f, 1f) : new Color(1f, 0.3f, 0.02f, 1f);
+            CreateFxSprite(spark, GetSoftCircleSprite(), sCol, 92);
 
             Rigidbody2D rb = spark.AddComponent<Rigidbody2D>();
             rb.gravityScale = 0.8f;
@@ -229,11 +344,7 @@ public static class ProceduralEffectsGenerator
         GameObject blastObj = new GameObject("ProceduralStunBlast");
         blastObj.transform.position = position;
 
-        SpriteRenderer sr = blastObj.AddComponent<SpriteRenderer>();
-        sr.sprite = GetSoftCircleSprite();
-        sr.color = new Color(0.9f, 0.95f, 1f, 0.8f); // Bright blue-white flash
-        sr.sortingLayerName = "explotion"; // Topmost sorting layer — renders above all sprites
-        sr.sortingOrder = 999;
+        CreateFxSprite(blastObj, GetSoftCircleSprite(), new Color(0.9f, 0.95f, 1f, 0.85f), 92);
 
         var animator = blastObj.AddComponent<BlastEffectAnimator>();
         animator.Animate(radius, 0.35f);
@@ -286,6 +397,8 @@ public static class ProceduralEffectsGenerator
 
     // ─── Gun Muzzle Flash and Smoke ──────────────────────────────────────────
 
+    // ─── Gun Muzzle Flash and Smoke ──────────────────────────────────────────
+
     public static void CreateMuzzleFlashAndSmoke(Vector3 firePos, Vector2 direction, Transform parent = null)
     {
         GameObject root = new GameObject("ProceduralMuzzleFlash");
@@ -302,21 +415,13 @@ public static class ProceduralEffectsGenerator
         GameObject flashCore = new GameObject("FlashCore");
         flashCore.transform.SetParent(root.transform, false);
         flashCore.transform.localPosition = Vector3.zero;
-        var coreSr = flashCore.AddComponent<SpriteRenderer>();
-        coreSr.sprite = GetSoftCircleSprite();
-        coreSr.color = new Color(1f, 0.98f, 0.65f, 1f); // Bright yellow-white incandescent flash
-        coreSr.sortingLayerName = "explotion";
-        coreSr.sortingOrder = 1005;
+        CreateFxSprite(flashCore, GetSoftCircleSprite(), new Color(1f, 0.98f, 0.65f, 1f), 65);
 
         // 2. Outer Flash Halo
         GameObject flashHalo = new GameObject("FlashHalo");
         flashHalo.transform.SetParent(root.transform, false);
         flashHalo.transform.localPosition = (Vector3)(direction.normalized * 0.08f);
-        var haloSr = flashHalo.AddComponent<SpriteRenderer>();
-        haloSr.sprite = GetSoftCircleSprite();
-        haloSr.color = new Color(1f, 0.6f, 0.15f, 0.85f); // Fiery orange halo
-        haloSr.sortingLayerName = "explotion";
-        haloSr.sortingOrder = 1004;
+        CreateFxSprite(flashHalo, GetSoftCircleSprite(), new Color(1f, 0.6f, 0.15f, 0.85f), 64);
 
         var flashAnim = root.AddComponent<MuzzleFlashAnimator>();
         flashAnim.Animate(flashCore.transform, flashHalo.transform, 0.07f);
@@ -328,12 +433,8 @@ public static class ProceduralEffectsGenerator
             GameObject smoke = new GameObject($"GunSmoke_{i}");
             smoke.transform.position = firePos + (Vector3)(direction.normalized * (0.05f + i * 0.06f));
 
-            var smokeSr = smoke.AddComponent<SpriteRenderer>();
-            smokeSr.sprite = GetSoftCircleSprite();
             float grey = Random.Range(0.75f, 0.88f);
-            smokeSr.color = new Color(grey, grey, grey, Random.Range(0.45f, 0.65f));
-            smokeSr.sortingLayerName = "explotion";
-            smokeSr.sortingOrder = 1002 - i;
+            CreateFxSprite(smoke, GetSoftCircleSprite(), new Color(grey, grey, grey, Random.Range(0.45f, 0.65f)), 60 - i);
 
             Vector2 driftVelocity = direction.normalized * Random.Range(2.0f, 3.8f) + Random.insideUnitCircle * 0.6f;
             float startScale = Random.Range(0.12f, 0.18f);
@@ -363,22 +464,14 @@ public static class ProceduralEffectsGenerator
             // 1. Central Impact Flash
             GameObject flashObj = new GameObject("HitFlash");
             flashObj.transform.SetParent(hitRoot.transform, false);
-            var flashSr = flashObj.AddComponent<SpriteRenderer>();
-            flashSr.sprite = GetSoftCircleSprite();
-            flashSr.color = new Color(1f, 0.2f, 0.15f, 0.95f); // Crimson impact flash
-            flashSr.sortingLayerName = "explotion";
-            flashSr.sortingOrder = 1006;
+            CreateFxSprite(flashObj, GetSoftCircleSprite(), new Color(1f, 0.2f, 0.15f, 0.95f), 75);
             var flashAnim = flashObj.AddComponent<QuickScaleFadeAnimator>();
             flashAnim.Animate(0.42f, 0.09f, true);
 
             // 2. Expanding Impact Ring
             GameObject ringObj = new GameObject("HitRing");
             ringObj.transform.SetParent(hitRoot.transform, false);
-            var ringSr = ringObj.AddComponent<SpriteRenderer>();
-            ringSr.sprite = GetSoftCircleSprite();
-            ringSr.color = new Color(1f, 0.4f, 0.1f, 0.8f);
-            ringSr.sortingLayerName = "explotion";
-            ringSr.sortingOrder = 1004;
+            CreateFxSprite(ringObj, GetSoftCircleSprite(), new Color(1f, 0.4f, 0.1f, 0.8f), 74);
             var ringAnim = ringObj.AddComponent<QuickScaleFadeAnimator>();
             ringAnim.Animate(0.65f, 0.14f, false);
 
@@ -388,15 +481,12 @@ public static class ProceduralEffectsGenerator
             {
                 GameObject drop = new GameObject($"BloodDroplet_{i}");
                 drop.transform.position = hitPoint;
-                var dropSr = drop.AddComponent<SpriteRenderer>();
-                dropSr.sprite = GetSoftCircleSprite();
 
                 bool isSpark = Random.value > 0.4f;
-                dropSr.color = isSpark 
+                Color dropColor = isSpark 
                     ? new Color(1f, Random.Range(0.3f, 0.6f), 0.1f, 1f) 
                     : new Color(Random.Range(0.75f, 0.95f), 0.05f, 0.08f, 0.95f);
-                dropSr.sortingLayerName = "explotion";
-                dropSr.sortingOrder = 1005;
+                CreateFxSprite(drop, GetSoftCircleSprite(), dropColor, 76);
 
                 float spreadAngle = (normalAngle + Random.Range(-55f, 55f)) * Mathf.Deg2Rad;
                 Vector2 burstDir = new Vector2(Mathf.Cos(spreadAngle), Mathf.Sin(spreadAngle)) * Random.Range(3.5f, 8.0f);
@@ -415,22 +505,14 @@ public static class ProceduralEffectsGenerator
             // 1. Deflection Flash
             GameObject shieldFlash = new GameObject("ShieldFlash");
             shieldFlash.transform.SetParent(hitRoot.transform, false);
-            var flashSr = shieldFlash.AddComponent<SpriteRenderer>();
-            flashSr.sprite = GetSoftCircleSprite();
-            flashSr.color = new Color(0.15f, 0.88f, 1f, 0.95f); // Vivid electric cyan
-            flashSr.sortingLayerName = "explotion";
-            flashSr.sortingOrder = 1006;
+            CreateFxSprite(shieldFlash, GetSoftCircleSprite(), new Color(0.15f, 0.88f, 1f, 0.95f), 75);
             var flashAnim = shieldFlash.AddComponent<QuickScaleFadeAnimator>();
             flashAnim.Animate(0.48f, 0.11f, true);
 
             // 2. Deflection Wave Ring
             GameObject waveObj = new GameObject("ShieldWave");
             waveObj.transform.SetParent(hitRoot.transform, false);
-            var waveSr = waveObj.AddComponent<SpriteRenderer>();
-            waveSr.sprite = GetSoftCircleSprite();
-            waveSr.color = new Color(0.4f, 0.95f, 1f, 0.75f);
-            waveSr.sortingLayerName = "explotion";
-            waveSr.sortingOrder = 1004;
+            CreateFxSprite(waveObj, GetSoftCircleSprite(), new Color(0.4f, 0.95f, 1f, 0.75f), 74);
             var waveAnim = waveObj.AddComponent<QuickScaleFadeAnimator>();
             waveAnim.Animate(0.75f, 0.16f, false);
 
@@ -440,11 +522,7 @@ public static class ProceduralEffectsGenerator
             {
                 GameObject glint = new GameObject($"DeflectionGlint_{i}");
                 glint.transform.position = hitPoint;
-                var glintSr = glint.AddComponent<SpriteRenderer>();
-                glintSr.sprite = GetSoftCircleSprite();
-                glintSr.color = new Color(0.6f, 0.98f, 1f, 0.9f);
-                glintSr.sortingLayerName = "explotion";
-                glintSr.sortingOrder = 1005;
+                CreateFxSprite(glint, GetSoftCircleSprite(), new Color(0.6f, 0.98f, 1f, 0.9f), 76);
 
                 float spreadAngle = (normalAngle + Random.Range(-65f, 65f)) * Mathf.Deg2Rad;
                 Vector2 burstDir = new Vector2(Mathf.Cos(spreadAngle), Mathf.Sin(spreadAngle)) * Random.Range(2.5f, 5.5f);
@@ -460,9 +538,9 @@ public static class ProceduralEffectsGenerator
         Object.Destroy(hitRoot, 0.35f);
     }
 
-    // ─── Bullet Environment Surface Hit Effect ──────────────────────────────
+    // ─── Bullet Environment Surface Hit Effect (Sparks, Concrete Dust & Chips) ──
 
-    public static void CreateBulletSurfaceHitEffect(Vector3 hitPoint, Vector2 hitNormal)
+    public static void CreateBulletSurfaceHitEffect(Vector3 hitPoint, Vector2 hitNormal, string surfaceTag = "")
     {
         GameObject hitRoot = new GameObject("BulletSurfaceHitEffect");
         hitRoot.transform.position = hitPoint;
@@ -472,33 +550,326 @@ public static class ProceduralEffectsGenerator
         // 1. Surface Impact Flash
         GameObject flash = new GameObject("SurfaceFlash");
         flash.transform.SetParent(hitRoot.transform, false);
-        var flashSr = flash.AddComponent<SpriteRenderer>();
-        flashSr.sprite = GetSoftCircleSprite();
-        flashSr.color = new Color(1f, 0.85f, 0.4f, 0.9f);
-        flashSr.sortingLayerName = "explotion";
-        flashSr.sortingOrder = 1005;
+        CreateFxSprite(flash, GetSoftCircleSprite(), new Color(1f, 0.95f, 0.6f, 0.95f), 65);
         var flashAnim = flash.AddComponent<QuickScaleFadeAnimator>();
-        flashAnim.Animate(0.35f, 0.08f, true);
+        flashAnim.Animate(0.42f, 0.08f, true);
 
-        // 2. 4 Wall Ricochet Sparks & Dust
-        for (int i = 0; i < 4; i++)
+        // 2. Concrete / Wall Pulverized Dust Puffs (2-3 soft clouds drifting away from wall)
+        int dustCount = Random.Range(2, 4);
+        for (int i = 0; i < dustCount; i++)
+        {
+            GameObject dust = new GameObject($"WallDust_{i}");
+            dust.transform.position = hitPoint + (Vector3)(Random.insideUnitCircle * 0.06f);
+            float grey = Random.Range(0.70f, 0.85f);
+            CreateFxSprite(dust, GetSoftCircleSprite(), new Color(grey, grey * 0.95f, grey * 0.90f, Random.Range(0.40f, 0.60f)), 62);
+
+            float dustAngle = (normalAngle + Random.Range(-40f, 40f)) * Mathf.Deg2Rad;
+            Vector2 dustVel = new Vector2(Mathf.Cos(dustAngle), Mathf.Sin(dustAngle)) * Random.Range(1.2f, 2.8f);
+
+            var smokeAnim = dust.AddComponent<GunSmokeAnimator>();
+            smokeAnim.Animate(dustVel, Random.Range(0.12f, 0.18f), Random.Range(0.32f, 0.48f), Random.Range(0.25f, 0.40f));
+        }
+
+        // 3. 6-8 Glowing Ricochet Sparks (using diamond/star sprite)
+        int sparkCount = Random.Range(6, 9);
+        for (int i = 0; i < sparkCount; i++)
         {
             GameObject spark = new GameObject($"WallSpark_{i}");
             spark.transform.position = hitPoint;
-            var sparkSr = spark.AddComponent<SpriteRenderer>();
-            sparkSr.sprite = GetSoftCircleSprite();
-            sparkSr.color = new Color(1f, Random.Range(0.7f, 0.95f), 0.2f, 1f);
-            sparkSr.sortingLayerName = "explotion";
-            sparkSr.sortingOrder = 1004;
+            Color sparkColor = Random.value > 0.35f 
+                ? new Color(1f, Random.Range(0.85f, 1f), 0.35f, 1f) 
+                : new Color(1f, 0.55f, 0.1f, 1f);
+            CreateFxSprite(spark, GetStarSparkleSprite(), sparkColor, 66);
 
-            float angle = (normalAngle + Random.Range(-45f, 45f)) * Mathf.Deg2Rad;
-            Vector2 burstDir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(3.0f, 6.5f);
+            float angle = (normalAngle + Random.Range(-55f, 55f)) * Mathf.Deg2Rad;
+            Vector2 burstDir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(4.0f, 8.5f);
 
             var anim = spark.AddComponent<ImpactParticleAnimator>();
-            anim.Animate(burstDir, Random.Range(0.06f, 0.12f), Random.Range(0.12f, 0.22f));
+            anim.Animate(burstDir, Random.Range(0.10f, 0.18f), Random.Range(0.14f, 0.26f));
         }
 
-        Object.Destroy(hitRoot, 0.25f);
+        // 4. Wall Impact Chip Mark (settles on wall surface)
+        GameObject chip = new GameObject("WallChipMark");
+        chip.transform.position = hitPoint;
+        CreateFxSprite(chip, GetSoftCircleSprite(), new Color(0.18f, 0.18f, 0.20f, 0.75f), 20);
+        chip.transform.localScale = Vector3.one * Random.Range(0.08f, 0.14f);
+        Object.Destroy(chip, 4.0f);
+
+        Object.Destroy(hitRoot, 0.30f);
+    }
+
+    // ─── Brass Shell Casing Ejection ─────────────────────────────────────────
+
+    public static void CreateShellCasing(Vector3 ejectPos, Vector2 fireDir)
+    {
+        GameObject casing = new GameObject("ShellCasing");
+        casing.transform.position = ejectPos;
+        casing.transform.localScale = Vector3.one * 0.7f;
+
+        CreateFxSprite(casing, GetShellCasingSprite(), Color.white, 25);
+
+        // Eject perpendicular to firing direction with slight backward drift
+        Vector2 rightDir = new Vector2(fireDir.y, -fireDir.x).normalized;
+        Vector2 ejectVel = (rightDir * Random.Range(1.8f, 3.2f)) 
+                         - (fireDir.normalized * Random.Range(0.2f, 0.6f)) 
+                         + (Random.insideUnitCircle * 0.3f);
+        float spinSpeed = Random.Range(540f, 1080f) * (Random.value > 0.5f ? 1f : -1f);
+
+        var anim = casing.AddComponent<ShellCasingAnimator>();
+        anim.Animate(ejectVel, spinSpeed, 2.5f);
+    }
+
+    // ─── Melee Hit Impact Effect (Vibrant RED on Enemy, Dust on Wall) ─────────
+
+    public static void CreateMeleeHitEffect(Vector3 hitPoint, Vector2 punchDir, bool isEnemy)
+    {
+        GameObject root = new GameObject("MeleeHitImpactEffect");
+        root.transform.position = hitPoint;
+
+        float angle = Mathf.Atan2(punchDir.y, punchDir.x) * Mathf.Rad2Deg;
+
+        if (isEnemy)
+        {
+            // === ENEMY HIT: VIBRANT RED IMPACT ===
+            // 1. Central Red Impact Flash
+            GameObject flash = new GameObject("PunchRedFlash");
+            flash.transform.SetParent(root.transform, false);
+            CreateFxSprite(flash, GetSoftCircleSprite(), new Color(1f, 0.12f, 0.12f, 1f), 75);
+            var flashAnim = flash.AddComponent<QuickScaleFadeAnimator>();
+            flashAnim.Animate(0.58f, 0.11f, true);
+
+            // 2. Red Kinetic Shockwave Ring
+            GameObject ring = new GameObject("PunchRedRing");
+            ring.transform.SetParent(root.transform, false);
+            CreateFxSprite(ring, GetSoftCircleSprite(), new Color(1f, 0.35f, 0.1f, 0.85f), 74);
+            var ringAnim = ring.AddComponent<QuickScaleFadeAnimator>();
+            ringAnim.Animate(0.85f, 0.16f, false);
+
+            // 3. 6-8 Fiery Red & Amber Sparks bursting out in punch direction
+            int sparkCount = Random.Range(6, 9);
+            for (int i = 0; i < sparkCount; i++)
+            {
+                GameObject spark = new GameObject($"PunchRedSpark_{i}");
+                spark.transform.position = hitPoint;
+                Color sparkColor = Random.value > 0.4f ? new Color(1f, 0.1f, 0.15f, 1f) : new Color(1f, 0.6f, 0.1f, 1f);
+                CreateFxSprite(spark, GetStarSparkleSprite(), sparkColor, 76);
+
+                float spreadAngle = (angle + Random.Range(-50f, 50f)) * Mathf.Deg2Rad;
+                Vector2 burstDir = new Vector2(Mathf.Cos(spreadAngle), Mathf.Sin(spreadAngle)) * Random.Range(3.5f, 7.5f);
+
+                var anim = spark.AddComponent<ImpactParticleAnimator>();
+                anim.Animate(burstDir, Random.Range(0.12f, 0.20f), Random.Range(0.18f, 0.30f));
+            }
+        }
+        else
+        {
+            // === WALL / OBSTACLE PUNCH: Concrete dust & sparks ===
+            GameObject flash = new GameObject("PunchWallFlash");
+            flash.transform.SetParent(root.transform, false);
+            CreateFxSprite(flash, GetSoftCircleSprite(), new Color(1f, 0.95f, 0.7f, 0.85f), 75);
+            var flashAnim = flash.AddComponent<QuickScaleFadeAnimator>();
+            flashAnim.Animate(0.40f, 0.09f, true);
+
+            int dustCount = 2;
+            for (int i = 0; i < dustCount; i++)
+            {
+                GameObject dust = new GameObject($"PunchWallDust_{i}");
+                dust.transform.position = hitPoint + (Vector3)(Random.insideUnitCircle * 0.05f);
+                CreateFxSprite(dust, GetSoftCircleSprite(), new Color(0.75f, 0.75f, 0.75f, 0.5f), 72);
+                float dustAngle = (angle + 180f + Random.Range(-35f, 35f)) * Mathf.Deg2Rad;
+                Vector2 dustVel = new Vector2(Mathf.Cos(dustAngle), Mathf.Sin(dustAngle)) * Random.Range(1.2f, 2.5f);
+                var smokeAnim = dust.AddComponent<GunSmokeAnimator>();
+                smokeAnim.Animate(dustVel, 0.12f, 0.32f, 0.28f);
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                GameObject spark = new GameObject($"PunchWallSpark_{i}");
+                spark.transform.position = hitPoint;
+                CreateFxSprite(spark, GetStarSparkleSprite(), new Color(1f, 0.85f, 0.3f, 1f), 76);
+                float spAngle = (angle + 180f + Random.Range(-45f, 45f)) * Mathf.Deg2Rad;
+                Vector2 spDir = new Vector2(Mathf.Cos(spAngle), Mathf.Sin(spAngle)) * Random.Range(2.5f, 5.0f);
+                var anim = spark.AddComponent<ImpactParticleAnimator>();
+                anim.Animate(spDir, 0.09f, 0.20f);
+            }
+        }
+
+        Object.Destroy(root, 0.35f);
+    }
+
+    public static void CreateMeleePunchEffect(Vector3 punchPos, Vector2 punchDir)
+    {
+        CreateMeleeHitEffect(punchPos, punchDir, isEnemy: true);
+    }
+
+    // ─── Pickup Sparkle Burst (Keys, Medkits, Weapons) ──────────────────────
+
+    public static void CreatePickupSparkleBurst(Vector3 pos, Color sparkleColor)
+    {
+        GameObject burstRoot = new GameObject("PickupSparkleBurst");
+        burstRoot.transform.position = pos;
+
+        // 1. Radiant Glow Ring
+        GameObject ring = new GameObject("PickupRing");
+        ring.transform.SetParent(burstRoot.transform, false);
+        CreateFxSprite(ring, GetSoftCircleSprite(), new Color(sparkleColor.r, sparkleColor.g, sparkleColor.b, 0.85f), 70);
+        var ringAnim = ring.AddComponent<QuickScaleFadeAnimator>();
+        ringAnim.Animate(0.95f, 0.22f, false);
+
+        // 2. 8 Twinkling Star Sparkles flying outward in 360 degree circle
+        int count = 8;
+        for (int i = 0; i < count; i++)
+        {
+            GameObject star = new GameObject($"PickupStar_{i}");
+            star.transform.position = pos;
+            Color starCol = Color.Lerp(sparkleColor, Color.white, Random.Range(0.2f, 0.7f));
+            CreateFxSprite(star, GetStarSparkleSprite(), starCol, 72);
+
+            float rad = (i * (360f / count) + Random.Range(-15f, 15f)) * Mathf.Deg2Rad;
+            Vector2 dir = new Vector2(Mathf.Cos(rad), Mathf.Sin(rad)) * Random.Range(2.0f, 4.5f);
+
+            var anim = star.AddComponent<ImpactParticleAnimator>();
+            anim.Animate(dir, Random.Range(0.14f, 0.22f), Random.Range(0.25f, 0.45f));
+        }
+
+        Object.Destroy(burstRoot, 0.50f);
+    }
+
+    // ─── Safe Treasure Unlock Burst (Gold Celebration FX) ───────────────────
+
+    public static void CreateSafeUnlockBurst(Vector3 pos)
+    {
+        GameObject safeRoot = new GameObject("SafeUnlockBurst");
+        safeRoot.transform.position = pos;
+
+        // 1. Central Golden Flash
+        GameObject flash = new GameObject("SafeFlash");
+        flash.transform.SetParent(safeRoot.transform, false);
+        CreateFxSprite(flash, GetSoftCircleSprite(), new Color(1f, 0.92f, 0.5f, 0.95f), 74);
+        var flashAnim = flash.AddComponent<QuickScaleFadeAnimator>();
+        flashAnim.Animate(1.2f, 0.25f, true);
+
+        // 2. Expanding Golden Shockwave
+        GameObject ring = new GameObject("SafeRing");
+        ring.transform.SetParent(safeRoot.transform, false);
+        CreateFxSprite(ring, GetSoftCircleSprite(), new Color(1f, 0.82f, 0.15f, 0.85f), 73);
+        var ringAnim = ring.AddComponent<QuickScaleFadeAnimator>();
+        ringAnim.Animate(1.8f, 0.40f, false);
+
+        // 3. 16 Rising Golden Treasure Sparkles
+        for (int i = 0; i < 16; i++)
+        {
+            GameObject star = new GameObject($"SafeGoldStar_{i}");
+            star.transform.position = pos + (Vector3)(Random.insideUnitCircle * 0.2f);
+            Color starCol = Random.value > 0.3f ? new Color(1f, 0.85f, 0.2f, 1f) : new Color(1f, 0.98f, 0.65f, 1f);
+            CreateFxSprite(star, GetStarSparkleSprite(), starCol, 75);
+
+            float rad = Random.Range(30f, 150f) * Mathf.Deg2Rad;
+            Vector2 dir = new Vector2(Mathf.Cos(rad), Mathf.Sin(rad)) * Random.Range(2.5f, 5.5f);
+
+            var anim = star.AddComponent<ImpactParticleAnimator>();
+            anim.Animate(dir, Random.Range(0.14f, 0.24f), Random.Range(0.35f, 0.60f));
+        }
+
+        Object.Destroy(safeRoot, 0.70f);
+    }
+
+    // ─── Room Teleport Depart Effect (Warp Implosion at Exit / Door) ─────────
+
+    public static void CreateTeleportDepartEffect(Vector3 pos)
+    {
+        GameObject root = new GameObject("TeleportDepartFX");
+        root.transform.position = pos;
+
+        // 1. Imploding Energy Core (contracts to zero)
+        GameObject core = new GameObject("DepartCore");
+        core.transform.SetParent(root.transform, false);
+        CreateFxSprite(core, GetSoftCircleSprite(), new Color(0.2f, 0.90f, 1f, 0.95f), 72);
+        var coreAnim = core.AddComponent<QuickScaleFadeAnimator>();
+        coreAnim.Animate(0.95f, 0.22f, true);
+
+        // 2. Expanding Warp Shockwave Ring
+        GameObject ring = new GameObject("DepartRing");
+        ring.transform.SetParent(root.transform, false);
+        CreateFxSprite(ring, GetSoftCircleSprite(), new Color(0.15f, 0.65f, 1f, 0.80f), 70);
+        var ringAnim = ring.AddComponent<QuickScaleFadeAnimator>();
+        ringAnim.Animate(1.1f, 0.25f, false);
+
+        // 3. 8 Vanishing Warp Sparkles
+        int sparkCount = 8;
+        for (int i = 0; i < sparkCount; i++)
+        {
+            GameObject spark = new GameObject($"DepartSpark_{i}");
+            spark.transform.position = pos;
+            Color sparkCol = Random.value > 0.4f ? new Color(0.4f, 0.95f, 1f, 1f) : new Color(1f, 0.90f, 0.4f, 1f);
+            CreateFxSprite(spark, GetStarSparkleSprite(), sparkCol, 74);
+
+            float rad = (i * (360f / sparkCount) + Random.Range(-15f, 15f)) * Mathf.Deg2Rad;
+            Vector2 dir = new Vector2(Mathf.Cos(rad), Mathf.Sin(rad)) * Random.Range(2.5f, 5.0f);
+
+            var anim = spark.AddComponent<ImpactParticleAnimator>();
+            anim.Animate(dir, Random.Range(0.12f, 0.20f), Random.Range(0.20f, 0.35f));
+        }
+
+        // 4. Ground Dust Puff
+        GameObject dust = new GameObject("DepartDust");
+        dust.transform.position = pos;
+        CreateFxSprite(dust, GetSoftCircleSprite(), new Color(0.85f, 0.85f, 0.85f, 0.45f), 65);
+        var dustAnim = dust.AddComponent<GunSmokeAnimator>();
+        dustAnim.Animate(Vector2.zero, 0.2f, 0.55f, 0.30f);
+
+        Object.Destroy(root, 0.45f);
+    }
+
+    // ─── Room Teleport Arrival Effect (Radiant Materialization Burst) ────────
+
+    public static void CreateTeleportArriveEffect(Vector3 pos)
+    {
+        GameObject root = new GameObject("TeleportArriveFX");
+        root.transform.position = pos;
+
+        // 1. Central Arrival Flash
+        GameObject flash = new GameObject("ArriveFlash");
+        flash.transform.SetParent(root.transform, false);
+        CreateFxSprite(flash, GetSoftCircleSprite(), new Color(0.4f, 0.95f, 1f, 0.98f), 74);
+        var flashAnim = flash.AddComponent<QuickScaleFadeAnimator>();
+        flashAnim.Animate(0.85f, 0.16f, true);
+
+        // 2. Expanding Teleport Shockwave Ring
+        GameObject ring = new GameObject("ArriveRing");
+        ring.transform.SetParent(root.transform, false);
+        CreateFxSprite(ring, GetSoftCircleSprite(), new Color(0.2f, 0.80f, 1f, 0.85f), 72);
+        var ringAnim = ring.AddComponent<QuickScaleFadeAnimator>();
+        ringAnim.Animate(1.35f, 0.30f, false);
+
+        // 3. 10 Radiant Warp Sparkles Radiating Outward
+        int count = 10;
+        for (int i = 0; i < count; i++)
+        {
+            GameObject spark = new GameObject($"ArriveSpark_{i}");
+            spark.transform.position = pos;
+            Color sparkCol = Random.value > 0.35f ? new Color(0.3f, 0.95f, 1f, 1f) : new Color(1f, 0.92f, 0.5f, 1f);
+            CreateFxSprite(spark, GetStarSparkleSprite(), sparkCol, 75);
+
+            float rad = (i * (360f / count) + Random.Range(-12f, 12f)) * Mathf.Deg2Rad;
+            Vector2 dir = new Vector2(Mathf.Cos(rad), Mathf.Sin(rad)) * Random.Range(3.0f, 5.5f);
+
+            var anim = spark.AddComponent<ImpactParticleAnimator>();
+            anim.Animate(dir, Random.Range(0.14f, 0.22f), Random.Range(0.28f, 0.45f));
+        }
+
+        // 4. Ground Dust Shock Puff
+        for (int i = 0; i < 2; i++)
+        {
+            GameObject dust = new GameObject($"ArriveDust_{i}");
+            dust.transform.position = pos;
+            CreateFxSprite(dust, GetSoftCircleSprite(), new Color(0.85f, 0.85f, 0.85f, 0.40f), 65);
+            Vector2 drift = Random.insideUnitCircle.normalized * Random.Range(0.8f, 1.8f);
+            var dustAnim = dust.AddComponent<GunSmokeAnimator>();
+            dustAnim.Animate(drift, 0.15f, 0.48f, 0.35f);
+        }
+
+        Object.Destroy(root, 0.55f);
     }
 }
 
@@ -551,8 +922,8 @@ public class FirePuffAnimator : MonoBehaviour
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         if (sr != null)
         {
-            sr.sortingLayerName = "explotion";
-            sr.sortingOrder = 999;
+            sr.sortingLayerName = "player";
+            sr.sortingOrder = 90;
         }
 
         // Random organic rotation and slight non-uniform stretch
@@ -630,8 +1001,10 @@ public class SmokePuffAnimator : MonoBehaviour
             {
                 if (sr != null)
                 {
-                    sr.sortingLayerName = "explotion"; // Topmost sorting layer in this project
-                    sr.sortingOrder = 999;             // Above every other sprite (max used is 200)
+                    sr.sortingLayerName = "player"; // Below wall layer
+                    sr.sortingOrder = 85;
+                    Material mat = ProceduralEffectsGenerator.GetUnlitMaterial();
+                    if (mat != null) sr.sharedMaterial = mat;
                 }
             }
         }
@@ -811,6 +1184,66 @@ public class ImpactParticleAnimator : MonoBehaviour
             {
                 sr.color = new Color(startColor.r, startColor.g, startColor.b, Mathf.Lerp(startColor.a, 0f, t));
             }
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+}
+
+// ─── Shell Casing Physics Animator ──────────────────────────────────────────
+
+public class ShellCasingAnimator : MonoBehaviour
+{
+    public void Animate(Vector2 initialVel, float angularVel, float lifetime)
+    {
+        StartCoroutine(Routine(initialVel, angularVel, lifetime));
+    }
+
+    private System.Collections.IEnumerator Routine(Vector2 vel, float angularVel, float lifetime)
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        float elapsed = 0f;
+        float gravity = 11.5f;
+        Vector2 curVel = vel;
+        float rot = Random.Range(0f, 360f);
+
+        float floorY = transform.position.y - Random.Range(0.20f, 0.45f);
+        bool bounced = false;
+
+        while (elapsed < lifetime)
+        {
+            elapsed += Time.deltaTime;
+            float dt = Time.deltaTime;
+
+            if (transform.position.y > floorY || !bounced)
+            {
+                curVel.y -= gravity * dt;
+                transform.position += (Vector3)(curVel * dt);
+                rot += angularVel * dt;
+                transform.rotation = Quaternion.Euler(0, 0, rot);
+
+                if (transform.position.y <= floorY && !bounced)
+                {
+                    bounced = true;
+                    curVel = new Vector2(curVel.x * 0.45f, -curVel.y * 0.32f); // Micro ground bounce
+                    angularVel *= 0.35f;
+                }
+            }
+            else
+            {
+                curVel = Vector2.zero;
+            }
+
+            // Smooth fade out at end of life
+            if (elapsed > lifetime - 0.8f && sr != null)
+            {
+                float t = (elapsed - (lifetime - 0.8f)) / 0.8f;
+                Color c = sr.color;
+                c.a = Mathf.Lerp(1f, 0f, t);
+                sr.color = c;
+            }
+
             yield return null;
         }
 

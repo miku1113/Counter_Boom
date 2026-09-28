@@ -122,8 +122,10 @@ public class PlayerBodyExploder : MonoBehaviour
         SpriteRenderer sr = fxObj.AddComponent<SpriteRenderer>();
         sr.sprite = ProceduralEffectsGenerator.GetSoftCircleSprite();
         sr.color = new Color(0.85f, 0.05f, 0.05f, 0.9f); // Crimson blood red
-        sr.sortingLayerName = "explotion";
-        sr.sortingOrder = 999;
+        sr.sortingLayerName = "player";
+        sr.sortingOrder = 95;
+        Material unlitMat = ProceduralEffectsGenerator.GetUnlitMaterial();
+        if (unlitMat != null) sr.sharedMaterial = unlitMat;
 
         var animator = fxObj.AddComponent<BlastEffectAnimator>();
         animator.Animate(2.5f, 0.4f);
@@ -139,8 +141,9 @@ public class PlayerBodyExploder : MonoBehaviour
             SpriteRenderer dropSr = drop.AddComponent<SpriteRenderer>();
             dropSr.sprite = ProceduralEffectsGenerator.GetSoftCircleSprite();
             dropSr.color = new Color(0.75f, 0.02f, 0.02f, 0.85f);
-            dropSr.sortingLayerName = "explotion";
-            dropSr.sortingOrder = 998;
+            dropSr.sortingLayerName = "player";
+            dropSr.sortingOrder = 94;
+            if (unlitMat != null) dropSr.sharedMaterial = unlitMat;
 
             Rigidbody2D rb = drop.AddComponent<Rigidbody2D>();
             rb.gravityScale = 1.5f;

@@ -88,15 +88,7 @@ public class BagManager : NetworkBehaviour
             }
             else
             {
-                var photonView = GetComponent<Photon.Pun.PhotonView>();
-                if (photonView != null && Photon.Pun.PhotonNetwork.IsConnected)
-                {
-                    if (photonView.IsMine) isLocal = true;
-                }
-                else
-                {
-                    isLocal = true; // Offline fallback
-                }
+                isLocal = true; // Offline fallback
             }
         }
 

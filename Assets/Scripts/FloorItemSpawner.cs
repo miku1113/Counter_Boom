@@ -218,9 +218,6 @@ public class FloorItemSpawner : MonoBehaviour
         if (Unity.Netcode.NetworkManager.Singleton != null)
             return Unity.Netcode.NetworkManager.Singleton.IsServer;
 
-        if (Photon.Pun.PhotonNetwork.IsConnected)
-            return Photon.Pun.PhotonNetwork.IsMasterClient;
-
         return true;
     }
 
